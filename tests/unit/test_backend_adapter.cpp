@@ -1,4 +1,6 @@
 #include <iostream>
+#include <filesystem>
+#include <fstream>
 
 #include "prisminfer/backend.h"
 #include "prisminfer/backend_memory_observer.h"
@@ -88,9 +90,70 @@ int main() {
     config.backend = prisminfer::BackendKind::Llama;
     prisminfer::CappedAllocatorTracker allocator(config.hard_cap_bytes);
     const auto warmup = backend->warmup(config, allocator);
-    if (expect(!warmup.ok, "llama stub fails closed")) return 1;
-    if (expect(warmup.failure_reason == "llama_backend_not_implemented",
-               "llama stub reason")) {
+    if (expect(!warmup.ok, "llama backend requires executable")) return 1;
+    if (expect(warmup.failure_reason == "llama_executable_required",
+               "llama executable required reason")) {
+      return 1;
+    }
+    config.llama_executable_path =
+        std::filesystem::temp_directory_path() /
+        "definitely-missing-prisminfer-llama-cli";
+    config.model_path =
+        std::filesystem::temp_directory_path() / "prisminfer-test.gguf";
+    {
+      std::ofstream out(config.model_path, std::ios::out | std::ios::binary);
+      out << "GGUF";
+    }
+    const auto missing_executable = backend->warmup(config, allocator);
+    std::error_code remove_error;
+    std::filesystem::remove(config.model_path, remove_error);
+    if (expect(!missing_executable.ok,
+               "llama backend fails closed on missing executable")) {
+      return 1;
+    }
+    if (expect(missing_executable.failure_reason ==
+                   "llama_executable_not_found",
+               "llama missing executable reason")) {
+      return 1;
+    }
+    const auto script_path =
+        std::filesystem::temp_directory_path()
+#if defined(_WIN32)
+        / "prisminfer-llama-test.cmd";
+#else
+        / "prisminfer-llama-test.sh";
+#endif
+    {
+      std::ofstream script(script_path, std::ios::out | std::ios::trunc);
+#if defined(_WIN32)
+      script << "@echo off\n"
+             << "echo llama_kv_cache: size = 1.00 MiB\n"
+             << "echo llama_context: CPU compute buffer size = 2.00 MiB\n"
+             << "exit /b 0\n";
+#else
+      script << "#!/usr/bin/env sh\n"
+             << "echo 'llama_kv_cache: size = 1.00 MiB'\n"
+             << "echo 'llama_context: CPU compute buffer size = 2.00 MiB'\n";
+#endif
+    }
+#if !defined(_WIN32)
+    std::filesystem::permissions(
+        script_path, std::filesystem::perms::owner_exec,
+        std::filesystem::perm_options::add);
+#endif
+    config.run_id = "backend-adapter-test";
+    config.llama_executable_path = script_path;
+    {
+      std::ofstream out(config.model_path, std::ios::out | std::ios::binary);
+      out << "GGUF";
+    }
+    const auto scripted_warmup = backend->warmup(config, allocator);
+    std::filesystem::remove(config.model_path, remove_error);
+    std::filesystem::remove(script_path, remove_error);
+    if (expect(scripted_warmup.ok, "llama script warmup succeeds")) return 1;
+    if (expect(scripted_warmup.backend_external_peak_bytes ==
+                   3ULL * 1024ULL * 1024ULL,
+               "llama script allocation evidence parsed")) {
       return 1;
     }
 #else

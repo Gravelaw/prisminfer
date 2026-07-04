@@ -87,6 +87,9 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << "  \"dependency_pin_file\": \""
       << json_escape(inputs.config.dependency_pin_file.generic_string())
       << "\",\n"
+      << "  \"llama_executable\": \""
+      << json_escape(inputs.config.llama_executable_path.generic_string())
+      << "\",\n"
       << "  \"context_tokens\": " << inputs.config.context_tokens << ",\n"
       << "  \"gpu_layers\": " << inputs.config.gpu_layers << ",\n"
       << "  \"mmap_enabled\": "

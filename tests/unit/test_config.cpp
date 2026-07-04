@@ -35,8 +35,9 @@ int main() {
         "--parameter-count", "123456", "--vram-tier-gib", "2",
         "--validation-cell-id", "cell-1", "--validation-cell-status",
         "metadata-only", "--backend", "fake", "--backend-required",
-        "--dependency-pin-file", "pins.json", "--context-tokens", "2048",
-        "--gpu-layers", "4", "--mmap", "off", "--warmup-tokens", "8",
+        "--dependency-pin-file", "pins.json", "--llama-executable",
+        "llama-cli", "--context-tokens", "2048", "--gpu-layers", "4",
+        "--mmap", "off", "--warmup-tokens", "8",
         "--simulate-allocator-peak-bytes", "4096",
         "--simulate-process-gpu-peak-bytes", "4096",
         "--simulate-warmup-peak-bytes", "1024",
@@ -77,6 +78,8 @@ int main() {
     if (expect(parsed.config->backend_required, "backend required")) return 1;
     if (expect(parsed.config->dependency_pin_file == "pins.json",
                "explicit dependency pin file")) return 1;
+    if (expect(parsed.config->llama_executable_path == "llama-cli",
+               "explicit llama executable")) return 1;
     if (expect(parsed.config->context_tokens == 2048,
                "explicit context tokens")) return 1;
     if (expect(parsed.config->gpu_layers == 4, "explicit gpu layers")) {
