@@ -8,6 +8,30 @@ Default hard cap:
 1073741824 bytes
 ```
 
+Current maximum configurable GPU hard cap:
+
+```text
+17179869184 bytes
+```
+
+This is 16 GiB. Configs, manifests, schemas, and claims must not promote a
+GPU cap above this ceiling until a deliberate cap-policy change is made.
+
+For resident GPU admission, later phases must account for:
+
+```text
+peak_vram =
+  resident_weight_bytes
++ resident_kv_bytes
++ activation_workspace_bytes
++ cuda_context_runtime_bytes
++ allocator_fragmentation_bytes
++ telemetry_safety_margin_bytes
+```
+
+Certification is allowed only when `peak_vram <= hard_cap_bytes` and all
+required evidence sources for the claim label are present.
+
 Certification sources, in priority order:
 
 1. PrismInfer allocator tracker.

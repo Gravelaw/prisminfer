@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prisminfer.local/schemas/evidence_bundle.schema.json",
+  "title": "PrismInfer evidence bundle",
+  "type": "object",
+  "required": [
+    "bundle_version",
+    "claim_label",
+    "validation_cell_id",
+    "hard_vram_cap_bytes",
+    "manifest_paths",
+    "telemetry_paths",
+    "status"
+  ],
+  "properties": {
+    "bundle_version": { "const": "0.1-draft" },
+    "claim_label": {
+      "type": "string",
+      "enum": [
+        "metadata-only",
+        "simulated",
+        "measured-offload",
+        "validated-benchmark",
+        "deployable-profile",
+        "rejected"
+      ]
+    },
+    "validation_cell_id": { "type": "string", "minLength": 1 },
+    "model_parameter_bucket": { "type": "string" },
+    "parameter_count": { "type": "integer", "minimum": 0 },
+    "model_hash": { "type": "string" },
+    "quantization_format": { "type": "string" },
+    "quant_artifact_sha256": { "type": "string" },
+    "vram_tier_gib": { "type": "integer", "minimum": 1, "maximum": 16 },
+    "hard_vram_cap_bytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 17179869184
+    },
+    "manifest_paths": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "telemetry_paths": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "quality_result_path": { "type": "string" },
+    "profitability_result_path": { "type": "string" },
+    "repeatability_result_path": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "failed_closed", "rejected"]
+    },
+    "rejection_reason": { "type": "string" }
+  },
+  "additionalProperties": false
+}
+

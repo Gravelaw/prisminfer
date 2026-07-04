@@ -1,0 +1,231 @@
+# Research Roadmap: Constrained LLM Inference
+
+This roadmap defines how PrismInfer should move from Phase 0 telemetry to real
+low-VRAM inference research.
+
+## Research Question
+
+Can PrismInfer make large-model inference governed, measurable, fail-closed, and
+useful under constrained GPU memory by combining:
+
+- llama.cpp/GGML/GGUF compatibility,
+- hard-cap memory governance,
+- quantized weights,
+- quantized and paged KV cache,
+- CPU/GPU/NVMe offload,
+- strict lifecycle and manifest evidence,
+- task-level quality gates?
+
+## Non-Question
+
+The question is not whether dense 90B weights fully fit under the current
+16 GiB maximum GPU cap. They do not without an unproven compression/offload
+claim that must be separately validated.
+
+The 90B question is whether a hybrid/offload profile can be bounded, repeatable,
+and useful enough to earn a validated-benchmark or deployable-profile label.
+
+## Validation Envelope and Matrix
+
+The roadmap is governed by `docs/validation-matrix.md`.
+
+Current maximum GPU cap:
+
+```text
+16 GiB = 17179869184 bytes
+```
+
+Active VRAM tiers:
+
+```text
+1 GiB, 2 GiB, 4 GiB, 6 GiB, 8 GiB, 12 GiB, 16 GiB
+```
+
+Model buckets start at `<=2B`, then `>2B-5B`, then 5B-wide bands through
+`>85B-90B`.
+
+Every promoted result must bind to a validation cell containing exact model
+hash, quantization, context length, VRAM tier, backend, OS, hardware class, and
+claim status. No pass generalizes across buckets or tiers by analogy.
+
+The resident GPU admission check is:
+
+```text
+peak_vram =
+  resident_weight_bytes
++ resident_kv_bytes
++ activation_workspace_bytes
++ cuda_context_runtime_bytes
++ allocator_fragmentation_bytes
++ telemetry_safety_margin_bytes
+
+certify only if peak_vram <= hard_vram_cap_bytes
+```
+
+## Phase 1: Backend Governance
+
+Goal: make memory truthful for real llama.cpp-backed inference.
+
+Decision question:
+
+Can PrismInfer govern real backend allocation behavior, not only its own
+Phase 0 allocation tracker?
+
+Required work:
+
+- Enforce the current maximum cap policy of `17179869184` bytes.
+- Add validation-cell fields to config, telemetry, and manifests.
+- Add a backend adapter boundary.
+- Add `NullBackendAdapter` for current behavior.
+- Add fake backend tests for deterministic success/failure cases.
+- Pin llama.cpp/GGML/GGUF commits and model artifacts before real backend runs.
+- Introduce `LlamaBackendAdapter` behind an opt-in build flag.
+- Replace placeholder `backend_warmup` with real backend warmup evidence.
+- Emit backend lifecycle events and manifest fields.
+- Detect or bound hidden backend allocations.
+- Capture minimum host-memory and IO telemetry for real backend claims.
+- Capture minimal KV metadata/profile for backend warmup, while leaving detailed
+  KV ledger/compression work to Phase 2.
+
+Required evidence:
+
+- JSONL telemetry.
+- Benchmark manifest.
+- Lifecycle validator pass.
+- Validation cell id and status.
+- Dependency pin record.
+- Model hash and sidecar hash.
+- Backend warmup peak.
+- Host-memory and IO telemetry for real backend claims.
+- Cap certification or precise fail-closed reason.
+
+Exit claim:
+
+PrismInfer can govern a pinned llama.cpp-backed warmup/profile under the declared
+cap, or it fails closed.
+
+## Phase 2: KV Cache and Compression Research
+
+Goal: reduce runtime memory pressure without losing useful model behavior.
+
+Decision question:
+
+Can KV compression or placement reduce memory materially while preserving
+task-level quality?
+
+Research lanes:
+
+- KV block accounting inspired by PagedAttention.
+- KIVI/KVQuant-style asymmetric KV quantization.
+- PolarQuant/TurboQuant/QJL-style dot-product-preserving vector compression.
+- CPU KV offload and promotion.
+- Prefix reuse and cache isolation policy.
+
+Required measurements:
+
+- Validation cell id, model hash, quantization, context, backend, OS, and VRAM
+  tier.
+- KV bytes by layer, head, token, context length, and placement.
+- Payload bits and metadata bits per value.
+- Effective bits per value.
+- Attention-logit error distribution.
+- Attention top-k overlap.
+- Perplexity delta.
+- Needle retrieval accuracy.
+- Long-context task score deltas.
+- Time-to-first-token and tokens/sec.
+
+Exit claim:
+
+Specific compression or placement profiles are quality-gated and memory-gated
+for specific validation cells. A pass in one model bucket, VRAM tier, or
+hardware class does not promote another cell.
+
+## Phase 3: GPU and Offload Profitability
+
+Goal: determine when bounded GPU use is actually worth using.
+
+Decision question:
+
+Does GPU or CPU/NVMe offload improve end-to-end performance after transfer,
+warmup, context, and memory costs are counted?
+
+Required measurements:
+
+- CUDA context overhead.
+- Windows driver mode and TDR assumptions where applicable.
+- Host memory, pinned host memory, staging buffers, and IO telemetry.
+- H2D and D2H bytes per token.
+- NVMe bytes per token.
+- Page faults or residency proxy.
+- Copy wait time.
+- Kernel time versus transfer time.
+- CPU-only baseline.
+- GPU-probed baseline.
+- Cold-cache and warm-cache runs.
+
+Exit claim:
+
+GPU/offload mode is profitable only when it beats CPU-only by a declared margin
+on end-to-end metrics within the same validation cell while remaining
+cap-certified.
+
+## Phase 4: Large-Model and 90B Hybrid Validation
+
+Goal: move large-model profiles, including the terminal 90B bucket, from
+simulated to validated only if evidence supports it.
+
+Decision question:
+
+Can a large-model hybrid/offload profile produce useful tokens under a declared
+hardware, memory, context, latency, and <=16 GiB GPU-cap envelope?
+
+Required profile fields:
+
+- exact model id and model hash,
+- parameter count and validation bucket,
+- quantization format and artifact hash,
+- context length,
+- batch size,
+- GPU hardware and driver mode,
+- CPU RAM and NVMe profile,
+- max GPU cap,
+- validation cell id,
+- host memory peak,
+- IO bytes/token,
+- time-to-first-token,
+- sustained tokens/sec,
+- quality gate results,
+- failure artifacts for rejected runs.
+
+Exit claim:
+
+Only validated-benchmark or deployable-profile labels can imply real large-model
+or 90B inference. Simulated and measured-offload labels cannot.
+
+## Claim Taxonomy
+
+| Claim label | Evidence requirement |
+|---|---|
+| `proven` | Implemented, tested, and CI/local verified. |
+| `bounded` | Cap-governed with manifest-backed evidence but limited scope. |
+| `quality-gated` | Memory and task-quality gates both pass. |
+| `profitable` | Transfer-inclusive performance beats baseline. |
+| `simulated` | Planner or lower-bound result only. |
+| `measured-offload` | Real execution with offload evidence but not yet deployable. |
+| `rejected` | Evidence fails a declared gate. |
+
+## Tiered Validation Ladder
+
+The first targets after Phase 0 are representative cells, not broad model-size
+claims:
+
+1. `<=2B` under 1 GiB and 2 GiB caps: real backend warmup and decode smoke.
+2. `>2B-5B` under 1 GiB, 2 GiB, and 4 GiB caps: real backend warmup and decode
+   smoke.
+3. `>5B-10B` and `>10B-15B`: quality-gated constrained inference by exact
+   validation cell.
+4. Larger buckets through `>85B-90B`: simulated, measured-offload, validated, or
+   rejected according to retained evidence.
+
+No cell above 16 GiB is in scope for the current roadmap.

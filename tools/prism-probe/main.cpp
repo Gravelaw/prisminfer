@@ -3,11 +3,15 @@
 #include <vector>
 
 #include "prisminfer/allocator_tracker.h"
+#include "prisminfer/backend.h"
+#include "prisminfer/backend_memory_observer.h"
 #include "prisminfer/benchmark.h"
 #include "prisminfer/config.h"
 #include "prisminfer/cuda_context_probe.h"
 #include "prisminfer/errors.h"
+#include "prisminfer/host_memory_tracker.h"
 #include "prisminfer/memory_cap.h"
+#include "prisminfer/memory_ledger.h"
 #include "prisminfer/model_sidecar.h"
 #include "prisminfer/runtime_state.h"
 #include "prisminfer/telemetry.h"
@@ -73,8 +77,9 @@ int finish_probe(const prisminfer::RuntimeConfig& config,
                  const std::string& reason,
                  prisminfer::ExitCode exit_code) {
   std::string manifest_error;
+  const auto host = prisminfer::sample_host_telemetry();
   const prisminfer::ManifestInputs manifest{
-      config, sample, cuda, status, reason};
+      config, sample, host, cuda, status, reason};
   if (!prisminfer::write_probe_manifest(config.manifest_path, manifest,
                                         &manifest_error)) {
     std::cerr << manifest_error << "\n";
@@ -143,6 +148,30 @@ int main(int argc, char** argv) {
                         prisminfer::ExitCode::FailedClosed);
   }
 
+  const auto backend_plan = prisminfer::make_backend_plan(config);
+  telemetry.emit(prisminfer::event::BackendSelected, config,
+                 {{"backend", backend_plan.backend_name},
+                  {"backend_version", backend_plan.backend_version},
+                  {"backend_contract_version",
+                   prisminfer::kBackendContractVersion}});
+  if (config.backend == prisminfer::BackendKind::Llama &&
+      config.dependency_pin_file.empty()) {
+    const std::string reason = "dependency_pins_required";
+    telemetry.emit_memory_sample(config, sample, sample.telemetry_agreement);
+    telemetry.emit(prisminfer::event::FailedClosed, config,
+                   {{"failure_reason", reason}});
+    telemetry.emit(prisminfer::event::RunEnd, config,
+                   {{"status", "failed_closed"}});
+    return finish_probe(config, sample, cuda, "failed_closed", reason,
+                        prisminfer::ExitCode::FailedClosed);
+  }
+  telemetry.emit(prisminfer::event::DependencyPinsResolved, config,
+                 {{"dependency_pin_file",
+                   config.dependency_pin_file.generic_string()},
+                  {"required",
+                   config.backend == prisminfer::BackendKind::Llama ? "true"
+                                                                    : "false"}});
+
   if (prisminfer::gpu_requested(config.mode)) {
     cuda = prisminfer::probe_cuda_context();
     telemetry.emit(prisminfer::event::CudaContextProbe, config,
@@ -190,10 +219,79 @@ int main(int argc, char** argv) {
 
   telemetry.emit(prisminfer::event::CapSemanticsResolved, config);
   telemetry.emit(prisminfer::event::HostPrepare, config);
+  telemetry.emit(prisminfer::event::ModelLoadPlan, config,
+                 {{"backend", backend_plan.backend_name},
+                  {"model_path", backend_plan.model_path.generic_string()},
+                  {"context_tokens",
+                   std::to_string(backend_plan.requested_context_tokens)},
+                  {"gpu_layers", std::to_string(backend_plan.gpu_layers)},
+                  {"mmap_enabled",
+                   backend_plan.mmap_enabled ? "true" : "false"}});
+  auto backend = prisminfer::make_backend_adapter(config.backend);
+  if (backend == nullptr) {
+    const std::string reason =
+        config.backend == prisminfer::BackendKind::Llama
+            ? "llama_backend_not_compiled"
+            : "backend_adapter_unavailable";
+    telemetry.emit(prisminfer::event::BackendInit, config,
+                   {{"backend", backend_plan.backend_name},
+                    {"backend_version", backend_plan.backend_version},
+                    {"status", "failed"},
+                    {"failure_reason", reason}});
+    telemetry.emit(prisminfer::event::BackendWarmup, config,
+                   {{"status", "failed"},
+                    {"backend", backend_plan.backend_name},
+                    {"backend_owned_peak_bytes", "0"},
+                    {"backend_external_peak_bytes", "0"},
+                    {"retained_pool_bytes", "0"},
+                    {"evidence_status", "adapter_unavailable"},
+                    {"failure_reason", reason}});
+    telemetry.emit_memory_sample(config, sample, sample.telemetry_agreement);
+    telemetry.emit(prisminfer::event::FailedClosed, config,
+                   {{"failure_reason", reason}});
+    telemetry.emit(prisminfer::event::RunEnd, config,
+                   {{"status", "failed_closed"}});
+    return finish_probe(config, sample, cuda, "failed_closed", reason,
+                        prisminfer::ExitCode::FailedClosed);
+  }
+  telemetry.emit(prisminfer::event::BackendInit, config,
+                 {{"backend", backend->name()},
+                  {"backend_version", backend->version()}});
+  const auto warmup = backend->warmup(config, allocator);
+  if (warmup.memory_sample.allocator_peak_bytes > sample.allocator_peak_bytes) {
+    sample.allocator_bytes = warmup.memory_sample.allocator_bytes;
+    sample.allocator_peak_bytes = warmup.memory_sample.allocator_peak_bytes;
+  }
+  sample.retained_pool_bytes = warmup.retained_pool_bytes;
+  sample.unknown_post_warmup_bytes += warmup.backend_external_peak_bytes;
+  if (sample.warmup_peak_bytes < warmup.backend_owned_peak_bytes) {
+    sample.warmup_peak_bytes = warmup.backend_owned_peak_bytes;
+  }
+  const auto observation =
+      prisminfer::observe_backend_memory(allocator, warmup);
+  prisminfer::MemoryLedger ledger;
+  ledger.record_backend_observation(observation);
   telemetry.emit(prisminfer::event::BackendWarmup, config,
-                 {{"status", "placeholder"},
-                  {"llama_backend_attached", "false"},
-                  {"warmup_peak_bytes", std::to_string(sample.warmup_peak_bytes)}});
+                 {{"status", warmup.ok ? "ok" : "failed"},
+                  {"backend", backend->name()},
+                  {"backend_owned_peak_bytes",
+                   std::to_string(warmup.backend_owned_peak_bytes)},
+                  {"backend_external_peak_bytes",
+                   std::to_string(warmup.backend_external_peak_bytes)},
+                  {"retained_pool_bytes",
+                   std::to_string(warmup.retained_pool_bytes)},
+                  {"evidence_status", observation.evidence_status},
+                  {"failure_reason", warmup.failure_reason}});
+  if (!warmup.ok) {
+    telemetry.emit_memory_sample(config, sample, sample.telemetry_agreement);
+    telemetry.emit(prisminfer::event::FailedClosed, config,
+                   {{"failure_reason", warmup.failure_reason}});
+    telemetry.emit(prisminfer::event::RunEnd, config,
+                   {{"status", "failed_closed"}});
+    return finish_probe(config, sample, cuda, "failed_closed",
+                        warmup.failure_reason,
+                        prisminfer::ExitCode::FailedClosed);
+  }
   apply_simulated_breaches(config, &allocator, &sample);
   telemetry.emit_memory_sample(config, sample, sample.telemetry_agreement);
 

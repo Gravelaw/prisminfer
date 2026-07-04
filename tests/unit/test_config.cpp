@@ -31,7 +31,13 @@ int main() {
         "--telemetry", "out.jsonl", "--manifest", "manifest.json",
         "--run-id", "run-123", "--model", "model.gguf", "--sidecar",
         "model.gguf.prism.json", "--max-model-bytes", "8192",
-        "--max-sidecar-bytes", "512", "--simulate-allocator-peak-bytes", "4096",
+        "--max-sidecar-bytes", "512", "--model-parameter-bucket", "<=2B",
+        "--parameter-count", "123456", "--vram-tier-gib", "2",
+        "--validation-cell-id", "cell-1", "--validation-cell-status",
+        "metadata-only", "--backend", "fake", "--backend-required",
+        "--dependency-pin-file", "pins.json", "--context-tokens", "2048",
+        "--gpu-layers", "4", "--mmap", "off", "--warmup-tokens", "8",
+        "--simulate-allocator-peak-bytes", "4096",
         "--simulate-process-gpu-peak-bytes", "4096",
         "--simulate-warmup-peak-bytes", "1024",
         "--simulate-unknown-post-warmup-bytes", "1"};
@@ -56,6 +62,29 @@ int main() {
                "explicit model size limit")) return 1;
     if (expect(parsed.config->max_sidecar_bytes == 512,
                "explicit sidecar size limit")) return 1;
+    if (expect(parsed.config->model_parameter_bucket == "<=2B",
+               "explicit model parameter bucket")) return 1;
+    if (expect(parsed.config->parameter_count == 123456,
+               "explicit parameter count")) return 1;
+    if (expect(parsed.config->vram_tier_gib == 2,
+               "explicit vram tier")) return 1;
+    if (expect(parsed.config->validation_cell_id == "cell-1",
+               "explicit validation cell id")) return 1;
+    if (expect(parsed.config->validation_cell_status == "metadata-only",
+               "explicit validation cell status")) return 1;
+    if (expect(parsed.config->backend == prisminfer::BackendKind::Fake,
+               "explicit backend")) return 1;
+    if (expect(parsed.config->backend_required, "backend required")) return 1;
+    if (expect(parsed.config->dependency_pin_file == "pins.json",
+               "explicit dependency pin file")) return 1;
+    if (expect(parsed.config->context_tokens == 2048,
+               "explicit context tokens")) return 1;
+    if (expect(parsed.config->gpu_layers == 4, "explicit gpu layers")) {
+      return 1;
+    }
+    if (expect(!parsed.config->mmap_enabled, "explicit mmap off")) return 1;
+    if (expect(parsed.config->warmup_tokens == 8,
+               "explicit warmup tokens")) return 1;
     if (expect(parsed.config->simulate_allocator_peak_bytes == 4096,
                "explicit allocator simulation")) return 1;
     if (expect(parsed.config->simulate_process_gpu_peak_bytes == 4096,
@@ -70,6 +99,23 @@ int main() {
     if (expect(!parsed.config.has_value(), "invalid mode rejected")) return 1;
     if (expect(parsed.error.find("unsupported mode") != std::string::npos,
                "invalid mode error is specific")) return 1;
+  }
+  {
+    const auto parsed =
+        prisminfer::parse_args({"--hard-cap-bytes", "17179869185"});
+    if (expect(!parsed.config.has_value(), "cap above 16 GiB rejected")) {
+      return 1;
+    }
+    if (expect(parsed.error == "hard_cap_exceeds_max_gpu_cap",
+               "cap policy error is specific")) return 1;
+  }
+  {
+    const auto parsed = prisminfer::parse_args({"--vram-tier-gib", "32"});
+    if (expect(!parsed.config.has_value(), "tier above 16 GiB rejected")) {
+      return 1;
+    }
+    if (expect(parsed.error == "vram_tier_exceeds_max_gpu_cap",
+               "tier policy error is specific")) return 1;
   }
   return 0;
 }

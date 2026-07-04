@@ -6,6 +6,7 @@ project(PrismInfer
   LANGUAGES CXX)
 
 option(PRISMINFER_ENABLE_CUDA_PROBE "Enable CUDA-specific probing code" OFF)
+option(PRISMINFER_ENABLE_LLAMA_BACKEND "Enable the llama.cpp backend adapter surface" OFF)
 
 if(PRISMINFER_ENABLE_CUDA_PROBE)
   include(CheckLanguage)
@@ -35,8 +36,15 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_library(prisminfer_core
   src/config.cpp
   src/errors.cpp
+  src/backend/fake_backend.cpp
+  src/backend/llama_backend.cpp
+  src/backend/null_backend.cpp
   src/benchmark/manifest_writer.cpp
   src/governor/allocator_tracker.cpp
+  src/governor/backend_memory_observer.cpp
+  src/governor/gpu_cap_policy.cpp
+  src/governor/host_memory_tracker.cpp
+  src/governor/memory_ledger.cpp
   src/governor/memory_cap.cpp
   src/governor/cuda_context_probe.cpp
   src/validation/model_sidecar.cpp
@@ -52,10 +60,15 @@ target_compile_definitions(prisminfer_core
     PRISMINFER_CMAKE_VERSION="${CMAKE_VERSION}"
     PRISMINFER_VERSION="${PROJECT_VERSION}"
     PRISMINFER_BUILD_CONFIG="$<CONFIG>"
-    $<$<BOOL:${PRISMINFER_ENABLE_CUDA_PROBE}>:PRISMINFER_ENABLE_CUDA_PROBE=1>)
+    $<$<BOOL:${PRISMINFER_ENABLE_CUDA_PROBE}>:PRISMINFER_ENABLE_CUDA_PROBE=1>
+    $<$<BOOL:${PRISMINFER_ENABLE_LLAMA_BACKEND}>:PRISMINFER_ENABLE_LLAMA_BACKEND=1>)
 
 if(PRISMINFER_ENABLE_CUDA_PROBE)
   target_link_libraries(prisminfer_core PUBLIC CUDA::cudart ${PRISMINFER_NVML_LIBRARY})
+endif()
+
+if(WIN32)
+  target_link_libraries(prisminfer_core PUBLIC psapi)
 endif()
 
 if(MSVC)
@@ -99,3 +112,11 @@ add_test(NAME test_lifecycle_validator COMMAND test_lifecycle_validator)
 add_executable(test_model_sidecar tests/unit/test_model_sidecar.cpp)
 target_link_libraries(test_model_sidecar PRIVATE prisminfer_core)
 add_test(NAME test_model_sidecar COMMAND test_model_sidecar)
+
+add_executable(test_backend_adapter tests/unit/test_backend_adapter.cpp)
+target_link_libraries(test_backend_adapter PRIVATE prisminfer_core)
+add_test(NAME test_backend_adapter COMMAND test_backend_adapter)
+
+add_executable(test_host_memory_tracker tests/unit/test_host_memory_tracker.cpp)
+target_link_libraries(test_host_memory_tracker PRIVATE prisminfer_core)
+add_test(NAME test_host_memory_tracker COMMAND test_host_memory_tracker)

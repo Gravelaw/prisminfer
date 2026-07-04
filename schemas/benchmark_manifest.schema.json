@@ -10,11 +10,16 @@
     "tool",
     "mode",
     "hard_cap_bytes",
+    "model_parameter_bucket",
+    "parameter_count",
+    "vram_tier_gib",
+    "validation_cell_id",
+    "validation_cell_status",
     "telemetry_path",
     "status"
   ],
   "properties": {
-    "manifest_version": { "const": "0.1" },
+    "manifest_version": { "const": "0.2" },
     "run_id": { "type": "string", "minLength": 1 },
     "created_at_utc": { "type": "string", "minLength": 1 },
     "tool": { "type": "string", "minLength": 1 },
@@ -28,7 +33,40 @@
       "type": "string",
       "enum": ["1gb-safe-cpu", "1gb-safe-gpu-probed"]
     },
-    "hard_cap_bytes": { "type": "integer", "minimum": 1 },
+    "hard_cap_bytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 17179869184
+    },
+    "model_parameter_bucket": { "type": "string" },
+    "parameter_count": { "type": "integer", "minimum": 0 },
+    "vram_tier_gib": {
+      "type": "integer",
+      "enum": [1, 2, 4, 6, 8, 12, 16]
+    },
+    "validation_cell_id": { "type": "string" },
+    "validation_cell_status": {
+      "type": "string",
+      "enum": [
+        "not-started",
+        "metadata-only",
+        "warmup",
+        "decode-smoke",
+        "rejected"
+      ]
+    },
+    "backend": {
+      "type": "string",
+      "enum": ["null", "fake", "llama"]
+    },
+    "backend_adapter_contract_version": { "type": "string" },
+    "backend_required": { "type": "boolean" },
+    "dependency_pin_file": { "type": "string" },
+    "context_tokens": { "type": "integer", "minimum": 1 },
+    "gpu_layers": { "type": "integer", "minimum": 0 },
+    "mmap_enabled": { "type": "boolean" },
+    "warmup_tokens": { "type": "integer", "minimum": 1 },
+    "retained_pool_bytes": { "type": "integer", "minimum": 0 },
     "telemetry_path": { "type": "string", "minLength": 1 },
     "status": { "type": "string", "enum": ["ok", "failed_closed"] },
     "failure_reason": { "type": "string" },
@@ -42,6 +80,15 @@
     "process_gpu_peak_bytes": { "type": "integer", "minimum": 0 },
     "warmup_peak_bytes": { "type": "integer", "minimum": 0 },
     "unknown_post_warmup_bytes": { "type": "integer", "minimum": 0 },
+    "host_telemetry_available": { "type": "boolean" },
+    "host_telemetry_unavailable_reason": { "type": "string" },
+    "process_working_set_bytes": { "type": "integer", "minimum": 0 },
+    "process_private_bytes": { "type": "integer", "minimum": 0 },
+    "system_memory_available_bytes": { "type": "integer", "minimum": 0 },
+    "system_commit_total_bytes": { "type": "integer", "minimum": 0 },
+    "system_commit_limit_bytes": { "type": "integer", "minimum": 0 },
+    "process_io_read_bytes": { "type": "integer", "minimum": 0 },
+    "process_io_write_bytes": { "type": "integer", "minimum": 0 },
     "required_telemetry_present": { "type": "boolean" },
     "telemetry_agreement": { "type": "boolean" }
   },
