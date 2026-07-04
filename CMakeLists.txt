@@ -41,6 +41,7 @@ add_library(prisminfer_core
   src/backend/null_backend.cpp
   src/benchmark/manifest_writer.cpp
   src/benchmark/transfer_metrics.cpp
+  src/planner/hybrid_plan.cpp
   src/kv/kv_cache_ledger.cpp
   src/kv/kv_compression_policy.cpp
   src/quality/quality_gate.cpp
@@ -50,9 +51,12 @@ add_library(prisminfer_core
   src/governor/host_memory_tracker.cpp
   src/governor/memory_ledger.cpp
   src/governor/memory_cap.cpp
+  src/governor/claim_taxonomy.cpp
   src/governor/profitability_policy.cpp
+  src/governor/usability_policy.cpp
   src/offload/offload_planner.cpp
   src/governor/cuda_context_probe.cpp
+  src/validation/evidence_bundle.cpp
   src/validation/model_sidecar.cpp
   src/telemetry/telemetry_jsonl.cpp
   src/telemetry/telemetry_clock.cpp)
@@ -91,6 +95,12 @@ target_link_libraries(prism-validate-lifecycle PRIVATE prisminfer_core)
 
 add_executable(prism-quality tools/prism-quality/main.cpp)
 target_link_libraries(prism-quality PRIVATE prisminfer_core)
+
+add_executable(prism-plan-90b tools/prism-plan-90b/main.cpp)
+target_link_libraries(prism-plan-90b PRIVATE prisminfer_core)
+
+add_executable(prism-validate-claim tools/prism-validate-claim/main.cpp)
+target_link_libraries(prism-validate-claim PRIVATE prisminfer_core)
 
 enable_testing()
 
@@ -149,3 +159,19 @@ add_test(NAME test_profitability_policy COMMAND test_profitability_policy)
 add_executable(test_offload_planner tests/unit/test_offload_planner.cpp)
 target_link_libraries(test_offload_planner PRIVATE prisminfer_core)
 add_test(NAME test_offload_planner COMMAND test_offload_planner)
+
+add_executable(test_claim_taxonomy tests/unit/test_claim_taxonomy.cpp)
+target_link_libraries(test_claim_taxonomy PRIVATE prisminfer_core)
+add_test(NAME test_claim_taxonomy COMMAND test_claim_taxonomy)
+
+add_executable(test_hybrid_plan tests/unit/test_hybrid_plan.cpp)
+target_link_libraries(test_hybrid_plan PRIVATE prisminfer_core)
+add_test(NAME test_hybrid_plan COMMAND test_hybrid_plan)
+
+add_executable(test_usability_policy tests/unit/test_usability_policy.cpp)
+target_link_libraries(test_usability_policy PRIVATE prisminfer_core)
+add_test(NAME test_usability_policy COMMAND test_usability_policy)
+
+add_executable(test_evidence_bundle tests/unit/test_evidence_bundle.cpp)
+target_link_libraries(test_evidence_bundle PRIVATE prisminfer_core)
+add_test(NAME test_evidence_bundle COMMAND test_evidence_bundle)

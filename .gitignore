@@ -13,6 +13,8 @@ build-ninja/
 *-manifest.json
 prisminfer-manifest.json
 prisminfer-probe.jsonl
+phase4-90b-simulated-plan.json
+phase4-overclaim-rejected.json
 
 # Local editor and OS noise.
 .vscode/

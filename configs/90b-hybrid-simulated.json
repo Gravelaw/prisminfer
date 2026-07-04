@@ -1,11 +1,13 @@
 {
   "mode": "90b-hybrid-simulated",
   "claim_label": "simulated",
+  "model_id": "90b-hybrid-simulated",
   "model_parameter_bucket": ">85B-90B",
   "parameter_count": 90000000000,
   "hard_vram_cap_bytes": 17179869184,
   "validation_cell_id": "simulated-90b-under-16gib",
-  "deployable": false,
-  "evidence_boundary": "planner math only; not measured-offload, validated-benchmark, or deployable-profile"
+  "host_memory_budget_bytes": 137438953472,
+  "nvme_budget_bytes": 549755813888,
+  "deployable": false
 }
 

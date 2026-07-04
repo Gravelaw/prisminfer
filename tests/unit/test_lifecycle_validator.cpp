@@ -45,6 +45,11 @@ int main() {
         << "{\"event\":\"transfer_sample\"}\n"
         << "{\"event\":\"offload_sample\"}\n"
         << "{\"event\":\"profitability_result\"}\n"
+        << "{\"event\":\"hybrid_plan_created\"}\n"
+        << "{\"event\":\"claim_classified\"}\n"
+        << "{\"event\":\"usability_result\"}\n"
+        << "{\"event\":\"repeatability_result\"}\n"
+        << "{\"event\":\"claim_validation_result\"}\n"
         << "{\"event\":\"memory_sample\"}\n"
         << "{\"event\":\"cap_certification_result\"}\n"
         << "{\"event\":\"completed\"}\n"
@@ -157,6 +162,29 @@ int main() {
              "missing phase3 lifecycle rejected")) return 1;
   if (expect(error == "missing_phase3_profitability_lifecycle_event",
              "missing phase3 lifecycle reason set")) return 1;
+
+  {
+    std::ofstream out(path, std::ios::out | std::ios::trunc);
+    out << "{\"event\":\"run_start\"}\n"
+        << "{\"event\":\"config_validated\"}\n"
+        << "{\"event\":\"telemetry_probe\"}\n"
+        << "{\"event\":\"backend_selected\"}\n"
+        << "{\"event\":\"dependency_pins_resolved\"}\n"
+        << "{\"event\":\"cap_semantics_resolved\"}\n"
+        << "{\"event\":\"hybrid_plan_created\"}\n"
+        << "{\"event\":\"claim_classified\"}\n"
+        << "{\"event\":\"memory_sample\"}\n"
+        << "{\"event\":\"cap_certification_result\"}\n"
+        << "{\"event\":\"failed_closed\"}\n"
+        << "{\"event\":\"run_end\"}\n";
+  }
+
+  error.clear();
+  if (expect(!prisminfer::validate_phase0_lifecycle(path, &error),
+             "missing phase4 lifecycle rejected")) return 1;
+  if (expect(error == "missing_host_prepare" ||
+                 error == "missing_phase4_claim_lifecycle_event",
+             "missing phase4 lifecycle reason set")) return 1;
 
   {
     std::ofstream out(path, std::ios::out | std::ios::trunc);

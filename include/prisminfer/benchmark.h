@@ -5,7 +5,9 @@
 
 #include "prisminfer/config.h"
 #include "prisminfer/cuda_context_probe.h"
+#include "prisminfer/claim_taxonomy.h"
 #include "prisminfer/host_memory_tracker.h"
+#include "prisminfer/hybrid_plan.h"
 #include "prisminfer/kv_cache_ledger.h"
 #include "prisminfer/kv_compression_policy.h"
 #include "prisminfer/memory_cap.h"
@@ -13,6 +15,7 @@
 #include "prisminfer/profitability_policy.h"
 #include "prisminfer/quality_gate.h"
 #include "prisminfer/transfer_metrics.h"
+#include "prisminfer/usability_policy.h"
 
 namespace prisminfer {
 
@@ -28,6 +31,9 @@ struct ManifestInputs {
   OffloadPlan offload_plan;
   TransferSample transfer;
   ProfitabilityDecision profitability;
+  HybridPlanResult hybrid_plan;
+  UsabilityResult usability;
+  ClaimDecision claim;
   std::string status;
   std::string failure_reason;
 };
