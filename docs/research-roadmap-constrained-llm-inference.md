@@ -16,7 +16,10 @@ useful under constrained GPU memory by combining:
 - strict lifecycle and manifest evidence,
 - task-level quality gates,
 - one gated CUDA kernel prototype after same-cell baselines, 9B validation-cell
-  declaration, and allocation reconciliation?
+  declaration, and allocation reconciliation,
+- manifest-backed 9B evidence construction before any promoted kernel claim,
+- compression policies that account for effective bits, metadata overhead,
+  reconstruction workspace, and task quality before any constrained-VRAM claim?
 
 ## Non-Question
 
@@ -254,6 +257,73 @@ against same-cell llama.cpp/GGML/vendor baselines, and at least 10% faster on
 end-to-end decode for the declared cell. Otherwise the kernel lane remains
 research-only or is rejected.
 
+## Phase 6: 9B Evidence, Kernel Validation, and Compression Architecture
+
+Goal: convert the Phase 5 CUDA-kernel scaffold into retained, manifest-backed
+evidence for one exact 9B-class validation cell, then test bounded compression
+profiles under the same evidence rules.
+
+Decision question:
+
+Can PrismInfer validate one exact q4 GGUF 9B cell under the declared <=16 GiB
+cap, with the primary target at 8 GiB, using strict manifests, same-cell
+baselines, CUDA correctness evidence, compression-aware memory accounting,
+quality fixtures, and end-to-end decode measurements?
+
+Required work:
+
+- manifest-file ingestion for strict kernel benchmark manifests,
+- comparator separation between validation-cell identity and implementation
+  variant,
+- schema validation for the 9B kernel gate config,
+- compression manifest fields for algorithm family, scope, effective bits,
+  metadata overhead, residual/sketch policy, and reconstruction workspace,
+- compression-aware memory ledger fields for resident q4 weights, KV payload,
+  KV metadata, residual windows, rotations/projections, dequant workspace,
+  reconstruction workspace, retained pools, and unknown bytes,
+- self-hosted CUDA kernel workflow,
+- guarded CUDA launch correctness test,
+- exact selected GGUF q4 block-reference semantics,
+- offline KV compression evaluator for KIVI/KVQuant/QServe-style policies and
+  PolarQuant/TurboQuant/QJL reference experiments,
+- 9B quality fixture runner with deterministic prompts, retrieval/needle, and
+  long-context fixtures,
+- kernel benchmark runner that emits strict manifests,
+- retained CPU/no-custom and llama.cpp/GGML CUDA/MMQ baselines,
+- retained PrismInfer candidate kernel evidence,
+- result classification as `research-only`, `measured-non-certified`,
+  `quality-gated`, `validated-benchmark`, or `rejected`.
+
+Compression workflow:
+
+```text
+pinned 9B GGUF artifact
+  -> q4 resident weight plan
+  -> no full FP16 materialization gate
+  -> fused/tiled q4 dequant and decode GEMV
+  -> KV ledger
+  -> optional governed KV compression policy
+  -> reconstruct/dequant hot path
+  -> memory ledger sample
+  -> quality and performance gates
+  -> same-cell comparator classification
+```
+
+Compression policies are staged:
+
+1. q4 resident weights with no runtime compression novelty.
+2. KV accounting-only.
+3. KIVI/KVQuant/QServe-style KV compression.
+4. PolarQuant/TurboQuant/QJL offline/reference experiments.
+5. Hot-path PolarQuant/TurboQuant/QJL only after exact-cell quality and
+   overhead evidence exists.
+
+Exit claim:
+
+The 9B representative cell is either `validated-benchmark`, `quality-gated`,
+`measured-non-certified`, `rejected`, or remains `research-only`. A pass does
+not imply deployability and does not generalize to the whole `>5B-10B` bucket.
+
 ## Claim Taxonomy
 
 | Claim label | Evidence requirement |
@@ -289,5 +359,7 @@ claims:
 6. Compute kernel research: same-cell measured only, never generalized across
    model buckets, quantization formats, batch sizes, GPU architectures, or cap
    tiers by analogy.
+7. Phase 6 evidence construction: exact 9B cell artifacts and manifests must be
+   retained before any kernel performance claim is promoted.
 
 No cell above 16 GiB is in scope for the current roadmap.

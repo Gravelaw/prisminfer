@@ -1,4 +1,4 @@
-# Implementation Plan: Phase 1 Through Phase 5
+# Implementation Plan: Phase 1 Through Phase 6
 
 This plan turns the constrained-VRAM research roadmap into SDLC slices for the
 GitHub tracker.
@@ -22,22 +22,23 @@ Before Phase 1 implementation, update project tracking:
    - `Phase 3: Transfer-Inclusive Offload Profitability`
    - `Phase 4: Large-Model and 90B Hybrid/Offload Validation`
    - `Phase 5: Measured Compute Kernel Research`
+   - `Phase 6: 9B Evidence, Kernel Validation, and Compression Architecture`
 3. Add labels:
-   - `phase:1`, `phase:2`, `phase:3`, `phase:4`, `phase:5`
+   - `phase:1`, `phase:2`, `phase:3`, `phase:4`, `phase:5`, `phase:6`
    - `area:backend`, `area:gguf`, `area:llama.cpp`,
      `area:memory-ledger`, `area:kv-cache`, `area:quality`,
      `area:offload`, `area:profitability`, `area:claim-taxonomy`,
      `area:kernels`, `area:benchmark-comparator`
    - `gate:phase1-backend-evidence`, `gate:phase2-quality`,
      `gate:phase3-profitability`, `gate:phase4-validation`,
-     `gate:phase5-kernel-evidence`
+     `gate:phase5-kernel-evidence`, `gate:phase6-9b-evidence`
 4. Rename `PrismInfer Phase 0` to `PrismInfer Roadmap`, or create a new roadmap
    project if preserving the Phase 0 board matters.
 5. Extend project fields:
    - `Slice`: Backend Adapter, GGUF/GGML, Memory Ledger, KV Cache,
      Quality Gates, Offload, Profitability, Validation Matrix,
      Large-Model Validation, Claim Taxonomy, Kernel Evidence,
-     Benchmark Comparator.
+     Benchmark Comparator, 9B Evidence.
    - `Gate`: add the phase-specific gates above.
    - Optional `Claim Class`: Scaffold, Observed, Governed, Simulated,
      Validated, Rejected.
@@ -205,6 +206,38 @@ Placement of current compute ideas:
 - MoE active-parameter accounting: schema/accounting lane first; no MoE runtime
   in Phase 5.
 
+## Phase 6: 9B Evidence, Kernel Validation, and Compression Architecture
+
+Exit criterion:
+
+PrismInfer has retained manifest-backed evidence for one exact 9B-class q4 GGUF
+cell, or a precise rejection, with same-cell baselines, CUDA correctness,
+quality fixtures, compression-aware memory accounting, and end-to-end decode
+measurements.
+
+| Slice | Issue | Candidate files/modules | Gate |
+|---|---|---|---|
+| P6-00 | Preserve Phase 6 research boundary | `docs/phase6-evidence.md`, `docs/risk-register.md` | Status remains `research-only` until retained 9B artifacts pass; no Tensor Core, deployable, or bucket-wide claim. |
+| P6-01 | Kernel manifest ingestion | `kernel_benchmark_manifest`, `tools/prism-compare-benchmark` | `--baseline-manifest` and `--candidate-manifest` reject missing required fields. |
+| P6-02 | Comparator identity split | `benchmark_comparator` | Baseline and candidate may differ by implementation fields while validation-cell mismatches still fail. |
+| P6-03 | Phase 6 config schema | `schemas/*`, `configs/9b-constrained-kernel-gate.json` | 9B gate config is typed and validated. |
+| P6-04 | Compression manifest fields | `schemas/*`, `docs/kv-cache-and-compression-research.md` | Effective bits, metadata, residual/sketch policy, reconstruction workspace, and quality gate id are required when compression is enabled. |
+| P6-05 | Compression-aware memory ledger | `memory_ledger`, telemetry schemas | Resident q4 weights, KV payload, KV metadata, residual/sketch bytes, dequant/reconstruction workspace, retained pools, and unknown bytes are separated. |
+| P6-06 | CUDA kernel CI lane | `.github/workflows/cuda-kernel-self-hosted.yml`, `scripts/verify.ps1` | Self-hosted workflow builds `vs2026-cuda-sm120` and uploads artifacts. |
+| P6-07 | CUDA launch correctness harness | `tests/cuda/`, `src/kernels/cuda/` | Device launch, sync, error handling, copy-back, and CPU-reference comparison pass. |
+| P6-08 | Exact GGUF q4 reference semantics | `src/kernels/`, `tests/fixtures/` | Selected q4 tensor slices decode with real GGUF/GGML semantics. |
+| P6-09 | Offline KV compression evaluator | `tools/prism-kv-eval/`, `src/kv/` | KIVI/KVQuant/QServe and PolarQuant/TurboQuant/QJL reference candidates record byte savings, attention error, top-k overlap, reconstruction cost, and quality deltas. |
+| P6-10 | 9B quality fixture runner | `tools/prism-quality/`, `configs/quality/` | Deterministic, retrieval/needle, and long-context fixtures produce retained evidence. |
+| P6-11 | Kernel benchmark runner | `tools/prism-kernel-bench/`, `src/benchmark/` | Emits strict kernel manifest with timing, workspace, correctness, compression, and hashes. |
+| P6-12 | Retained 9B baselines | external artifact store, manifests | CPU/no-custom and llama.cpp/GGML CUDA/MMQ baselines retained for the exact cell. |
+| P6-13 | PrismInfer candidate run | external artifact store, manifests | q4, accounting-only, and governed compression candidates compare same-cell and are classified. |
+| P6-14 | Phase 6 exit audit | `docs/phase6-evidence.md` | Result is validated-benchmark, quality-gated, measured-non-certified, rejected, or research-only. |
+
+Phase 6 architecture rule: q4 weight residency, KV compression, quality,
+memory-cap certification, and profitability are separate gates. A run cannot
+combine them into a single promoted claim unless each gate has retained
+same-cell evidence.
+
 ## First Implementation Order
 
 1. Update GitHub milestones, labels, project fields, and automation language from
@@ -222,3 +255,8 @@ Placement of current compute ideas:
 11. Before opening Phase 5 kernel code, complete strict schemas, comparator,
     quality fixtures, Windows runtime evidence, 9B validation-cell declaration,
     and allocation reconciliation.
+12. Before Phase 6 promotion, collect retained exact-cell 9B artifacts and
+    compare strict manifests rather than CLI-only benchmark fields.
+13. In Phase 6, run q4 resident weights first, then KV accounting-only, then
+    KIVI/KVQuant/QServe-style KV compression, and keep PolarQuant/TurboQuant/QJL
+    offline/reference until quality and overhead evidence exists.

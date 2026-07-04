@@ -97,6 +97,9 @@ Current research direction and post-Phase-0 implementation plans are tracked in:
 - `docs/phase4-implementation-plan.md`
 - `docs/phase4-90b-validation-policy.md`
 - `docs/phase5-compute-kernel-research-plan.md`
+- `docs/phase6-implementation-plan.md`
+- `docs/phase6-compression-architecture.md`
+- `docs/phase6-evidence.md`
 - `docs/kernel-benchmark-methodology.md`
 - `docs/implementation-plan-phase1-to-phase4.md`
 
@@ -106,4 +109,8 @@ The first custom CUDA kernel target is the Phase 5 gated q4 decode-GEMV
 prototype. Broader fused dequantization, Tensor Core paths, IO-aware attention,
 MLA latent KV, low-rank compression, structured sparsity, and MoE runtime support
 remain gated until same-cell benchmark evidence and cap accounting are retained.
+Phase 6 is planned as the manifest-backed 9B evidence construction stage for
+that CUDA kernel lane plus exact-cell compression evidence. It still makes no
+9B constrained-inference, Tensor Core, deployable-profile, or bucket-wide
+`>5B-10B` claim until retained artifacts pass the documented gates.
 Historical council notes live under `docs/archive/`.
