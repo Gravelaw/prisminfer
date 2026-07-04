@@ -19,7 +19,7 @@
     "status"
   ],
   "properties": {
-    "manifest_version": { "const": "0.4" },
+    "manifest_version": { "const": "0.5" },
     "run_id": { "type": "string", "minLength": 1 },
     "created_at_utc": { "type": "string", "minLength": 1 },
     "tool": { "type": "string", "minLength": 1 },
@@ -148,6 +148,38 @@
     "profitability_reason": { "type": "string" },
     "profitability_speedup_ratio": { "type": "number" },
     "profitability_required_speedup_ratio": { "type": "number" },
+    "claim_label": {
+      "type": "string",
+      "enum": [
+        "metadata-only",
+        "simulated",
+        "measured-offload",
+        "validated-benchmark",
+        "deployable-profile",
+        "rejected"
+      ]
+    },
+    "quantization_format": { "type": "string" },
+    "quant_artifact_sha256": { "type": "string" },
+    "host_memory_budget_bytes": { "type": "integer", "minimum": 0 },
+    "nvme_budget_bytes": { "type": "integer", "minimum": 0 },
+    "max_time_to_first_token_ms": { "type": "number" },
+    "min_decode_tokens_per_second": { "type": "number" },
+    "max_token_latency_p95_ms": { "type": "number" },
+    "repeatability_runs": { "type": "integer", "minimum": 0 },
+    "repeatability_passed": { "type": "boolean" },
+    "claim_validation": {
+      "type": "string",
+      "enum": ["off", "warn", "fail-closed"]
+    },
+    "hybrid_plan_status": { "type": "string" },
+    "hybrid_plan_failure_reason": { "type": "string" },
+    "hybrid_resident_gpu_total_bytes": { "type": "integer", "minimum": 0 },
+    "usability_status": { "type": "string" },
+    "usability_reason": { "type": "string" },
+    "claim_validation_status": { "type": "string" },
+    "claim_validation_accepted": { "type": "boolean" },
+    "claim_validation_reason": { "type": "string" },
     "retained_pool_bytes": { "type": "integer", "minimum": 0 },
     "kv_gpu_peak_bytes": { "type": "integer", "minimum": 0 },
     "kv_host_peak_bytes": { "type": "integer", "minimum": 0 },

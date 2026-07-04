@@ -52,7 +52,7 @@ bool write_probe_manifest(const std::filesystem::path& path,
   }
 
   out << "{\n"
-      << "  \"manifest_version\": \"0.4\",\n"
+      << "  \"manifest_version\": \"0.5\",\n"
       << "  \"run_id\": \"" << json_escape(inputs.config.run_id) << "\",\n"
       << "  \"created_at_utc\": \"" << utc_timestamp() << "\",\n"
       << "  \"tool\": \"prism-probe\",\n"
@@ -206,6 +206,44 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << inputs.profitability.speedup_ratio << ",\n"
       << "  \"profitability_required_speedup_ratio\": "
       << inputs.profitability.required_speedup_ratio << ",\n"
+      << "  \"claim_label\": \"" << json_escape(inputs.config.claim_label)
+      << "\",\n"
+      << "  \"quantization_format\": \""
+      << json_escape(inputs.config.quantization_format) << "\",\n"
+      << "  \"quant_artifact_sha256\": \""
+      << json_escape(inputs.config.quant_artifact_sha256) << "\",\n"
+      << "  \"host_memory_budget_bytes\": "
+      << inputs.config.host_memory_budget_bytes << ",\n"
+      << "  \"nvme_budget_bytes\": " << inputs.config.nvme_budget_bytes
+      << ",\n"
+      << "  \"max_time_to_first_token_ms\": "
+      << inputs.config.max_time_to_first_token_ms << ",\n"
+      << "  \"min_decode_tokens_per_second\": "
+      << inputs.config.min_decode_tokens_per_second << ",\n"
+      << "  \"max_token_latency_p95_ms\": "
+      << inputs.config.max_token_latency_p95_ms << ",\n"
+      << "  \"repeatability_runs\": " << inputs.config.repeatability_runs
+      << ",\n"
+      << "  \"repeatability_passed\": "
+      << (inputs.config.repeatability_passed ? "true" : "false") << ",\n"
+      << "  \"claim_validation\": \""
+      << json_escape(inputs.config.claim_validation) << "\",\n"
+      << "  \"hybrid_plan_status\": \""
+      << (inputs.hybrid_plan.ok ? "accepted" : "rejected") << "\",\n"
+      << "  \"hybrid_plan_failure_reason\": \""
+      << json_escape(inputs.hybrid_plan.failure_reason) << "\",\n"
+      << "  \"hybrid_resident_gpu_total_bytes\": "
+      << inputs.hybrid_plan.resident_gpu_total_bytes << ",\n"
+      << "  \"usability_status\": \"" << json_escape(inputs.usability.status)
+      << "\",\n"
+      << "  \"usability_reason\": \"" << json_escape(inputs.usability.reason)
+      << "\",\n"
+      << "  \"claim_validation_status\": \""
+      << json_escape(inputs.claim.status) << "\",\n"
+      << "  \"claim_validation_accepted\": "
+      << (inputs.claim.accepted ? "true" : "false") << ",\n"
+      << "  \"claim_validation_reason\": \""
+      << json_escape(inputs.claim.reason) << "\",\n"
       << "  \"telemetry_path\": \""
       << json_escape(inputs.config.telemetry_path) << "\",\n"
       << "  \"status\": \"" << json_escape(inputs.status) << "\",\n"
@@ -334,6 +372,16 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
       events.emplace_back("offload_sample");
     } else if (line_contains(line, "\"event\":\"profitability_result\"")) {
       events.emplace_back("profitability_result");
+    } else if (line_contains(line, "\"event\":\"hybrid_plan_created\"")) {
+      events.emplace_back("hybrid_plan_created");
+    } else if (line_contains(line, "\"event\":\"claim_classified\"")) {
+      events.emplace_back("claim_classified");
+    } else if (line_contains(line, "\"event\":\"usability_result\"")) {
+      events.emplace_back("usability_result");
+    } else if (line_contains(line, "\"event\":\"repeatability_result\"")) {
+      events.emplace_back("repeatability_result");
+    } else if (line_contains(line, "\"event\":\"claim_validation_result\"")) {
+      events.emplace_back("claim_validation_result");
     } else if (line_contains(line, "\"event\":\"memory_sample\"")) {
       events.emplace_back("memory_sample");
     } else if (line_contains(line, "\"event\":\"cap_certification_result\"")) {
@@ -411,6 +459,12 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
   bool saw_memory_after_quality = false;
   bool saw_quality_before_memory = false;
   bool saw_phase3_before_memory = false;
+  bool saw_hybrid_plan = false;
+  bool saw_claim_classified = false;
+  bool saw_usability_result = false;
+  bool saw_repeatability_result = false;
+  bool saw_claim_validation_result = false;
+  bool saw_phase4_before_memory = false;
   for (; position < events.size(); ++position) {
     if (events[position] == "cap_semantics_resolved") {
       saw_cap_semantics = true;
@@ -467,6 +521,22 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
     if (events[position] == "profitability_result") {
       saw_profitability_result = true;
       saw_phase3_before_memory = !saw_memory;
+    }
+    if (events[position] == "hybrid_plan_created") {
+      saw_hybrid_plan = true;
+    }
+    if (events[position] == "claim_classified") {
+      saw_claim_classified = true;
+    }
+    if (events[position] == "usability_result") {
+      saw_usability_result = true;
+    }
+    if (events[position] == "repeatability_result") {
+      saw_repeatability_result = true;
+    }
+    if (events[position] == "claim_validation_result") {
+      saw_claim_validation_result = true;
+      saw_phase4_before_memory = !saw_memory;
     }
     if (events[position] == "memory_sample") {
       if (saw_quality_gate) {
@@ -535,6 +605,16 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
     }
     if (!saw_phase3_before_memory) {
       return fail("phase3_profitability_must_precede_memory_sample");
+    }
+  }
+  if (saw_hybrid_plan || saw_claim_classified || saw_usability_result ||
+      saw_repeatability_result || saw_claim_validation_result) {
+    if (!saw_hybrid_plan || !saw_claim_classified || !saw_usability_result ||
+        !saw_repeatability_result || !saw_claim_validation_result) {
+      return fail("missing_phase4_claim_lifecycle_event");
+    }
+    if (!saw_phase4_before_memory) {
+      return fail("phase4_claim_validation_must_precede_memory_sample");
     }
   }
   if (!saw_terminal) {

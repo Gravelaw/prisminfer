@@ -1,11 +1,12 @@
 {
   "mode": "90b-hybrid-simulated",
-  "claim_label": "simulated",
+  "claim_label": "deployable-profile",
   "model_parameter_bucket": ">85B-90B",
   "parameter_count": 90000000000,
   "hard_vram_cap_bytes": 17179869184,
   "validation_cell_id": "simulated-90b-under-16gib",
+  "simulated_evidence": true,
   "deployable": false,
-  "evidence_boundary": "planner math only; not measured-offload, validated-benchmark, or deployable-profile"
+  "expected_rejection": "model_hash_required"
 }
 

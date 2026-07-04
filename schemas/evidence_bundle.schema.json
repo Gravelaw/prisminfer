@@ -13,7 +13,7 @@
     "status"
   ],
   "properties": {
-    "bundle_version": { "const": "0.1-draft" },
+    "bundle_version": { "const": "0.2" },
     "claim_label": {
       "type": "string",
       "enum": [

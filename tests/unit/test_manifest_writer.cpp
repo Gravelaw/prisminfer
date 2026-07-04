@@ -104,11 +104,21 @@ int main() {
   profitability.status = "accepted";
   profitability.speedup_ratio = 1.2;
   profitability.required_speedup_ratio = 1.1;
+  prisminfer::HybridPlanResult hybrid_plan;
+  hybrid_plan.ok = true;
+  hybrid_plan.resident_gpu_total_bytes = 1234;
+  prisminfer::UsabilityResult usability;
+  usability.accepted = true;
+  usability.status = "accepted";
+  prisminfer::ClaimDecision claim;
+  claim.accepted = true;
+  claim.status = "accepted";
 
   const prisminfer::ManifestInputs inputs{config, sample, host, cuda, profile,
                                           kv_sample, quality, compression,
                                           offload_plan, transfer,
-                                          profitability, "ok", ""};
+                                          profitability, hybrid_plan,
+                                          usability, claim, "ok", ""};
   if (expect(prisminfer::write_probe_manifest(path, inputs, &error),
              error.c_str())) return 1;
 
@@ -119,7 +129,7 @@ int main() {
   in.close();
   const auto content = buffer.str();
 
-  if (expect(content.find("\"manifest_version\": \"0.4\"") !=
+  if (expect(content.find("\"manifest_version\": \"0.5\"") !=
                  std::string::npos,
              "manifest version written")) return 1;
   if (expect(content.find("\"run_id\": \"manifest-run\"") !=
@@ -171,6 +181,9 @@ int main() {
   if (expect(content.find("\"profitability_status\": \"accepted\"") !=
                  std::string::npos,
              "profitability status written")) return 1;
+  if (expect(content.find("\"claim_validation_status\": \"accepted\"") !=
+                 std::string::npos,
+             "claim validation status written")) return 1;
   if (expect(content.find("\"h2d_bytes\": 1024") != std::string::npos,
              "transfer bytes written")) return 1;
   if (expect(content.find("\"gpu_name\": \"test gpu\"") !=

@@ -17,7 +17,7 @@
     "validation_cell_status"
   ],
   "properties": {
-    "schema_version": { "const": "0.4" },
+    "schema_version": { "const": "0.5" },
     "timestamp_ns": { "type": "integer", "minimum": 0 },
     "run_id": { "type": "string", "minLength": 1 },
     "event": { "type": "string", "minLength": 1 },
@@ -81,6 +81,21 @@
     "offload_policy": {
       "type": "string",
       "enum": ["none", "gpu", "host-kv", "nvme-simulated", "nvme-experimental"]
+    },
+    "claim_label": {
+      "type": "string",
+      "enum": [
+        "metadata-only",
+        "simulated",
+        "measured-offload",
+        "validated-benchmark",
+        "deployable-profile",
+        "rejected"
+      ]
+    },
+    "claim_validation": {
+      "type": "string",
+      "enum": ["off", "warn", "fail-closed"]
     },
     "layer_count": { "type": "string" },
     "kv_head_count": { "type": "string" },

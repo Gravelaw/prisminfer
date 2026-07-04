@@ -6,10 +6,12 @@
 #include "prisminfer/backend.h"
 #include "prisminfer/backend_memory_observer.h"
 #include "prisminfer/benchmark.h"
+#include "prisminfer/claim_taxonomy.h"
 #include "prisminfer/config.h"
 #include "prisminfer/cuda_context_probe.h"
 #include "prisminfer/errors.h"
 #include "prisminfer/host_memory_tracker.h"
+#include "prisminfer/hybrid_plan.h"
 #include "prisminfer/kv_cache_ledger.h"
 #include "prisminfer/kv_compression_policy.h"
 #include "prisminfer/memory_cap.h"
@@ -21,6 +23,7 @@
 #include "prisminfer/runtime_state.h"
 #include "prisminfer/telemetry.h"
 #include "prisminfer/transfer_metrics.h"
+#include "prisminfer/usability_policy.h"
 
 namespace {
 
@@ -170,6 +173,9 @@ int finish_probe(const prisminfer::RuntimeConfig& config,
                  const prisminfer::OffloadPlan& offload_plan,
                  const prisminfer::TransferSample& transfer,
                  const prisminfer::ProfitabilityDecision& profitability,
+                 const prisminfer::HybridPlanResult& hybrid_plan,
+                 const prisminfer::UsabilityResult& usability,
+                 const prisminfer::ClaimDecision& claim,
                  const std::string& status,
                  const std::string& reason,
                  prisminfer::ExitCode exit_code) {
@@ -177,8 +183,8 @@ int finish_probe(const prisminfer::RuntimeConfig& config,
   const auto host = prisminfer::sample_host_telemetry();
   const prisminfer::ManifestInputs manifest{
       config, sample, host, cuda, kv_profile, kv_sample,
-      quality, compression, offload_plan, transfer, profitability, status,
-      reason};
+      quality, compression, offload_plan, transfer, profitability, hybrid_plan,
+      usability, claim, status, reason};
   if (!prisminfer::write_probe_manifest(config.manifest_path, manifest,
                                         &manifest_error)) {
     std::cerr << manifest_error << "\n";
@@ -223,6 +229,9 @@ int main(int argc, char** argv) {
   prisminfer::OffloadPlan offload_plan;
   prisminfer::TransferSample transfer;
   prisminfer::ProfitabilityDecision profitability;
+  prisminfer::HybridPlanResult hybrid_plan;
+  prisminfer::UsabilityResult usability;
+  prisminfer::ClaimDecision claim;
 
   const prisminfer::ModelSidecarValidationRequest validation_request{
       config.model_path, config.sidecar_path, config.max_model_bytes,
@@ -250,7 +259,7 @@ int main(int argc, char** argv) {
     telemetry.emit(prisminfer::event::RunEnd, config,
                    {{"status", "failed_closed"}});
     return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                        compression, offload_plan, transfer, profitability,
+                        compression, offload_plan, transfer, profitability, hybrid_plan, usability, claim,
                         "failed_closed", validation.failure_reason,
                         prisminfer::ExitCode::FailedClosed);
   }
@@ -270,7 +279,7 @@ int main(int argc, char** argv) {
     telemetry.emit(prisminfer::event::RunEnd, config,
                    {{"status", "failed_closed"}});
     return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                        compression, offload_plan, transfer, profitability,
+                        compression, offload_plan, transfer, profitability, hybrid_plan, usability, claim,
                         "failed_closed", reason,
                         prisminfer::ExitCode::FailedClosed);
   }
@@ -308,7 +317,7 @@ int main(int argc, char** argv) {
       telemetry.emit(prisminfer::event::RunEnd, config,
                      {{"status", "failed_closed"}});
       return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                          compression, offload_plan, transfer, profitability,
+                          compression, offload_plan, transfer, profitability, hybrid_plan, usability, claim,
                           "failed_closed", cuda.failure_reason,
                           prisminfer::ExitCode::FailedClosed);
     }
@@ -328,6 +337,78 @@ int main(int argc, char** argv) {
   }
 
   telemetry.emit(prisminfer::event::CapSemanticsResolved, config);
+  if (config.claim_validation != "off") {
+    hybrid_plan = prisminfer::validate_hybrid_plan(
+        prisminfer::make_90b_simulated_plan(config.hard_cap_bytes));
+    telemetry.emit(prisminfer::event::HybridPlanCreated, config,
+                   {{"claim_label", "simulated"},
+                    {"ok", hybrid_plan.ok ? "true" : "false"},
+                    {"resident_gpu_total_bytes",
+                     std::to_string(hybrid_plan.resident_gpu_total_bytes)},
+                    {"failure_reason", hybrid_plan.failure_reason}});
+
+    claim = prisminfer::validate_claim_evidence(
+        prisminfer::ClaimEvidence{config.claim_label,
+                                  config.validation_cell_id,
+                                  "",
+                                  config.quantization_format,
+                                  config.quant_artifact_sha256,
+                                  config.simulated_evidence,
+                                  config.measured_evidence,
+                                  hybrid_plan.ok,
+                                  quality.passed,
+                                  profitability.accepted,
+                                  false,
+                                  config.repeatability_passed,
+                                  config.deployment_runbook_present});
+    telemetry.emit(prisminfer::event::ClaimClassified, config,
+                   {{"accepted", claim.accepted ? "true" : "false"},
+                    {"status", claim.status},
+                    {"reason", claim.reason}});
+
+    if (config.claim_label == "validated-benchmark" ||
+        config.claim_label == "deployable-profile") {
+      usability = prisminfer::evaluate_usability(
+          prisminfer::UsabilityInput{config.observed_ttft_ms,
+                                     config.observed_decode_tps,
+                                     config.token_latency_p95_ms,
+                                     config.max_time_to_first_token_ms,
+                                     config.min_decode_tokens_per_second,
+                                     config.max_token_latency_p95_ms,
+                                     config.repeatability_runs,
+                                     3,
+                                     config.repeatability_passed});
+    } else {
+      usability = prisminfer::UsabilityResult{true, "skipped", ""};
+    }
+    telemetry.emit(prisminfer::event::UsabilityResult, config,
+                   {{"accepted", usability.accepted ? "true" : "false"},
+                    {"status", usability.status},
+                    {"reason", usability.reason}});
+    telemetry.emit(prisminfer::event::RepeatabilityResult, config,
+                   {{"runs", std::to_string(config.repeatability_runs)},
+                    {"passed",
+                     config.repeatability_passed ? "true" : "false"}});
+    const bool phase4_ok = hybrid_plan.ok && claim.accepted &&
+                           usability.accepted;
+    const std::string phase4_reason =
+        !hybrid_plan.ok ? hybrid_plan.failure_reason
+                        : (!claim.accepted ? claim.reason : usability.reason);
+    telemetry.emit(prisminfer::event::ClaimValidationResult, config,
+                   {{"accepted", phase4_ok ? "true" : "false"},
+                    {"reason", phase4_reason}});
+    if (!phase4_ok && config.claim_validation == "fail-closed") {
+      telemetry.emit_memory_sample(config, sample, sample.telemetry_agreement);
+      telemetry.emit(prisminfer::event::FailedClosed, config,
+                     {{"failure_reason", phase4_reason}});
+      telemetry.emit(prisminfer::event::RunEnd, config,
+                     {{"status", "failed_closed"}});
+      return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
+                          compression, offload_plan, transfer, profitability,
+                          hybrid_plan, usability, claim, "failed_closed",
+                          phase4_reason, prisminfer::ExitCode::FailedClosed);
+    }
+  }
   telemetry.emit(prisminfer::event::HostPrepare, config);
   telemetry.emit(prisminfer::event::ModelLoadPlan, config,
                  {{"backend", backend_plan.backend_name},
@@ -362,7 +443,7 @@ int main(int argc, char** argv) {
     telemetry.emit(prisminfer::event::RunEnd, config,
                    {{"status", "failed_closed"}});
     return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                        compression, offload_plan, transfer, profitability,
+                        compression, offload_plan, transfer, profitability, hybrid_plan, usability, claim,
                         "failed_closed", reason,
                         prisminfer::ExitCode::FailedClosed);
   }
@@ -401,7 +482,7 @@ int main(int argc, char** argv) {
     telemetry.emit(prisminfer::event::RunEnd, config,
                    {{"status", "failed_closed"}});
     return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                        compression, offload_plan, transfer, profitability,
+                        compression, offload_plan, transfer, profitability, hybrid_plan, usability, claim,
                         "failed_closed", warmup.failure_reason,
                         prisminfer::ExitCode::FailedClosed);
   }
@@ -424,7 +505,7 @@ int main(int argc, char** argv) {
       telemetry.emit(prisminfer::event::RunEnd, config,
                      {{"status", "failed_closed"}});
       return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                          compression, offload_plan, transfer, profitability,
+                          compression, offload_plan, transfer, profitability, hybrid_plan, usability, claim,
                           "failed_closed",
                           profile_result.failure_reason,
                           prisminfer::ExitCode::FailedClosed);
@@ -513,7 +594,7 @@ int main(int argc, char** argv) {
       telemetry.emit(prisminfer::event::RunEnd, config,
                      {{"status", "failed_closed"}});
       return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                          compression, offload_plan, transfer, profitability,
+                          compression, offload_plan, transfer, profitability, hybrid_plan, usability, claim,
                           "failed_closed", reason,
                           prisminfer::ExitCode::FailedClosed);
     }
@@ -610,7 +691,7 @@ int main(int argc, char** argv) {
       telemetry.emit(prisminfer::event::RunEnd, config,
                      {{"status", "failed_closed"}});
       return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                          compression, offload_plan, transfer, profitability,
+                          compression, offload_plan, transfer, profitability, hybrid_plan, usability, claim,
                           "failed_closed", phase3_reason,
                           prisminfer::ExitCode::FailedClosed);
     }
@@ -630,7 +711,7 @@ int main(int argc, char** argv) {
     telemetry.emit(prisminfer::event::RunEnd, config,
                    {{"status", "failed_closed"}});
     return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                        compression, offload_plan, transfer, profitability,
+                        compression, offload_plan, transfer, profitability, hybrid_plan, usability, claim,
                         "failed_closed",
                         certification.failure_reason,
                         prisminfer::ExitCode::FailedClosed);
@@ -639,6 +720,6 @@ int main(int argc, char** argv) {
   telemetry.emit(prisminfer::event::Completed, config);
   telemetry.emit(prisminfer::event::RunEnd, config, {{"status", "ok"}});
   return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                      compression, offload_plan, transfer, profitability, "ok", "",
+                      compression, offload_plan, transfer, profitability, hybrid_plan, usability, claim, "ok", "",
                       prisminfer::ExitCode::Ok);
 }

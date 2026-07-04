@@ -61,6 +61,14 @@ int main() {
         "--transfer-d2h-ms", "2.0", "--transfer-io-ms", "3.0",
         "--transfer-wait-ms", "4.0", "--prefill-ms", "5.0",
         "--decode-ms", "6.0",
+        "--claim-label", "validated-benchmark", "--quantization-format",
+        "Q4_K_M", "--quant-artifact-sha256", "abc123",
+        "--host-memory-budget-bytes", "1024", "--nvme-budget-bytes", "2048",
+        "--max-time-to-first-token-ms", "1000.0",
+        "--min-decode-tokens-per-second", "2.0",
+        "--max-token-latency-p95-ms", "500.0", "--repeatability-runs", "3",
+        "--repeatability-passed", "true", "--claim-validation",
+        "fail-closed", "--measured-evidence", "--deployment-runbook-present",
         "--simulate-allocator-peak-bytes", "4096",
         "--simulate-process-gpu-peak-bytes", "4096",
         "--simulate-warmup-peak-bytes", "1024",
@@ -164,6 +172,28 @@ int main() {
                "explicit nvme read bytes")) return 1;
     if (expect(parsed.config->transfer_wait_ms == 4.0,
                "explicit transfer wait ms")) return 1;
+    if (expect(parsed.config->claim_label == "validated-benchmark",
+               "explicit claim label")) return 1;
+    if (expect(parsed.config->quantization_format == "Q4_K_M",
+               "explicit quant format")) return 1;
+    if (expect(parsed.config->quant_artifact_sha256 == "abc123",
+               "explicit quant hash")) return 1;
+    if (expect(parsed.config->host_memory_budget_bytes == 1024,
+               "explicit host budget")) return 1;
+    if (expect(parsed.config->nvme_budget_bytes == 2048,
+               "explicit nvme budget")) return 1;
+    if (expect(parsed.config->min_decode_tokens_per_second == 2.0,
+               "explicit min decode")) return 1;
+    if (expect(parsed.config->repeatability_runs == 3,
+               "explicit repeatability runs")) return 1;
+    if (expect(parsed.config->repeatability_passed,
+               "explicit repeatability passed")) return 1;
+    if (expect(parsed.config->claim_validation == "fail-closed",
+               "explicit claim validation")) return 1;
+    if (expect(parsed.config->measured_evidence,
+               "explicit measured evidence")) return 1;
+    if (expect(parsed.config->deployment_runbook_present,
+               "explicit runbook present")) return 1;
     if (expect(parsed.config->simulate_allocator_peak_bytes == 4096,
                "explicit allocator simulation")) return 1;
     if (expect(parsed.config->simulate_process_gpu_peak_bytes == 4096,
@@ -172,6 +202,24 @@ int main() {
                "explicit warmup simulation")) return 1;
     if (expect(parsed.config->simulate_unknown_post_warmup_bytes == 1,
                "explicit unknown post-warmup simulation")) return 1;
+  }
+  {
+    const auto parsed = prisminfer::parse_args({"--claim-label", "bad"});
+    if (expect(!parsed.config.has_value(), "invalid claim label rejected")) {
+      return 1;
+    }
+    if (expect(parsed.error.find("unsupported claim label") !=
+                   std::string::npos,
+               "invalid claim label error is specific")) return 1;
+  }
+  {
+    const auto parsed =
+        prisminfer::parse_args({"--claim-validation", "invalid"});
+    if (expect(!parsed.config.has_value(),
+               "invalid claim validation rejected")) return 1;
+    if (expect(parsed.error.find("unsupported claim validation") !=
+                   std::string::npos,
+               "invalid claim validation error is specific")) return 1;
   }
   {
     const auto parsed =

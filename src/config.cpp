@@ -145,6 +145,16 @@ bool valid_offload_policy_name(const std::string& value) {
          value == "nvme-simulated" || value == "nvme-experimental";
 }
 
+bool valid_claim_label_name(const std::string& value) {
+  return value == "metadata-only" || value == "simulated" ||
+         value == "measured-offload" || value == "validated-benchmark" ||
+         value == "deployable-profile" || value == "rejected";
+}
+
+bool valid_claim_validation_name(const std::string& value) {
+  return value == "off" || value == "warn" || value == "fail-closed";
+}
+
 bool parse_double_value(const std::string& value, double* output) {
   std::istringstream in(value);
   double parsed = 0.0;
@@ -764,6 +774,137 @@ ParseResult parse_args(const std::vector<std::string>& args) {
       }
       continue;
     }
+    if (arg == "--claim-label") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--claim-label requires a value"};
+      }
+      config.claim_label = args[++i];
+      if (!valid_claim_label_name(config.claim_label)) {
+        return ParseResult{std::nullopt,
+                           "unsupported claim label: " + config.claim_label};
+      }
+      continue;
+    }
+    if (arg == "--quantization-format") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--quantization-format requires a value"};
+      }
+      config.quantization_format = args[++i];
+      continue;
+    }
+    if (arg == "--quant-artifact-sha256") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--quant-artifact-sha256 requires a value"};
+      }
+      config.quant_artifact_sha256 = args[++i];
+      continue;
+    }
+    if (arg == "--host-memory-budget-bytes") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--host-memory-budget-bytes requires a value"};
+      }
+      if (!parse_u64(args[++i], &config.host_memory_budget_bytes)) {
+        return ParseResult{std::nullopt,
+                           "--host-memory-budget-bytes must be an integer"};
+      }
+      continue;
+    }
+    if (arg == "--nvme-budget-bytes") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--nvme-budget-bytes requires a value"};
+      }
+      if (!parse_u64(args[++i], &config.nvme_budget_bytes)) {
+        return ParseResult{std::nullopt,
+                           "--nvme-budget-bytes must be an integer"};
+      }
+      continue;
+    }
+    if (arg == "--max-time-to-first-token-ms") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--max-time-to-first-token-ms requires a value"};
+      }
+      if (!parse_double_value(args[++i],
+                              &config.max_time_to_first_token_ms)) {
+        return ParseResult{std::nullopt,
+                           "--max-time-to-first-token-ms must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--min-decode-tokens-per-second") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--min-decode-tokens-per-second requires a value"};
+      }
+      if (!parse_double_value(args[++i],
+                              &config.min_decode_tokens_per_second)) {
+        return ParseResult{std::nullopt,
+                           "--min-decode-tokens-per-second must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--max-token-latency-p95-ms") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--max-token-latency-p95-ms requires a value"};
+      }
+      if (!parse_double_value(args[++i],
+                              &config.max_token_latency_p95_ms)) {
+        return ParseResult{std::nullopt,
+                           "--max-token-latency-p95-ms must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--repeatability-runs") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--repeatability-runs requires a value"};
+      }
+      if (!parse_u32(args[++i], &config.repeatability_runs)) {
+        return ParseResult{std::nullopt,
+                           "--repeatability-runs must be an integer"};
+      }
+      continue;
+    }
+    if (arg == "--repeatability-passed") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--repeatability-passed requires true or false"};
+      }
+      if (!parse_bool_text(args[++i], &config.repeatability_passed)) {
+        return ParseResult{std::nullopt,
+                           "--repeatability-passed must be true or false"};
+      }
+      continue;
+    }
+    if (arg == "--claim-validation") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--claim-validation requires a value"};
+      }
+      config.claim_validation = args[++i];
+      if (!valid_claim_validation_name(config.claim_validation)) {
+        return ParseResult{std::nullopt,
+                           "unsupported claim validation: " +
+                               config.claim_validation};
+      }
+      continue;
+    }
+    if (arg == "--measured-evidence") {
+      config.measured_evidence = true;
+      continue;
+    }
+    if (arg == "--simulated-evidence") {
+      config.simulated_evidence = true;
+      continue;
+    }
+    if (arg == "--deployment-runbook-present") {
+      config.deployment_runbook_present = true;
+      continue;
+    }
     if (arg == "--telemetry") {
       if (i + 1 >= args.size()) {
         return ParseResult{std::nullopt, "--telemetry requires a path"};
@@ -942,6 +1083,20 @@ Usage:
               [--transfer-wait-ms N]
               [--prefill-ms N]
               [--decode-ms N]
+              [--claim-label metadata-only|simulated|measured-offload|validated-benchmark|deployable-profile|rejected]
+              [--quantization-format NAME]
+              [--quant-artifact-sha256 HASH]
+              [--host-memory-budget-bytes BYTES]
+              [--nvme-budget-bytes BYTES]
+              [--max-time-to-first-token-ms N]
+              [--min-decode-tokens-per-second R]
+              [--max-token-latency-p95-ms N]
+              [--repeatability-runs N]
+              [--repeatability-passed true|false]
+              [--claim-validation off|warn|fail-closed]
+              [--measured-evidence]
+              [--simulated-evidence]
+              [--deployment-runbook-present]
               [--telemetry PATH]
               [--manifest PATH]
               [--run-id ID]
