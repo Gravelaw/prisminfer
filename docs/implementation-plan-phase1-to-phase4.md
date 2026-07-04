@@ -1,4 +1,4 @@
-# Implementation Plan: Phase 1 Through Phase 4
+# Implementation Plan: Phase 1 Through Phase 5
 
 This plan turns the constrained-VRAM research roadmap into SDLC slices for the
 GitHub tracker.
@@ -7,7 +7,7 @@ Current baseline checked against `Gravelaw/prisminfer`:
 
 - Default branch: `main`.
 - Local checkout path: `D:\Research\prisminfer`.
-- Current local head during this planning pass: `c9a3cfa975fbeb819cb1f3fb1ef2375b9fb1f52b`.
+- Current local head during the Phase 5 planning pass: `9dffea7`.
 - Phase 0 issues `#1` through `#15` are closed.
 - No open issues remain under the Phase 0 milestone at the time of this pass.
 
@@ -21,19 +21,23 @@ Before Phase 1 implementation, update project tracking:
    - `Phase 2: KV Cache Accounting and Compression Gates`
    - `Phase 3: Transfer-Inclusive Offload Profitability`
    - `Phase 4: Large-Model and 90B Hybrid/Offload Validation`
+   - `Phase 5: Measured Compute Kernel Research`
 3. Add labels:
-   - `phase:1`, `phase:2`, `phase:3`, `phase:4`
+   - `phase:1`, `phase:2`, `phase:3`, `phase:4`, `phase:5`
    - `area:backend`, `area:gguf`, `area:llama.cpp`,
      `area:memory-ledger`, `area:kv-cache`, `area:quality`,
-     `area:offload`, `area:profitability`, `area:claim-taxonomy`
+     `area:offload`, `area:profitability`, `area:claim-taxonomy`,
+     `area:kernels`, `area:benchmark-comparator`
    - `gate:phase1-backend-evidence`, `gate:phase2-quality`,
-     `gate:phase3-profitability`, `gate:phase4-validation`
+     `gate:phase3-profitability`, `gate:phase4-validation`,
+     `gate:phase5-kernel-evidence`
 4. Rename `PrismInfer Phase 0` to `PrismInfer Roadmap`, or create a new roadmap
    project if preserving the Phase 0 board matters.
 5. Extend project fields:
    - `Slice`: Backend Adapter, GGUF/GGML, Memory Ledger, KV Cache,
      Quality Gates, Offload, Profitability, Validation Matrix,
-     Large-Model Validation, Claim Taxonomy.
+     Large-Model Validation, Claim Taxonomy, Kernel Evidence,
+     Benchmark Comparator.
    - `Gate`: add the phase-specific gates above.
    - Optional `Claim Class`: Scaffold, Observed, Governed, Simulated,
      Validated, Rejected.
@@ -161,6 +165,46 @@ deployability claim is allowed from extrapolation.
 | P4-06 | Usability threshold policy | `src/governor/usability_policy.cpp` | Rejects technically feasible but unusably slow runs. |
 | P4-07 | Phase 4 exit audit | `docs/phase4-evidence.md` | Claim taxonomy and impossible-math gate enforced. |
 
+## Phase 5: Measured Compute Kernel Research
+
+Exit criterion:
+
+PrismInfer can decide whether one narrow compute-kernel prototype is worth
+owning by comparing it against CPU reference, llama.cpp/GGML CUDA/MMQ, and
+vendor-library baselines in the same validation cell. Phase 5 does not grant a
+deployable-profile claim and does not permit broad kernel implementation. It
+does include one gated CUDA kernel implementation slice after schema,
+comparator, fixture, runtime, 9B validation-cell, and allocation gates pass.
+
+| Slice | Issue | Candidate files/modules | Gate |
+|---|---|---|---|
+| P5-01 | Add strict kernel evidence contract | `schemas/kernel_benchmark_manifest.schema.json`, `schemas/telemetry.schema.json` | Unknown kernel fields are rejected or explicitly quarantined. |
+| P5-02 | Implement same-cell benchmark comparator | `include/prisminfer/benchmark_comparator.h`, `src/benchmark/benchmark_comparator.cpp`, `tools/prism-compare-benchmark/main.cpp` | Mismatched model, quant, context, backend, OS, GPU, driver, CUDA, batch, or cap tier is rejected. |
+| P5-03 | Add real quality fixture contract | `configs/`, `schemas/evidence_bundle.schema.json`, `tools/prism-quality/main.cpp` | Kernel speed claims require retained prompt/expected-output/tolerance hashes. |
+| P5-04 | Instrument Windows runtime blockers | `docs/windows-wddm-telemetry-policy.md`, CUDA probe and manifest fields | WDDM/TCC, TDR, and WDAC/Application Control states are recorded or classified unavailable. |
+| P5-05 | Add CUDA kernel build contract | `CMakeLists.txt`, `.github/workflows/*self-hosted*.yml` | `PRISMINFER_ENABLE_CUDA_KERNELS=OFF` by default and separate from CUDA probe. |
+| P5-06 | Reconcile backend allocation evidence | `backend_memory_observer`, `memory_ledger`, manifests | Unknown llama/backend/workspace bytes fail closed or force `measured-non-certified`. |
+| P5-07 | Design GEMV/GEMM/vendor baseline policy | `docs/kernel-benchmark-methodology.md` | Batch-1 decode GEMV, prefill GEMM, cuBLASLt/CUTLASS/Tensor Core assumptions are explicit. |
+| P5-07G | Add representative 9B constrained-VRAM gate | `docs/validation-matrix.md`, `configs/9b-constrained-kernel-gate.json` | A pinned 9B-class `>5B-10B` q4 cell is declared before prototype promotion. |
+| P5-08 | Implement one fixed-block q4 fused dequant+decode-GEMV CUDA path | guarded `src/kernels/cuda/` tree | Allowed only after P5-01 through P5-07G pass; compile-gated with `PRISMINFER_ENABLE_CUDA_KERNELS=ON`; no full FP16 materialization. |
+| P5-09 | Run the 9B constrained-VRAM kernel gate | retained external 9B manifests and comparator output | Exact 9B cell under <=8 GiB is measured or rejected; no bucket-level 9B claim. |
+| P5-10 | Phase 5 exit audit | `docs/phase5-evidence.md` | Kernel claim is measured, rejected, or left research-only with retained artifacts. |
+
+Placement of current compute ideas:
+
+- Fused dequant plus matmul: P5-08, one fixed-block q4 decode-GEMV CUDA
+  prototype only.
+- GEMM versus GEMV selection: P5-07 policy before implementation.
+- CUTLASS, cuBLASLt, Tensor Core strategy: P5-07 vendor baseline lane before
+  custom kernels.
+- FlashAttention-style IO-aware kernels: later attention lane after Phase 5
+  matmul evidence.
+- MLA-style latent KV: later KV/attention lane after accounting and quality
+  fixtures.
+- Low-rank/SVD and structured sparsity: accounting/schema lane first.
+- MoE active-parameter accounting: schema/accounting lane first; no MoE runtime
+  in Phase 5.
+
 ## First Implementation Order
 
 1. Update GitHub milestones, labels, project fields, and automation language from
@@ -175,3 +219,6 @@ deployability claim is allowed from extrapolation.
 8. Replace placeholder `backend_warmup` only for backend-enabled runs.
 9. Add backend evidence workflow and artifact retention.
 10. Run Phase 1 exit audit before opening Phase 2 implementation.
+11. Before opening Phase 5 kernel code, complete strict schemas, comparator,
+    quality fixtures, Windows runtime evidence, 9B validation-cell declaration,
+    and allocation reconciliation.

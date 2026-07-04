@@ -48,6 +48,15 @@
     "quality_result_path": { "type": "string" },
     "profitability_result_path": { "type": "string" },
     "repeatability_result_path": { "type": "string" },
+    "kernel_benchmark_manifest_path": { "type": "string" },
+    "quality_fixture_hash": { "type": "string" },
+    "correctness_fixture_hash": { "type": "string" },
+    "baseline_manifest_hash": { "type": "string" },
+    "profiler_artifact_sha256": { "type": "string" },
+    "kernel_claim_status": {
+      "type": "string",
+      "enum": ["measured", "measured-non-certified", "rejected", "research-only"]
+    },
     "status": {
       "type": "string",
       "enum": ["ok", "failed_closed", "rejected"]

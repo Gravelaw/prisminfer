@@ -163,6 +163,11 @@ int main() {
              "host working set written")) return 1;
   if (expect(content.find("\"build_config\":") != std::string::npos,
              "build config written")) return 1;
+  if (expect(content.find("\"kernel_build_enabled\": false") !=
+                 std::string::npos,
+             "kernel build flag written")) return 1;
+  if (expect(content.find("\"kernel_cuda_archs\":") != std::string::npos,
+             "kernel arch list written")) return 1;
   if (expect(content.find("\"warmup_peak_bytes\": 99") !=
                  std::string::npos,
              "warmup peak written")) return 1;

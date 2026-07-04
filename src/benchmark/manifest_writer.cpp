@@ -67,6 +67,26 @@ bool write_probe_manifest(const std::filesystem::path& path,
 #else
       << "false,\n"
 #endif
+      << "  \"kernel_build_enabled\": "
+#if defined(PRISMINFER_ENABLE_CUDA_KERNELS)
+      << "true,\n"
+#else
+      << "false,\n"
+#endif
+      << "  \"kernel_cuda_archs\": \""
+      << json_escape(PRISMINFER_CUDA_KERNEL_ARCHS) << "\",\n"
+      << "  \"cublaslt_baseline_available\": "
+#if defined(PRISMINFER_ENABLE_CUBLASLT_BASELINE)
+      << "true,\n"
+#else
+      << "false,\n"
+#endif
+      << "  \"cutlass_baseline_available\": "
+#if defined(PRISMINFER_ENABLE_CUTLASS_BASELINE)
+      << "true,\n"
+#else
+      << "false,\n"
+#endif
       << "  \"mode\": \"" << json_escape(to_string(inputs.config.mode))
       << "\",\n"
       << "  \"hard_cap_bytes\": " << inputs.config.hard_cap_bytes << ",\n"

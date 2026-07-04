@@ -20,6 +20,13 @@
 | Cherry-picked model family overgeneralizes bucket result | High | 1-4 | claims bind to exact model hash and bucket; bucket-level generalization requires multiple representatives | Phase 4 evidence bundle requires validation cell and artifact evidence | Bucket-level generalization still requires multiple retained representatives |
 | Hardware tier unavailable or inconsistent | High | 1-4 | allow `hardware-evidence-absent`; do not promote missing tiers | New roadmap control | Needs validation-cell status tracking |
 | Cross-cell comparisons produce false profitability | High | 3 | comparator rejects mismatched bucket/tier/model/context manifests | New roadmap control | Needs benchmark comparator implementation |
+| 9B representative gate overgeneralized to the whole `>5B-10B` bucket | High | 2-5 | bind the 9B gate to exact model hash, quantization artifact, context, backend, OS, GPU, driver, CUDA version, and VRAM tier | Proposed roadmap control | Needs retained 9B manifests, quality fixtures, and same-cell comparator evidence |
+| Permissive schemas hide invalid kernel evidence | High | 5 | add strict kernel benchmark manifest/schema and reject unknown kernel fields for measured claims | New roadmap control | Needs schema hardening before kernel prototype |
+| Baseline mismatch creates false kernel speedup | High | 5 | same-cell comparator covers model, quant, prompt, context, batch, backend, OS, GPU, driver, CUDA version, and cap tier | New roadmap control | Needs benchmark comparator and retained baseline artifacts |
+| Custom kernels bypass cap accounting | Critical | 5 | track kernel workspace, retained pools, full-dequant materialization, and unknown allocations; fail closed on unreconciled bytes | New roadmap control | Needs workspace ledger and allocation reconciliation |
+| Full FP16 materialization violates constrained-VRAM claim | Critical | 5 | forbid full weight dequantization for constrained kernel claims; record `full_dequant_materialized` | New roadmap control | Needs kernel evidence schema and tests |
+| Synthetic quality fixtures overstate kernel correctness | High | 5 | require retained prompt fixture hashes, CPU reference outputs, and tolerance policy | New roadmap control | Needs real quality fixture contract |
+| Tensor Core or vendor path claim is unproven | High | 5 | require capability detection, dtype/layout/alignment evidence, fallback reason, and profiler artifact hash | New roadmap control | Needs CUDA feature/profiler evidence contract |
 
 ## Original Plan Traceability
 
@@ -35,7 +42,7 @@
 
 | Research document | Purpose |
 |---|---|
-| `docs/research-roadmap-constrained-llm-inference.md` | Phase 1 through Phase 4 constrained-inference roadmap. |
+| `docs/research-roadmap-constrained-llm-inference.md` | Phase 1 through Phase 5 constrained-inference roadmap. |
 | `docs/validation-matrix.md` | Canonical model-bucket and VRAM-tier validation envelope, capped at 16 GiB. |
 | `docs/claim-taxonomy.md` | Canonical claim labels and non-promotion rules. |
 | `docs/host-memory-and-io-telemetry.md` | Host RAM, pagefile, mmap, and IO evidence policy. |
@@ -46,6 +53,8 @@
 | `docs/phase3-implementation-plan.md` | Concrete Phase 3 transfer-inclusive offload profitability implementation plan. |
 | `docs/phase4-implementation-plan.md` | Concrete Phase 4 large-model and 90B claim taxonomy, evidence bundle, and validation implementation plan. |
 | `docs/phase4-90b-validation-policy.md` | Large-model and 90B validation policy under the current <=16 GiB cap. |
+| `docs/phase5-compute-kernel-research-plan.md` | Concrete Phase 5 measured compute-kernel research plan and stop/go gates. |
+| `docs/kernel-benchmark-methodology.md` | Benchmark, comparator, baseline, and profiler evidence policy for kernel work. |
 
 Archived context:
 
