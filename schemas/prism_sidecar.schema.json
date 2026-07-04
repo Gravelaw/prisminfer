@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prisminfer.local/schemas/prism_sidecar.schema.json",
+  "title": "PrismInfer model sidecar",
+  "type": "object",
+  "required": ["schema_version", "model_sha256"],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "model_sha256": {
+      "type": "string",
+      "pattern": "^[A-Fa-f0-9]{64}$"
+    },
+    "notes": { "type": "string" }
+  },
+  "additionalProperties": false
+}
+

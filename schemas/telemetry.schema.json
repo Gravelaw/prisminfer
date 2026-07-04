@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prisminfer.local/schemas/telemetry.schema.json",
+  "title": "PrismInfer telemetry event",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "timestamp_ns",
+    "run_id",
+    "event",
+    "mode",
+    "hard_cap_bytes"
+  ],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "timestamp_ns": { "type": "integer", "minimum": 0 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "event": { "type": "string", "minLength": 1 },
+    "mode": {
+      "type": "string",
+      "enum": ["1gb-safe-cpu", "1gb-safe-gpu-probed"]
+    },
+    "hard_cap_bytes": { "type": "integer", "minimum": 1 },
+    "status": { "type": "string" },
+    "failure_reason": { "type": "string" },
+    "allocator_bytes": { "type": "integer", "minimum": 0 },
+    "allocator_peak_bytes": { "type": "integer", "minimum": 0 },
+    "process_gpu_bytes": { "type": "integer", "minimum": 0 },
+    "process_gpu_peak_bytes": { "type": "integer", "minimum": 0 },
+    "device_used_bytes": { "type": "integer", "minimum": 0 },
+    "device_delta_bytes": { "type": "integer", "minimum": 0 },
+    "warmup_peak_bytes": { "type": "integer", "minimum": 0 },
+    "retained_pool_bytes": { "type": "integer", "minimum": 0 },
+    "unknown_post_warmup_bytes": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": true
+}

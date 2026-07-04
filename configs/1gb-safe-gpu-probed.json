@@ -1,0 +1,8 @@
+{
+  "mode": "1gb-safe-gpu-probed",
+  "hard_cap_bytes": 1073741824,
+  "gpu_allowed": true,
+  "benchmark_hard_cap": true,
+  "fail_closed": true
+}
+

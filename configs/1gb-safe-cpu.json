@@ -1,0 +1,7 @@
+{
+  "mode": "1gb-safe-cpu",
+  "hard_cap_bytes": 1073741824,
+  "gpu_allowed": false,
+  "benchmark_hard_cap": true
+}
+

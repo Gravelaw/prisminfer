@@ -1,0 +1,186 @@
+#include "prisminfer/benchmark.h"
+
+#include <fstream>
+#include <sstream>
+#include <vector>
+
+#include "prisminfer/telemetry.h"
+
+namespace prisminfer {
+
+namespace {
+
+std::string compiler_name() {
+#if defined(_MSC_VER)
+  return "MSVC " + std::to_string(_MSC_VER);
+#elif defined(__clang__)
+  return "Clang " + std::string(__clang_version__);
+#elif defined(__GNUC__)
+  return "GCC " + std::to_string(__GNUC__);
+#else
+  return "unknown";
+#endif
+}
+
+std::string os_name() {
+#if defined(_WIN32)
+  return "windows";
+#elif defined(__linux__)
+  return "linux";
+#else
+  return "unknown";
+#endif
+}
+
+bool line_contains(const std::string& line, const std::string& needle) {
+  return line.find(needle) != std::string::npos;
+}
+
+}  // namespace
+
+bool write_probe_manifest(const std::filesystem::path& path,
+                          const ManifestInputs& inputs,
+                          std::string* error) {
+  std::ofstream out(path, std::ios::out | std::ios::trunc);
+  if (!out) {
+    if (error != nullptr) {
+      *error = "failed_to_open_manifest_path: " + path.string();
+    }
+    return false;
+  }
+
+  out << "{\n"
+      << "  \"manifest_version\": \"0.1\",\n"
+      << "  \"run_id\": \"" << json_escape(inputs.config.run_id) << "\",\n"
+      << "  \"created_at_utc\": \"" << utc_timestamp() << "\",\n"
+      << "  \"tool\": \"prism-probe\",\n"
+      << "  \"prisminfer_version\": \"" << PRISMINFER_VERSION << "\",\n"
+      << "  \"cmake_version\": \"" << PRISMINFER_CMAKE_VERSION << "\",\n"
+      << "  \"compiler\": \"" << json_escape(compiler_name()) << "\",\n"
+      << "  \"os\": \"" << os_name() << "\",\n"
+      << "  \"cuda_probe_compiled\": "
+#if defined(PRISMINFER_ENABLE_CUDA_PROBE)
+      << "true,\n"
+#else
+      << "false,\n"
+#endif
+      << "  \"mode\": \"" << json_escape(to_string(inputs.config.mode))
+      << "\",\n"
+      << "  \"hard_cap_bytes\": " << inputs.config.hard_cap_bytes << ",\n"
+      << "  \"telemetry_path\": \""
+      << json_escape(inputs.config.telemetry_path) << "\",\n"
+      << "  \"status\": \"" << json_escape(inputs.status) << "\",\n"
+      << "  \"failure_reason\": \"" << json_escape(inputs.failure_reason)
+      << "\",\n"
+      << "  \"gpu_name\": \"" << json_escape(inputs.cuda_probe.gpu_name)
+      << "\",\n"
+      << "  \"cuda_driver_version\": " << inputs.cuda_probe.driver_version
+      << ",\n"
+      << "  \"cuda_runtime_version\": " << inputs.cuda_probe.runtime_version
+      << ",\n"
+      << "  \"device_total_bytes\": " << inputs.cuda_probe.device_total_bytes
+      << ",\n"
+      << "  \"device_used_bytes\": " << inputs.sample.device_used_bytes
+      << ",\n"
+      << "  \"device_delta_bytes\": " << inputs.sample.device_delta_bytes
+      << ",\n"
+      << "  \"allocator_peak_bytes\": "
+      << inputs.sample.allocator_peak_bytes << ",\n"
+      << "  \"process_gpu_peak_bytes\": "
+      << inputs.sample.process_gpu_peak_bytes << "\n"
+      << "}\n";
+
+  return true;
+}
+
+bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
+                               std::string* error) {
+  std::ifstream in(telemetry_path);
+  if (!in) {
+    if (error != nullptr) {
+      *error = "failed_to_open_telemetry_path: " + telemetry_path.string();
+    }
+    return false;
+  }
+
+  std::vector<std::string> events;
+  std::string line;
+  while (std::getline(in, line)) {
+    if (line_contains(line, "\"event\":\"run_start\"")) {
+      events.emplace_back("run_start");
+    } else if (line_contains(line, "\"event\":\"config_validated\"")) {
+      events.emplace_back("config_validated");
+    } else if (line_contains(line, "\"event\":\"telemetry_probe\"")) {
+      events.emplace_back("telemetry_probe");
+    } else if (line_contains(line, "\"event\":\"cuda_context_probe\"")) {
+      events.emplace_back("cuda_context_probe");
+    } else if (line_contains(line, "\"event\":\"cap_semantics_resolved\"")) {
+      events.emplace_back("cap_semantics_resolved");
+    } else if (line_contains(line, "\"event\":\"memory_sample\"")) {
+      events.emplace_back("memory_sample");
+    } else if (line_contains(line, "\"event\":\"cap_certification_result\"")) {
+      events.emplace_back("cap_certification_result");
+    } else if (line_contains(line, "\"event\":\"completed\"")) {
+      events.emplace_back("completed");
+    } else if (line_contains(line, "\"event\":\"failed_closed\"")) {
+      events.emplace_back("failed_closed");
+    } else if (line_contains(line, "\"event\":\"run_end\"")) {
+      events.emplace_back("run_end");
+    }
+  }
+
+  const auto fail = [&](const std::string& message) {
+    if (error != nullptr) {
+      *error = message;
+    }
+    return false;
+  };
+
+  if (events.size() < 6) {
+    return fail("too_few_lifecycle_events");
+  }
+  if (events.front() != "run_start") {
+    return fail("first_event_not_run_start");
+  }
+  if (events.back() != "run_end") {
+    return fail("last_event_not_run_end");
+  }
+
+  std::size_t position = 0;
+  const auto require_next = [&](const std::string& expected) {
+    if (position >= events.size() || events[position] != expected) {
+      return false;
+    }
+    ++position;
+    return true;
+  };
+
+  if (!require_next("run_start") || !require_next("config_validated") ||
+      !require_next("telemetry_probe")) {
+    return fail("required_prefix_missing");
+  }
+  if (position < events.size() && events[position] == "cuda_context_probe") {
+    ++position;
+  }
+
+  bool saw_terminal = false;
+  bool saw_memory = false;
+  for (; position < events.size(); ++position) {
+    if (events[position] == "memory_sample") {
+      saw_memory = true;
+    }
+    if (events[position] == "completed" || events[position] == "failed_closed") {
+      saw_terminal = true;
+    }
+  }
+
+  if (!saw_memory) {
+    return fail("missing_memory_sample");
+  }
+  if (!saw_terminal) {
+    return fail("missing_terminal_event");
+  }
+  return true;
+}
+
+}  // namespace prisminfer

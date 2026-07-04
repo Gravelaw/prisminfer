@@ -1,0 +1,19 @@
+build/
+build-cuda/
+.vs/
+*.user
+*.suo
+*.VC.db
+*.VC.VC.opendb
+
+# Generated probe evidence. Keep checked-in fixtures under tests/fixtures/.
+*.jsonl
+*-manifest.json
+prisminfer-manifest.json
+prisminfer-probe.jsonl
+
+# Local editor and OS noise.
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
