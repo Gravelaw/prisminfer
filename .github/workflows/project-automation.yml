@@ -1,0 +1,106 @@
+name: Project Automation
+
+on:
+  issues:
+    types:
+      - opened
+      - reopened
+      - closed
+      - labeled
+      - unlabeled
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - ready_for_review
+      - converted_to_draft
+      - closed
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number to add or refresh in the Phase 0 project
+        required: false
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  sync-project:
+    name: Sync item to PrismInfer Phase 0 project
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.issue || github.event.pull_request
+    steps:
+      - name: Add issue or pull request to project
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          OWNER: Gravelaw
+          PROJECT_NUMBER: "2"
+          STATUS_FIELD: Status
+          PHASE_STATUS_FIELD: Phase Status
+          EVENT_ACTION: ${{ github.event.action }}
+          EVENT_NAME: ${{ github.event_name }}
+          ISSUE_NODE_ID: ${{ github.event.issue.node_id }}
+          PR_NODE_ID: ${{ github.event.pull_request.node_id }}
+          CONTENT_NUMBER: ${{ github.event.inputs.issue_number || github.event.issue.number || github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "PROJECT_TOKEN secret is required for user-level GitHub Projects automation."
+            exit 0
+          fi
+
+          content_id="${ISSUE_NODE_ID:-$PR_NODE_ID}"
+
+          if [ -z "$content_id" ] && [ -n "$CONTENT_NUMBER" ]; then
+            content_id="$(gh issue view "$CONTENT_NUMBER" --repo "$REPO" --json id --jq .id)"
+          fi
+
+          if [ -z "$content_id" ] || [ -z "$CONTENT_NUMBER" ]; then
+            echo "No issue or pull request content id was available."
+            exit 0
+          fi
+
+          content_path="issues"
+          if [ -n "$PR_NODE_ID" ]; then
+            content_path="pull"
+          fi
+          content_url="https://github.com/$REPO/$content_path/$CONTENT_NUMBER"
+
+          item_id="$(gh project item-add "$PROJECT_NUMBER" --owner "$OWNER" --url "$content_url" --format json --jq .id 2>/dev/null || true)"
+          project_id="$(gh project view "$PROJECT_NUMBER" --owner "$OWNER" --format json --jq .id)"
+
+          if [ -z "$item_id" ]; then
+            item_id="$(gh project item-list "$PROJECT_NUMBER" --owner "$OWNER" --format json --limit 100 | jq -r --arg url "$content_url" '.items[] | select(.content.url == $url) | .id' | head -n 1)"
+          fi
+
+          if [ -z "$item_id" ]; then
+            echo "Unable to add or locate project item for $content_url."
+            exit 1
+          fi
+
+          target_status="Todo"
+          target_phase_status="Backlog"
+
+          if [ "$EVENT_ACTION" = "closed" ]; then
+            target_status="Done"
+            target_phase_status="Done"
+          elif [ -n "$PR_NODE_ID" ]; then
+            target_status="In Progress"
+            target_phase_status="Review"
+          fi
+
+          fields="$(gh project field-list "$PROJECT_NUMBER" --owner "$OWNER" --format json --limit 100)"
+          status_field_id="$(echo "$fields" | jq -r '.fields[] | select(.name == env.STATUS_FIELD) | .id')"
+          status_option_id="$(echo "$fields" | jq -r --arg value "$target_status" '.fields[] | select(.name == env.STATUS_FIELD) | .options[] | select(.name == $value) | .id')"
+          phase_status_field_id="$(echo "$fields" | jq -r '.fields[] | select(.name == env.PHASE_STATUS_FIELD) | .id')"
+          phase_status_option_id="$(echo "$fields" | jq -r --arg value "$target_phase_status" '.fields[] | select(.name == env.PHASE_STATUS_FIELD) | .options[] | select(.name == $value) | .id')"
+
+          if [ -n "$status_field_id" ] && [ -n "$status_option_id" ]; then
+            gh project item-edit --project-id "$project_id" --id "$item_id" --field-id "$status_field_id" --single-select-option-id "$status_option_id"
+          fi
+
+          if [ -n "$phase_status_field_id" ] && [ -n "$phase_status_option_id" ]; then
+            gh project item-edit --project-id "$project_id" --id "$item_id" --field-id "$phase_status_field_id" --single-select-option-id "$phase_status_option_id"
+          fi

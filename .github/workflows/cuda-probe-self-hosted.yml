@@ -1,0 +1,85 @@
+name: CUDA Probe Self-Hosted
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - CMakeLists.txt
+      - include/**
+      - src/**
+      - tests/**
+      - tools/**
+      - configs/**
+      - .github/workflows/cuda-probe-self-hosted.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cuda-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cuda-probe:
+    name: Windows NVIDIA CUDA probe
+    runs-on:
+      - self-hosted
+      - Windows
+      - NVIDIA
+      - CUDA
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show CUDA toolchain
+        shell: pwsh
+        run: |
+          nvcc --version
+          nvidia-smi
+
+      - name: Configure CUDA probe build
+        shell: pwsh
+        run: cmake -S . -B build-cuda -DPRISMINFER_ENABLE_CUDA_PROBE=ON
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build build-cuda --config Debug --parallel
+
+      - name: Unit tests
+        shell: pwsh
+        run: ctest --test-dir build-cuda -C Debug --output-on-failure
+
+      - name: CPU probe smoke
+        shell: pwsh
+        run: |
+          .\build-cuda\Debug\prism-probe.exe --mode 1gb-safe-cpu --run-id ci-cpu-smoke --telemetry ci-cpu-smoke.jsonl --manifest ci-cpu-smoke-manifest.json
+          .\build-cuda\Debug\prism-validate-lifecycle.exe ci-cpu-smoke.jsonl
+
+      - name: GPU probed smoke
+        shell: pwsh
+        run: |
+          .\build-cuda\Debug\prism-probe.exe --mode 1gb-safe-gpu-probed --run-id ci-gpu-smoke --telemetry ci-gpu-smoke.jsonl --manifest ci-gpu-smoke-manifest.json
+          .\build-cuda\Debug\prism-validate-lifecycle.exe ci-gpu-smoke.jsonl
+
+      - name: Forced breach smoke
+        shell: pwsh
+        run: |
+          .\build-cuda\Debug\prism-probe.exe --mode 1gb-safe-cpu --run-id ci-forced-allocator --telemetry ci-forced-allocator.jsonl --manifest ci-forced-allocator-manifest.json --simulate-allocator-peak-bytes 1073741825
+          if ($LASTEXITCODE -eq 0) { throw "forced allocator breach unexpectedly succeeded" }
+          .\build-cuda\Debug\prism-validate-lifecycle.exe ci-forced-allocator.jsonl
+
+      - name: Upload probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cuda-probe-evidence
+          path: |
+            *.jsonl
+            *-manifest.json
+            build-cuda/Testing/Temporary/*.log
+          if-no-files-found: ignore
+
