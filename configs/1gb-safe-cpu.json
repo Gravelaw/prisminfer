@@ -1,7 +1,17 @@
 {
   "mode": "1gb-safe-cpu",
   "hard_cap_bytes": 1073741824,
+  "model_parameter_bucket": "",
+  "parameter_count": 0,
+  "vram_tier_gib": 1,
+  "validation_cell_id": "",
+  "validation_cell_status": "not-started",
+  "backend": "null",
+  "backend_required": false,
+  "context_tokens": 512,
+  "gpu_layers": 0,
+  "mmap": true,
+  "warmup_tokens": 1,
   "gpu_allowed": false,
   "benchmark_hard_cap": true
 }
-

@@ -4,6 +4,22 @@
 
 namespace prisminfer {
 
+namespace {
+
+bool reserved_event_field(const std::string& key) {
+  return key == "schema_version" || key == "timestamp_ns" ||
+         key == "run_id" || key == "event" || key == "mode" ||
+         key == "hard_cap_bytes" || key == "model_parameter_bucket" ||
+         key == "parameter_count" || key == "vram_tier_gib" ||
+         key == "validation_cell_id" || key == "validation_cell_status" ||
+         key == "backend" || key == "backend_required" ||
+         key == "dependency_pin_file" || key == "context_tokens" ||
+         key == "gpu_layers" || key == "mmap_enabled" ||
+         key == "warmup_tokens";
+}
+
+}  // namespace
+
 std::string json_escape(const std::string& value) {
   std::ostringstream escaped;
   for (const char c : value) {
@@ -54,14 +70,34 @@ void JsonlTelemetry::emit(
     return;
   }
 
-  out_ << "{\"schema_version\":\"0.1\""
+  out_ << "{\"schema_version\":\"0.2\""
        << ",\"timestamp_ns\":" << monotonic_time_ns()
        << ",\"run_id\":\"" << json_escape(config.run_id) << "\""
        << ",\"event\":\"" << json_escape(event) << "\""
        << ",\"mode\":\"" << json_escape(to_string(config.mode)) << "\""
-       << ",\"hard_cap_bytes\":" << config.hard_cap_bytes;
+       << ",\"hard_cap_bytes\":" << config.hard_cap_bytes
+       << ",\"model_parameter_bucket\":\""
+       << json_escape(config.model_parameter_bucket) << "\""
+       << ",\"parameter_count\":" << config.parameter_count
+       << ",\"vram_tier_gib\":" << config.vram_tier_gib
+       << ",\"validation_cell_id\":\""
+       << json_escape(config.validation_cell_id) << "\""
+       << ",\"validation_cell_status\":\""
+       << json_escape(config.validation_cell_status) << "\""
+       << ",\"backend\":\"" << json_escape(to_string(config.backend)) << "\""
+       << ",\"backend_required\":"
+       << (config.backend_required ? "true" : "false")
+       << ",\"dependency_pin_file\":\""
+       << json_escape(config.dependency_pin_file.generic_string()) << "\""
+       << ",\"context_tokens\":" << config.context_tokens
+       << ",\"gpu_layers\":" << config.gpu_layers
+       << ",\"mmap_enabled\":" << (config.mmap_enabled ? "true" : "false")
+       << ",\"warmup_tokens\":" << config.warmup_tokens;
 
   for (const auto& [key, value] : fields) {
+    if (reserved_event_field(key)) {
+      continue;
+    }
     out_ << ",\"" << json_escape(key) << "\":\"" << json_escape(value)
          << "\"";
   }
@@ -76,12 +112,29 @@ void JsonlTelemetry::emit_memory_sample(const RuntimeConfig& config,
     return;
   }
 
-  out_ << "{\"schema_version\":\"0.1\""
+  out_ << "{\"schema_version\":\"0.2\""
        << ",\"timestamp_ns\":" << monotonic_time_ns()
        << ",\"run_id\":\"" << json_escape(config.run_id) << "\""
        << ",\"event\":\"memory_sample\""
        << ",\"mode\":\"" << json_escape(to_string(config.mode)) << "\""
        << ",\"hard_cap_bytes\":" << config.hard_cap_bytes
+       << ",\"model_parameter_bucket\":\""
+       << json_escape(config.model_parameter_bucket) << "\""
+       << ",\"parameter_count\":" << config.parameter_count
+       << ",\"vram_tier_gib\":" << config.vram_tier_gib
+       << ",\"validation_cell_id\":\""
+       << json_escape(config.validation_cell_id) << "\""
+       << ",\"validation_cell_status\":\""
+       << json_escape(config.validation_cell_status) << "\""
+       << ",\"backend\":\"" << json_escape(to_string(config.backend)) << "\""
+       << ",\"backend_required\":"
+       << (config.backend_required ? "true" : "false")
+       << ",\"dependency_pin_file\":\""
+       << json_escape(config.dependency_pin_file.generic_string()) << "\""
+       << ",\"context_tokens\":" << config.context_tokens
+       << ",\"gpu_layers\":" << config.gpu_layers
+       << ",\"mmap_enabled\":" << (config.mmap_enabled ? "true" : "false")
+       << ",\"warmup_tokens\":" << config.warmup_tokens
        << ",\"allocator_bytes\":" << sample.allocator_bytes
        << ",\"allocator_peak_bytes\":" << sample.allocator_peak_bytes
        << ",\"process_gpu_bytes\":" << sample.process_gpu_bytes

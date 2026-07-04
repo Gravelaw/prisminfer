@@ -65,3 +65,24 @@ Fail-closed cap paths can be tested without large allocations:
 ```powershell
 .\build\Debug\prism-probe.exe --mode 1gb-safe-cpu --simulate-allocator-peak-bytes 1073741825
 ```
+
+## Research and Roadmap
+
+Current research direction and post-Phase-0 implementation plans are tracked in:
+
+- `docs/research-roadmap-constrained-llm-inference.md`
+- `docs/validation-matrix.md`
+- `docs/claim-taxonomy.md`
+- `docs/host-memory-and-io-telemetry.md`
+- `docs/windows-wddm-telemetry-policy.md`
+- `docs/kv-cache-and-compression-research.md`
+- `docs/phase1-implementation-plan.md`
+- `docs/phase2-implementation-plan.md`
+- `docs/phase3-implementation-plan.md`
+- `docs/phase4-implementation-plan.md`
+- `docs/phase4-90b-validation-policy.md`
+- `docs/implementation-plan-phase1-to-phase4.md`
+
+The current roadmap caps GPU hard-limit validation at 16 GiB. The 90B hybrid
+profile is simulated/offline only until validated benchmark evidence exists.
+Historical council notes live under `docs/archive/`.

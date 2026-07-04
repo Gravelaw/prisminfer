@@ -25,8 +25,12 @@ int main() {
     out << "{\"event\":\"run_start\"}\n"
         << "{\"event\":\"config_validated\"}\n"
         << "{\"event\":\"telemetry_probe\"}\n"
+        << "{\"event\":\"backend_selected\"}\n"
+        << "{\"event\":\"dependency_pins_resolved\"}\n"
         << "{\"event\":\"cap_semantics_resolved\"}\n"
         << "{\"event\":\"host_prepare\"}\n"
+        << "{\"event\":\"model_load_plan\"}\n"
+        << "{\"event\":\"backend_init\"}\n"
         << "{\"event\":\"backend_warmup\"}\n"
         << "{\"event\":\"memory_sample\"}\n"
         << "{\"event\":\"cap_certification_result\"}\n"
@@ -78,6 +82,31 @@ int main() {
         << "{\"event\":\"telemetry_probe\"}\n"
         << "{\"event\":\"cap_semantics_resolved\"}\n"
         << "{\"event\":\"host_prepare\"}\n"
+        << "{\"event\":\"model_load_plan\"}\n"
+        << "{\"event\":\"backend_init\"}\n"
+        << "{\"event\":\"memory_sample\"}\n"
+        << "{\"event\":\"cap_certification_result\"}\n"
+        << "{\"event\":\"completed\"}\n"
+        << "{\"event\":\"run_end\"}\n";
+  }
+
+  error.clear();
+  if (expect(!prisminfer::validate_phase0_lifecycle(path, &error),
+             "missing backend selected rejected")) return 1;
+  if (expect(error == "missing_backend_selected",
+             "missing backend selected reason set")) return 1;
+
+  {
+    std::ofstream out(path, std::ios::out | std::ios::trunc);
+    out << "{\"event\":\"run_start\"}\n"
+        << "{\"event\":\"config_validated\"}\n"
+        << "{\"event\":\"telemetry_probe\"}\n"
+        << "{\"event\":\"backend_selected\"}\n"
+        << "{\"event\":\"dependency_pins_resolved\"}\n"
+        << "{\"event\":\"cap_semantics_resolved\"}\n"
+        << "{\"event\":\"host_prepare\"}\n"
+        << "{\"event\":\"model_load_plan\"}\n"
+        << "{\"event\":\"backend_init\"}\n"
         << "{\"event\":\"memory_sample\"}\n"
         << "{\"event\":\"cap_certification_result\"}\n"
         << "{\"event\":\"completed\"}\n"

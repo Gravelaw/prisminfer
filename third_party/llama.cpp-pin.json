@@ -1,0 +1,26 @@
+{
+  "schema_version": "0.1",
+  "access_date": "2026-07-04",
+  "dependencies": {
+    "llama_cpp": {
+      "repository": "https://github.com/ggml-org/llama.cpp.git",
+      "commit": "ef2d770117db45b05aa7ecd1b0acca36370c5470",
+      "resolution_command": "git ls-remote https://github.com/ggml-org/llama.cpp.git HEAD",
+      "integration_mode": "planned opt-in backend adapter"
+    },
+    "ggml": {
+      "source": "llama.cpp repository at pinned commit",
+      "commit": "ef2d770117db45b05aa7ecd1b0acca36370c5470"
+    },
+    "gguf": {
+      "source": "llama.cpp repository at pinned commit",
+      "commit": "ef2d770117db45b05aa7ecd1b0acca36370c5470"
+    }
+  },
+  "status": "pinned-not-integrated",
+  "notes": [
+    "This pin records the source baseline for Phase 1 planning and opt-in integration work.",
+    "No llama.cpp source is vendored by this file.",
+    "Real backend warmup evidence still requires a linked llama.cpp adapter and external pinned GGUF model artifacts."
+  ]
+}

@@ -5,6 +5,7 @@
 
 #include "prisminfer/config.h"
 #include "prisminfer/cuda_context_probe.h"
+#include "prisminfer/host_memory_tracker.h"
 #include "prisminfer/memory_cap.h"
 
 namespace prisminfer {
@@ -12,6 +13,7 @@ namespace prisminfer {
 struct ManifestInputs {
   RuntimeConfig config;
   MemorySample sample;
+  HostTelemetrySample host;
   CudaProbeResult cuda_probe;
   std::string status;
   std::string failure_reason;
