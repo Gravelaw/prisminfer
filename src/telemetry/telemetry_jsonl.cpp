@@ -17,7 +17,8 @@ bool reserved_event_field(const std::string& key) {
          key == "context_tokens" || key == "gpu_layers" ||
          key == "mmap_enabled" || key == "warmup_tokens" ||
          key == "kv_accounting" || key == "kv_placement" ||
-         key == "kv_compression" || key == "quality_gate";
+         key == "kv_compression" || key == "quality_gate" ||
+         key == "profitability_policy" || key == "offload_policy";
 }
 
 }  // namespace
@@ -72,7 +73,7 @@ void JsonlTelemetry::emit(
     return;
   }
 
-  out_ << "{\"schema_version\":\"0.3\""
+  out_ << "{\"schema_version\":\"0.4\""
        << ",\"timestamp_ns\":" << monotonic_time_ns()
        << ",\"run_id\":\"" << json_escape(config.run_id) << "\""
        << ",\"event\":\"" << json_escape(event) << "\""
@@ -103,6 +104,10 @@ void JsonlTelemetry::emit(
        << ",\"kv_compression\":\"" << json_escape(config.kv_compression)
        << "\""
        << ",\"quality_gate\":\"" << json_escape(config.quality_gate) << "\"";
+  out_ << ",\"profitability_policy\":\""
+       << json_escape(config.profitability_policy) << "\""
+       << ",\"offload_policy\":\"" << json_escape(config.offload_policy)
+       << "\"";
 
   for (const auto& [key, value] : fields) {
     if (reserved_event_field(key)) {
@@ -122,7 +127,7 @@ void JsonlTelemetry::emit_memory_sample(const RuntimeConfig& config,
     return;
   }
 
-  out_ << "{\"schema_version\":\"0.3\""
+  out_ << "{\"schema_version\":\"0.4\""
        << ",\"timestamp_ns\":" << monotonic_time_ns()
        << ",\"run_id\":\"" << json_escape(config.run_id) << "\""
        << ",\"event\":\"memory_sample\""
@@ -153,6 +158,10 @@ void JsonlTelemetry::emit_memory_sample(const RuntimeConfig& config,
        << ",\"kv_compression\":\"" << json_escape(config.kv_compression)
        << "\""
        << ",\"quality_gate\":\"" << json_escape(config.quality_gate) << "\""
+       << ",\"profitability_policy\":\""
+       << json_escape(config.profitability_policy) << "\""
+       << ",\"offload_policy\":\"" << json_escape(config.offload_policy)
+       << "\""
        << ",\"allocator_bytes\":" << sample.allocator_bytes
        << ",\"allocator_peak_bytes\":" << sample.allocator_peak_bytes
        << ",\"process_gpu_bytes\":" << sample.process_gpu_bytes

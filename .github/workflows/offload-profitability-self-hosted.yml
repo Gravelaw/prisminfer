@@ -1,0 +1,76 @@
+name: Offload Profitability Self-Hosted
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - CMakeLists.txt
+      - include/**
+      - src/**
+      - tests/**
+      - tools/**
+      - configs/benchmark-*.json
+      - .github/workflows/offload-profitability-self-hosted.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offload-profitability-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  profitability:
+    name: Windows NVIDIA offload profitability
+    runs-on:
+      - self-hosted
+      - Windows
+      - NVIDIA
+      - CUDA
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: powershell
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Clean build and evidence state
+        run: |
+          Remove-Item -LiteralPath build-profitability -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath phase3-*.jsonl, phase3-*-manifest.json -Force -ErrorAction SilentlyContinue
+
+      - name: Configure
+        run: cmake -S . -B build-profitability -DPRISMINFER_ENABLE_CUDA_PROBE=ON
+
+      - name: Build
+        run: cmake --build build-profitability --config Debug --parallel
+
+      - name: Unit tests
+        run: ctest --test-dir build-profitability -C Debug --output-on-failure
+
+      - name: Accepted profitability smoke
+        run: |
+          .\build-profitability\Debug\prism-probe.exe --mode 1gb-safe-cpu --backend fake --run-id phase3-profitability-accepted --validation-cell-id phase3-fake-cell-1gb --validation-cell-status profitable --model-parameter-bucket "<=2B" --parameter-count 15000000 --profitability-policy fail-closed --baseline-manifest phase3-cpu-baseline-manifest.json --offload-policy gpu --min-speedup-ratio 1.1 --staging-buffer-bytes 1048576 --cpu-baseline-ttft-ms 100 --cpu-baseline-decode-tps 10 --cpu-baseline-peak-bytes 67108864 --observed-ttft-ms 80 --observed-decode-tps 12 --token-latency-p50-ms 83 --token-latency-p95-ms 95 --transfer-h2d-bytes 1048576 --transfer-d2h-bytes 262144 --telemetry phase3-profitability-accepted.jsonl --manifest phase3-profitability-accepted-manifest.json
+          .\build-profitability\Debug\prism-validate-lifecycle.exe phase3-profitability-accepted.jsonl
+
+      - name: Rejected profitability smoke
+        run: |
+          .\build-profitability\Debug\prism-probe.exe --mode 1gb-safe-cpu --backend fake --run-id phase3-profitability-rejected --validation-cell-id phase3-fake-cell-1gb --validation-cell-status rejected --model-parameter-bucket "<=2B" --parameter-count 15000000 --profitability-policy fail-closed --baseline-manifest phase3-cpu-baseline-manifest.json --offload-policy gpu --min-speedup-ratio 1.1 --staging-buffer-bytes 1048576 --cpu-baseline-ttft-ms 100 --cpu-baseline-decode-tps 10 --observed-ttft-ms 99 --observed-decode-tps 10.1 --transfer-h2d-bytes 1048576 --telemetry phase3-profitability-rejected.jsonl --manifest phase3-profitability-rejected-manifest.json
+          if ($LASTEXITCODE -eq 0) { throw "slow offload candidate unexpectedly succeeded" }
+          .\build-profitability\Debug\prism-validate-lifecycle.exe phase3-profitability-rejected.jsonl
+
+      - name: Upload profitability evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3-offload-profitability-${{ github.run_id }}-${{ github.sha }}
+          path: |
+            phase3-*.jsonl
+            phase3-*-manifest.json
+            build-profitability/Testing/Temporary/*.log
+          if-no-files-found: ignore
+

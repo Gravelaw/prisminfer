@@ -92,6 +92,8 @@ bool parse_u32(const std::string& value, std::uint32_t* output) {
 bool valid_validation_cell_status(const std::string& value) {
   return value == "not-started" || value == "metadata-only" ||
          value == "warmup" || value == "decode-smoke" ||
+         value == "quality-gated" || value == "profitable" ||
+         value == "validated" ||
          value == "rejected";
 }
 
@@ -132,6 +134,15 @@ bool valid_kv_compression(const std::string& value) {
 bool valid_quality_gate_name(const std::string& value) {
   return value == "none" || value == "smoke" || value == "retrieval" ||
          value == "long-context";
+}
+
+bool valid_profitability_policy_name(const std::string& value) {
+  return value == "off" || value == "warn" || value == "fail-closed";
+}
+
+bool valid_offload_policy_name(const std::string& value) {
+  return value == "none" || value == "gpu" || value == "host-kv" ||
+         value == "nvme-simulated" || value == "nvme-experimental";
 }
 
 bool parse_double_value(const std::string& value, double* output) {
@@ -495,6 +506,264 @@ ParseResult parse_args(const std::vector<std::string>& args) {
       }
       continue;
     }
+    if (arg == "--profitability-policy") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--profitability-policy requires a value"};
+      }
+      config.profitability_policy = args[++i];
+      if (!valid_profitability_policy_name(config.profitability_policy)) {
+        return ParseResult{std::nullopt,
+                           "unsupported profitability policy: " +
+                               config.profitability_policy};
+      }
+      continue;
+    }
+    if (arg == "--baseline-manifest") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--baseline-manifest requires a path"};
+      }
+      config.baseline_manifest = args[++i];
+      continue;
+    }
+    if (arg == "--min-speedup-ratio") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--min-speedup-ratio requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.min_speedup_ratio) ||
+          config.min_speedup_ratio <= 0.0) {
+        return ParseResult{std::nullopt,
+                           "--min-speedup-ratio must be a positive number"};
+      }
+      continue;
+    }
+    if (arg == "--offload-policy") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--offload-policy requires a value"};
+      }
+      config.offload_policy = args[++i];
+      if (!valid_offload_policy_name(config.offload_policy)) {
+        return ParseResult{std::nullopt,
+                           "unsupported offload policy: " +
+                               config.offload_policy};
+      }
+      continue;
+    }
+    if (arg == "--pinned-host-budget-bytes") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--pinned-host-budget-bytes requires a value"};
+      }
+      if (!parse_u64(args[++i], &config.pinned_host_budget_bytes)) {
+        return ParseResult{
+            std::nullopt,
+            "--pinned-host-budget-bytes must be an integer"};
+      }
+      continue;
+    }
+    if (arg == "--staging-buffer-bytes") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--staging-buffer-bytes requires a value"};
+      }
+      if (!parse_u64(args[++i], &config.staging_buffer_bytes)) {
+        return ParseResult{std::nullopt,
+                           "--staging-buffer-bytes must be an integer"};
+      }
+      continue;
+    }
+    if (arg == "--transfer-metrics") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--transfer-metrics requires on or off"};
+      }
+      if (!parse_on_off(args[++i], &config.transfer_metrics)) {
+        return ParseResult{std::nullopt,
+                           "--transfer-metrics must be on or off"};
+      }
+      continue;
+    }
+    if (arg == "--cold-cache-run") {
+      config.cold_cache_run = true;
+      continue;
+    }
+    if (arg == "--cpu-baseline-ttft-ms") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--cpu-baseline-ttft-ms requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.cpu_baseline_ttft_ms)) {
+        return ParseResult{std::nullopt,
+                           "--cpu-baseline-ttft-ms must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--cpu-baseline-decode-tps") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--cpu-baseline-decode-tps requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.cpu_baseline_decode_tps)) {
+        return ParseResult{std::nullopt,
+                           "--cpu-baseline-decode-tps must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--cpu-baseline-peak-bytes") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--cpu-baseline-peak-bytes requires a value"};
+      }
+      if (!parse_u64(args[++i], &config.cpu_baseline_peak_bytes)) {
+        return ParseResult{std::nullopt,
+                           "--cpu-baseline-peak-bytes must be an integer"};
+      }
+      continue;
+    }
+    if (arg == "--observed-ttft-ms") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--observed-ttft-ms requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.observed_ttft_ms)) {
+        return ParseResult{std::nullopt,
+                           "--observed-ttft-ms must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--observed-decode-tps") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--observed-decode-tps requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.observed_decode_tps)) {
+        return ParseResult{std::nullopt,
+                           "--observed-decode-tps must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--token-latency-p50-ms") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--token-latency-p50-ms requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.token_latency_p50_ms)) {
+        return ParseResult{std::nullopt,
+                           "--token-latency-p50-ms must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--token-latency-p95-ms") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--token-latency-p95-ms requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.token_latency_p95_ms)) {
+        return ParseResult{std::nullopt,
+                           "--token-latency-p95-ms must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--transfer-h2d-bytes") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--transfer-h2d-bytes requires a value"};
+      }
+      if (!parse_u64(args[++i], &config.transfer_h2d_bytes)) {
+        return ParseResult{std::nullopt,
+                           "--transfer-h2d-bytes must be an integer"};
+      }
+      continue;
+    }
+    if (arg == "--transfer-d2h-bytes") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--transfer-d2h-bytes requires a value"};
+      }
+      if (!parse_u64(args[++i], &config.transfer_d2h_bytes)) {
+        return ParseResult{std::nullopt,
+                           "--transfer-d2h-bytes must be an integer"};
+      }
+      continue;
+    }
+    if (arg == "--nvme-read-bytes") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--nvme-read-bytes requires a value"};
+      }
+      if (!parse_u64(args[++i], &config.nvme_read_bytes)) {
+        return ParseResult{std::nullopt,
+                           "--nvme-read-bytes must be an integer"};
+      }
+      continue;
+    }
+    if (arg == "--nvme-write-bytes") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--nvme-write-bytes requires a value"};
+      }
+      if (!parse_u64(args[++i], &config.nvme_write_bytes)) {
+        return ParseResult{std::nullopt,
+                           "--nvme-write-bytes must be an integer"};
+      }
+      continue;
+    }
+    if (arg == "--transfer-h2d-ms") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--transfer-h2d-ms requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.transfer_h2d_ms)) {
+        return ParseResult{std::nullopt,
+                           "--transfer-h2d-ms must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--transfer-d2h-ms") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--transfer-d2h-ms requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.transfer_d2h_ms)) {
+        return ParseResult{std::nullopt,
+                           "--transfer-d2h-ms must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--transfer-io-ms") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--transfer-io-ms requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.transfer_io_ms)) {
+        return ParseResult{std::nullopt, "--transfer-io-ms must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--transfer-wait-ms") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--transfer-wait-ms requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.transfer_wait_ms)) {
+        return ParseResult{std::nullopt,
+                           "--transfer-wait-ms must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--prefill-ms") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--prefill-ms requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.prefill_ms)) {
+        return ParseResult{std::nullopt, "--prefill-ms must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--decode-ms") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--decode-ms requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.decode_ms)) {
+        return ParseResult{std::nullopt, "--decode-ms must be a number"};
+      }
+      continue;
+    }
     if (arg == "--telemetry") {
       if (i + 1 >= args.size()) {
         return ParseResult{std::nullopt, "--telemetry requires a path"};
@@ -648,6 +917,31 @@ Usage:
               [--quality-max-delta N]
               [--quality-retrieval-passed true|false]
               [--quality-deterministic-match true|false]
+              [--profitability-policy off|warn|fail-closed]
+              [--baseline-manifest PATH]
+              [--min-speedup-ratio R]
+              [--offload-policy none|gpu|host-kv|nvme-simulated|nvme-experimental]
+              [--pinned-host-budget-bytes BYTES]
+              [--staging-buffer-bytes BYTES]
+              [--transfer-metrics on|off]
+              [--cold-cache-run]
+              [--cpu-baseline-ttft-ms N]
+              [--cpu-baseline-decode-tps N]
+              [--cpu-baseline-peak-bytes BYTES]
+              [--observed-ttft-ms N]
+              [--observed-decode-tps N]
+              [--token-latency-p50-ms N]
+              [--token-latency-p95-ms N]
+              [--transfer-h2d-bytes BYTES]
+              [--transfer-d2h-bytes BYTES]
+              [--nvme-read-bytes BYTES]
+              [--nvme-write-bytes BYTES]
+              [--transfer-h2d-ms N]
+              [--transfer-d2h-ms N]
+              [--transfer-io-ms N]
+              [--transfer-wait-ms N]
+              [--prefill-ms N]
+              [--decode-ms N]
               [--telemetry PATH]
               [--manifest PATH]
               [--run-id ID]

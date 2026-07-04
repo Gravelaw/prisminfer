@@ -9,7 +9,10 @@
 #include "prisminfer/kv_cache_ledger.h"
 #include "prisminfer/kv_compression_policy.h"
 #include "prisminfer/memory_cap.h"
+#include "prisminfer/offload_planner.h"
+#include "prisminfer/profitability_policy.h"
 #include "prisminfer/quality_gate.h"
+#include "prisminfer/transfer_metrics.h"
 
 namespace prisminfer {
 
@@ -22,6 +25,9 @@ struct ManifestInputs {
   KvCacheSample kv_sample;
   QualityGateResult quality;
   KvCompressionResult compression;
+  OffloadPlan offload_plan;
+  TransferSample transfer;
+  ProfitabilityDecision profitability;
   std::string status;
   std::string failure_reason;
 };

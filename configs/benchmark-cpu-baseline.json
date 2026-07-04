@@ -1,0 +1,18 @@
+{
+  "name": "phase3-cpu-baseline",
+  "mode": "1gb-safe-cpu",
+  "backend": "fake",
+  "validation_cell_id": "phase3-fake-cell-1gb",
+  "validation_cell_status": "decode-smoke",
+  "hard_cap_bytes": 1073741824,
+  "vram_tier_gib": 1,
+  "model_parameter_bucket": "<=2B",
+  "parameter_count": 15000000,
+  "context_tokens": 512,
+  "warmup_tokens": 8,
+  "quality_gate": "smoke",
+  "cpu_baseline_ttft_ms": 100.0,
+  "cpu_baseline_decode_tps": 10.0,
+  "cpu_baseline_peak_bytes": 67108864
+}
+
