@@ -24,10 +24,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          - os: windows-2022
             build_type: Debug
             generator: Visual Studio 17 2022
-          - os: windows-latest
+          - os: windows-2022
             build_type: Release
             generator: Visual Studio 17 2022
           - os: ubuntu-latest
