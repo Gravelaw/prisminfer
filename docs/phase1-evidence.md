@@ -26,7 +26,6 @@ Phase 1 currently provides:
 Phase 1 does not yet provide:
 
 - reconciled llama.cpp allocation governance,
-- representative `>2B-5B` real backend warmup or rejection artifacts,
 - deployable or fully governed backend-allocation claims.
 
 ## Local Verification
@@ -184,6 +183,53 @@ failure_reason: unknown_post_warmup_allocation
 lifecycle valid: true
 ```
 
+Real pinned llama.cpp `>2B-5B` warmup rejection evidence:
+
+External artifacts:
+
+- llama.cpp source commit: `ef2d770117db45b05aa7ecd1b0acca36370c5470`
+- local CPU build wrapper:
+  `D:\Research\tools\llama.cpp\ef2d770117db45b05aa7ecd1b0acca36370c5470\llama-cli-wrapper.cmd`
+- model: `tensorblock/Qwen2.5-3B-Instruct-GGUF`,
+  `Qwen2.5-3B-Instruct-Q2_K.gguf`
+- model SHA-256:
+  `C79F93FC98F6A030F1C2784FF37A20A2D22C3D84494BDFD98CD2286457FD3EA8`
+- model size: `1274756000` bytes
+
+```powershell
+.\build\Debug\prism-probe.exe `
+  --backend llama `
+  --backend-required `
+  --dependency-pin-file third_party\llama.cpp-pin.json `
+  --llama-executable D:\Research\tools\llama.cpp\ef2d770117db45b05aa7ecd1b0acca36370c5470\llama-cli-wrapper.cmd `
+  --model D:\Research\models\tensorblock-qwen25-3b-instruct-q2_k\Qwen2.5-3B-Instruct-Q2_K.gguf `
+  --sidecar D:\Research\models\tensorblock-qwen25-3b-instruct-q2_k\Qwen2.5-3B-Instruct-Q2_K.gguf.prism.json `
+  --max-model-bytes 2000000000 `
+  --model-parameter-bucket '>2B-5B' `
+  --parameter-count 3000000000 `
+  --vram-tier-gib 1 `
+  --validation-cell-id phase1-real-llama-qwen25-3b-q2-cpu `
+  --validation-cell-status warmup `
+  --context-tokens 64 `
+  --warmup-tokens 1 `
+  --gpu-layers 0 `
+  --telemetry phase1-real-llama-qwen25-3b-q2.jsonl `
+  --manifest phase1-real-llama-qwen25-3b-q2-manifest.json `
+  --run-id phase1-real-llama-qwen25-3b-q2
+.\build\Debug\prism-validate-lifecycle.exe phase1-real-llama-qwen25-3b-q2.jsonl
+```
+
+Result:
+
+```text
+backend_warmup status: ok
+backend_external_peak_bytes: 1348993022
+evidence_status: unknown
+cap_certification_result: certified=false
+failure_reason: unknown_post_warmup_allocation
+lifecycle valid: true
+```
+
 ## Local Artifact Hashes
 
 The generated evidence files are intentionally ignored by `.gitignore`.
@@ -198,6 +244,8 @@ The generated evidence files are intentionally ignored by `.gitignore`.
 | `phase1-llama-pinned-manifest.json` | `09420CF35B214F32E907C1E91AD2FB5396D83B33383FE2BD4AD34B158A7EE96B` |
 | `phase1-real-llama-15m-q2.jsonl` | `714DC474677944F468D60B245DE64DB01922267FB1534C9D7D59245B392211BE` |
 | `phase1-real-llama-15m-q2-manifest.json` | `091EC86DE7912C78C6E16D3D82BDAD0C809432FD0A13F96C2BF917985A556C61` |
+| `phase1-real-llama-qwen25-3b-q2.jsonl` | `BF406C4933B1E57129CF09C29BFD45A3DEC7BB89383E598582128E86169FAAF6` |
+| `phase1-real-llama-qwen25-3b-q2-manifest.json` | `75D1614013D259B73C2FE011DA2A36BD96A9F0F47DB38F4F2F2B113EDC304D0A` |
 
 ## Claim Status
 
@@ -215,12 +263,12 @@ Allowed current Phase 1 claims:
 - Llama mode fails closed without dependency pins.
 - Opt-in compiled llama mode can execute an external pinned llama.cpp CLI and
   record real GGUF warmup allocation evidence.
-- Real llama.cpp `<=2B` evidence currently fails closed because external backend
-  allocations are observed but not reconciled as governed memory.
+- Real llama.cpp `<=2B` and `>2B-5B` evidence currently fails closed because
+  external backend allocations are observed but not reconciled as governed
+  memory.
 
 Disallowed current Phase 1 claims:
 
 - PrismInfer fully governs llama.cpp or GGML allocations.
 - PrismInfer has certified real llama.cpp allocation governance.
-- PrismInfer has real `>2B-5B` backend warmup or rejection evidence.
 - PrismInfer can promote Phase 2 KV work from real backend evidence.
