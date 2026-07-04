@@ -32,6 +32,8 @@ int main() {
   sample.allocator_peak_bytes = 123;
   sample.process_gpu_peak_bytes = 123;
   sample.device_delta_bytes = 12;
+  sample.warmup_peak_bytes = 99;
+  sample.unknown_post_warmup_bytes = 7;
 
   prisminfer::CudaProbeResult cuda;
   cuda.gpu_name = "test gpu";
@@ -60,6 +62,14 @@ int main() {
   if (expect(content.find("\"allocator_peak_bytes\": 123") !=
                  std::string::npos,
              "allocator peak written")) return 1;
+  if (expect(content.find("\"build_config\":") != std::string::npos,
+             "build config written")) return 1;
+  if (expect(content.find("\"warmup_peak_bytes\": 99") !=
+                 std::string::npos,
+             "warmup peak written")) return 1;
+  if (expect(content.find("\"unknown_post_warmup_bytes\": 7") !=
+                 std::string::npos,
+             "unknown post-warmup bytes written")) return 1;
   if (expect(content.find("\"gpu_name\": \"test gpu\"") !=
                  std::string::npos,
              "gpu name written")) return 1;
@@ -68,4 +78,3 @@ int main() {
   std::filesystem::remove(path, remove_error);
   return 0;
 }
-

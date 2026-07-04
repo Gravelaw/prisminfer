@@ -159,6 +159,10 @@ int main(int argc, char** argv) {
 
   telemetry.emit(prisminfer::event::CapSemanticsResolved, config);
   telemetry.emit(prisminfer::event::HostPrepare, config);
+  telemetry.emit(prisminfer::event::BackendWarmup, config,
+                 {{"status", "placeholder"},
+                  {"llama_backend_attached", "false"},
+                  {"warmup_peak_bytes", std::to_string(sample.warmup_peak_bytes)}});
   apply_simulated_breaches(config, &allocator, &sample);
   telemetry.emit_memory_sample(config, sample, sample.telemetry_agreement);
 

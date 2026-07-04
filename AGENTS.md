@@ -28,6 +28,8 @@ Primary repo:
 - Local path: `D:\Research\prisminfer`
 - Default branch: `main`
 
+Assume the working folder for local development is `D:\Research\prisminfer` unless the user explicitly provides a different checkout path.
+
 GitHub is the source of truth for scoped work:
 
 - Use GitHub Issues for work items.

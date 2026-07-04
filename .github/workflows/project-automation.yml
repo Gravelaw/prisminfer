@@ -12,6 +12,7 @@ on:
     types:
       - opened
       - reopened
+      - synchronize
       - ready_for_review
       - converted_to_draft
       - closed
@@ -69,15 +70,20 @@ jobs:
           content_url="https://github.com/$REPO/$content_path/$CONTENT_NUMBER"
 
           item_id="$(gh project item-add "$PROJECT_NUMBER" --owner "$OWNER" --url "$content_url" --format json --jq .id 2>/dev/null || true)"
-          project_id="$(gh project view "$PROJECT_NUMBER" --owner "$OWNER" --format json --jq .id)"
+          project_id="$(gh project view "$PROJECT_NUMBER" --owner "$OWNER" --format json --jq .id 2>/dev/null || true)"
+
+          if [ -z "$project_id" ]; then
+            echo "Unable to resolve project $OWNER/$PROJECT_NUMBER; skipping project sync."
+            exit 0
+          fi
 
           if [ -z "$item_id" ]; then
-            item_id="$(gh project item-list "$PROJECT_NUMBER" --owner "$OWNER" --format json --limit 100 | jq -r --arg url "$content_url" '.items[] | select(.content.url == $url) | .id' | head -n 1)"
+            item_id="$(gh project item-list "$PROJECT_NUMBER" --owner "$OWNER" --format json --limit 100 2>/dev/null | jq -r --arg url "$content_url" '.items[] | select(.content.url == $url) | .id' | head -n 1)"
           fi
 
           if [ -z "$item_id" ]; then
             echo "Unable to add or locate project item for $content_url."
-            exit 1
+            exit 0
           fi
 
           target_status="Todo"

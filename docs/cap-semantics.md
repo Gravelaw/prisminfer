@@ -64,6 +64,34 @@ allocator_peak_exceeded_cap
 
 This satisfies the Phase 0 requirement for allocator ownership accounting. A later Phase 1/llama.cpp bridge must connect actual backend allocations to this tracker before claiming full runtime allocation governance.
 
+## Telemetry Agreement Policy
+
+Phase 0 treats allocator/process/device sources as separate evidence streams.
+The allocator tracker remains authoritative for PrismInfer-owned bytes, process
+GPU telemetry is authoritative for process-visible GPU peaks when available,
+and device-level deltas are corroborating evidence only.
+
+Certification fails closed when:
+
+```text
+required_telemetry_missing
+telemetry_disagreement
+allocator_process_peak_disagreement
+device_delta_process_disagreement
+unified_memory_enabled
+```
+
+Default tolerances:
+
+```text
+allocator_process_tolerance_bytes = 16777216
+device_delta_tolerance_bytes = 67108864
+```
+
+Device delta disagreement is evaluated only when a process GPU peak is present.
+This avoids treating unrelated device noise as hard-cap proof while still
+rejecting contradictory process/device evidence.
+
 ## Forced Breach Simulation
 
 Use simulation flags to test fail-closed behavior without allocating real excessive GPU memory:
@@ -83,3 +111,6 @@ process_gpu_peak_exceeded_cap
 warmup_peak_exceeded_cap
 unknown_post_warmup_allocation
 ```
+
+`scripts\verify.ps1` runs the full forced breach matrix and validates each
+emitted telemetry file with `prism-validate-lifecycle`.

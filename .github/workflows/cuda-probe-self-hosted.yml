@@ -44,6 +44,11 @@ jobs:
           nvcc --version
           nvidia-smi
 
+      - name: Clean generated CUDA build state
+        run: |
+          Remove-Item -LiteralPath build-cuda -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath *.jsonl, *-manifest.json -Force -ErrorAction SilentlyContinue
+
       - name: Configure CUDA probe build
         run: |
           $env:Path = "{0};{1}" -f [Environment]::GetEnvironmentVariable('Path','Machine'), [Environment]::GetEnvironmentVariable('Path','User')
