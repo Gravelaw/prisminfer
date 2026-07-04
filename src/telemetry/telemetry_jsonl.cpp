@@ -13,9 +13,9 @@ bool reserved_event_field(const std::string& key) {
          key == "parameter_count" || key == "vram_tier_gib" ||
          key == "validation_cell_id" || key == "validation_cell_status" ||
          key == "backend" || key == "backend_required" ||
-         key == "dependency_pin_file" || key == "context_tokens" ||
-         key == "gpu_layers" || key == "mmap_enabled" ||
-         key == "warmup_tokens";
+         key == "dependency_pin_file" || key == "llama_executable" ||
+         key == "context_tokens" || key == "gpu_layers" ||
+         key == "mmap_enabled" || key == "warmup_tokens";
 }
 
 }  // namespace
@@ -89,6 +89,8 @@ void JsonlTelemetry::emit(
        << (config.backend_required ? "true" : "false")
        << ",\"dependency_pin_file\":\""
        << json_escape(config.dependency_pin_file.generic_string()) << "\""
+       << ",\"llama_executable\":\""
+       << json_escape(config.llama_executable_path.generic_string()) << "\""
        << ",\"context_tokens\":" << config.context_tokens
        << ",\"gpu_layers\":" << config.gpu_layers
        << ",\"mmap_enabled\":" << (config.mmap_enabled ? "true" : "false")
@@ -131,6 +133,8 @@ void JsonlTelemetry::emit_memory_sample(const RuntimeConfig& config,
        << (config.backend_required ? "true" : "false")
        << ",\"dependency_pin_file\":\""
        << json_escape(config.dependency_pin_file.generic_string()) << "\""
+       << ",\"llama_executable\":\""
+       << json_escape(config.llama_executable_path.generic_string()) << "\""
        << ",\"context_tokens\":" << config.context_tokens
        << ",\"gpu_layers\":" << config.gpu_layers
        << ",\"mmap_enabled\":" << (config.mmap_enabled ? "true" : "false")

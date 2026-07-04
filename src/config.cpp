@@ -224,6 +224,14 @@ ParseResult parse_args(const std::vector<std::string>& args) {
       config.dependency_pin_file = args[++i];
       continue;
     }
+    if (arg == "--llama-executable") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--llama-executable requires a path"};
+      }
+      config.llama_executable_path = args[++i];
+      continue;
+    }
     if (arg == "--context-tokens") {
       if (i + 1 >= args.size()) {
         return ParseResult{std::nullopt, "--context-tokens requires a value"};
@@ -395,6 +403,7 @@ Usage:
               [--backend null|fake|llama]
               [--backend-required]
               [--dependency-pin-file PATH]
+              [--llama-executable PATH]
               [--context-tokens N]
               [--gpu-layers N]
               [--mmap on|off]

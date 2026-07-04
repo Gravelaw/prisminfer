@@ -53,6 +53,7 @@
     },
     "backend_required": { "type": "boolean" },
     "dependency_pin_file": { "type": "string" },
+    "llama_executable": { "type": "string" },
     "context_tokens": { "type": "integer", "minimum": 1 },
     "gpu_layers": { "type": "integer", "minimum": 0 },
     "mmap_enabled": { "type": "boolean" },

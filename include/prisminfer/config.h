@@ -32,6 +32,7 @@ struct RuntimeConfig {
   BackendKind backend{BackendKind::Null};
   bool backend_required{false};
   std::filesystem::path dependency_pin_file;
+  std::filesystem::path llama_executable_path;
   std::uint64_t context_tokens{512};
   std::uint32_t gpu_layers{0};
   bool mmap_enabled{true};

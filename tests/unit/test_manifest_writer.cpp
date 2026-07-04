@@ -32,6 +32,7 @@ int main() {
   config.vram_tier_gib = 1;
   config.validation_cell_id = "cell-manifest";
   config.validation_cell_status = "metadata-only";
+  config.llama_executable_path = "llama-cli";
 
   prisminfer::MemorySample sample;
   sample.allocator_peak_bytes = 123;
@@ -88,6 +89,9 @@ int main() {
   if (expect(content.find("\"backend_adapter_contract_version\": \"0.2\"") !=
                  std::string::npos,
              "backend contract version written")) return 1;
+  if (expect(content.find("\"llama_executable\": \"llama-cli\"") !=
+                 std::string::npos,
+             "llama executable written")) return 1;
   if (expect(content.find("\"host_telemetry_available\": true") !=
                  std::string::npos,
              "host telemetry availability written")) return 1;

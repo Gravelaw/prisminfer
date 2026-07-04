@@ -5,12 +5,12 @@
 | CUDA context consumes most of 1GB | High | 0 | probe before GPU use; fail closed | CUDA context probe and GPU smoke exist | Retain successful self-hosted CUDA artifacts for Phase 0 exit |
 | Telemetry disagreement on Windows/WDDM | High | 0 | benchmark mode fails closed; allocator tracker, CUDA runtime, and NVML evidence are reported separately | Disagreement reasons and tolerances are explicit | Review real CUDA artifacts across Class B/C hardware |
 | Owned allocation escapes PrismInfer accounting | High | 0/1 | Phase 0 adds capped allocator tracker; Phase 1 adds backend adapter, fake backend, observer, and ledger contracts before real llama.cpp claims | Owned allocation tracker, backend observer, memory ledger, and fake backend breach tests exist | llama.cpp allocation bridge remains required before full governance claims |
-| llama.cpp hidden allocations | High | 1 | mandatory backend warmup before certification | llama mode fails closed without pins; opt-in llama adapter surface exists but real llama.cpp warmup is not implemented | Pin and integrate llama.cpp/GGML/GGUF before real backend warmup claims |
+| llama.cpp hidden allocations | High | 1 | mandatory backend warmup before certification | process-backed llama.cpp warmup can load a pinned `<=2B` GGUF and records external allocation evidence; certification fails closed on unreconciled external bytes | Reconcile llama.cpp allocation evidence with governed/device memory before certification claims |
 | GPU offload slower than CPU | High | 3 | transfer-inclusive profitability rule | Out of Phase 0 scope | Needs Phase 3 benchmark policy |
 | KV compression passes perplexity but fails retrieval | High | 2 | task-level quality gates | Out of Phase 0 scope | Needs Phase 2 quality gates |
 | Large-model or 90B hybrid appears feasible but is unusably slow | High | 4 | simulated and validated labels remain separate | Out of Phase 0 scope | Needs Phase 4 validated evidence policy |
 | Large-model or 90B under <=16 GiB overclassified as deployable | Critical | 4 | enforce claim taxonomy: metadata-only, simulated, measured-offload, validated-benchmark, deployable-profile | Current 90B config is labeled simulated and not deployable | Need public evidence policy before any large-model claim |
-| Empty or no-model telemetry treated as inference proof | High | 0/1 | distinguish probe harness certification from real backend certification | lifecycle v0.2 records backend selection, dependency pin resolution, model load plan, backend init, and backend warmup | Real llama.cpp evidence still required before real-backend certification |
+| Empty or no-model telemetry treated as inference proof | High | 0/1 | distinguish probe harness certification from real backend certification | lifecycle v0.2 records backend selection, dependency pin resolution, model load plan, backend init, and backend warmup; real `<=2B` llama.cpp rejection artifact exists | `>2B-5B` evidence and allocation reconciliation still required before exit |
 | CPU/NVMe offload shifts cap pressure outside VRAM | High | 2/4 | track RSS, commit, mmap residency proxy, pinned host memory, page faults, IO bytes, and pagefile pressure where available | Phase 1 records Windows process working set/private bytes, commit, available memory, and process IO in manifests | Pinned host memory, page faults, mmap residency proxy, cold-cache protocol, and NVMe bytes remain Phase 3/4 work |
 | WDDM TDR or driver mode invalidates long-running paths | High | 2/3 | record driver mode, TDR assumptions, and validate long kernels/offload on appropriate driver modes | Not instrumented | Needs driver-mode and watchdog policy |
 | PCIe/NVMe roofline invalidates profitability | High | 3/4 | require H2D/D2H bytes per token, NVMe bytes per token, p50/p95 tokens/sec, and CPU-only comparison | Out of Phase 0 scope | Needs transfer-inclusive benchmark policy |
@@ -29,7 +29,7 @@
 | Forced cap-breach test | Implemented for allocator/process/warmup/unknown paths | `--simulate-*` flags and lifecycle-valid telemetry |
 | Cap certification fail-closed behavior | Implemented for current Phase 0 telemetry model | `certify_cap` rejects cap breach, disagreement, missing telemetry, unified memory, and unknown post-warmup allocation |
 | Process/device memory reports | Partially implemented | CUDA runtime plus NVML evidence in CUDA-probed build |
-| Backend warmup probe | Not yet implemented | blocked until llama.cpp/backend bridge work |
+| Backend warmup probe | Partially implemented | null/fake warmup passes; process-backed llama.cpp `<=2B` warmup records external evidence and fails closed until allocation reconciliation |
 
 ## Research Roadmap Traceability
 
