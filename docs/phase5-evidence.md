@@ -41,25 +41,28 @@ Verification:
 - `nvcc -std=c++20 -I include -ccbin <MSVC Hostx64 x64 bin> -c
   src\kernels\cuda\q4_decode_gemv.cu -o %TEMP%\q4_decode_gemv.obj`
   compiled the guarded CUDA source successfully.
-- `cmake -S . -B build-cuda-toolset-check -G "Visual Studio 17 2022"
-  -T "cuda=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.3"
-  -DPRISMINFER_ENABLE_CUDA_KERNELS=ON -DPRISMINFER_CUDA_KERNEL_ARCHS=120`
-  configured CUDA language support successfully.
-- `cmake --build build-cuda-toolset-check --config Debug --target
+- `cmake -S . -B build-vs2026-plain-cuda-check -G "Visual Studio 18 2026"
+  -A x64 -DPRISMINFER_ENABLE_CUDA_KERNELS=ON
+  -DPRISMINFER_CUDA_KERNEL_ARCHS=120` configured CUDA language support
+  successfully with CUDA 13.3 and MSVC 19.51.
+- `cmake --build build-vs2026-plain-cuda-check --config Debug --target
   prisminfer_cuda_kernels --parallel` compiled
   `src\kernels\cuda\q4_decode_gemv.cu` into `prisminfer_cuda_kernels.lib`.
+- `cmake --preset vs2026-cuda-sm120` and
+  `cmake --build --preset vs2026-cuda-sm120` preserve that local CUDA kernel
+  verification path for VS Code and command-line CMake users.
 
 Local CUDA kernel compile note:
 
 This machine has `nvcc` from CUDA 13.3 and reports an RTX 5080 Laptop GPU with
 compute capability `12.0`. Direct `nvcc` compilation succeeds when MSVC
-`cl.exe` is supplied with `-ccbin`. The Visual Studio CMake generator also
-builds the guarded CUDA target when the CUDA toolkit is supplied explicitly with
-`-T "cuda=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.3"`. A plain
-`cmake -G "Visual Studio 17 2022"` CUDA-kernel configure still fails with
-`No CUDA toolset found` because the CUDA MSBuild integration is not installed
-under Visual Studio's MSBuild extension directory. The default non-CUDA build is
-unaffected.
+`cl.exe` is supplied with `-ccbin`. After reinstalling Visual Studio 2026 Build
+Tools, Visual Studio 2026 Community, and CUDA Toolkit 13.3, CUDA MSBuild
+integration is registered under the VS 2026 BuildCustomizations directories.
+Plain `cmake -G "Visual Studio 18 2026"` CUDA-kernel configure now succeeds.
+Visual Studio 2022 is not the preferred local CUDA kernel generator for this
+machine because its CUDA MSBuild integration is not registered. The default
+non-CUDA build is unaffected.
 
 Disallowed claims:
 

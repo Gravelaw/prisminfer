@@ -77,6 +77,18 @@ CUDA verification:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify.ps1 -WithCuda
 ```
 
+CUDA kernel prototype verification on the local Windows CUDA lane:
+
+```powershell
+cmake --preset vs2026-cuda-sm120
+cmake --build --preset vs2026-cuda-sm120
+```
+
+The `vs2026-cuda-sm120` preset assumes CUDA 13.3 is registered with Visual
+Studio 2026 and targets RTX 50-series / Blackwell compute capability 12.0. For
+other GPUs, keep `PRISMINFER_ENABLE_CUDA_KERNELS=ON` but change
+`PRISMINFER_CUDA_KERNEL_ARCHS` to the matching architecture.
+
 For workflow changes, run `actionlint`; `scripts\verify.ps1` already does this.
 
 ## GitHub Actions
