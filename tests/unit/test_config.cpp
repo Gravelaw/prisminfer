@@ -29,7 +29,9 @@ int main() {
     const std::vector<std::string> args = {
         "--mode", "1gb-safe-gpu-probed", "--hard-cap-bytes", "2048",
         "--telemetry", "out.jsonl", "--manifest", "manifest.json",
-        "--run-id", "run-123", "--simulate-allocator-peak-bytes", "4096",
+        "--run-id", "run-123", "--model", "model.gguf", "--sidecar",
+        "model.gguf.prism.json", "--max-model-bytes", "8192",
+        "--max-sidecar-bytes", "512", "--simulate-allocator-peak-bytes", "4096",
         "--simulate-process-gpu-peak-bytes", "4096",
         "--simulate-warmup-peak-bytes", "1024",
         "--simulate-unknown-post-warmup-bytes", "1"};
@@ -46,6 +48,14 @@ int main() {
     if (expect(parsed.config->run_id == "run-123", "explicit run id")) {
       return 1;
     }
+    if (expect(parsed.config->model_path == "model.gguf",
+               "explicit model path")) return 1;
+    if (expect(parsed.config->sidecar_path == "model.gguf.prism.json",
+               "explicit sidecar path")) return 1;
+    if (expect(parsed.config->max_model_bytes == 8192,
+               "explicit model size limit")) return 1;
+    if (expect(parsed.config->max_sidecar_bytes == 512,
+               "explicit sidecar size limit")) return 1;
     if (expect(parsed.config->simulate_allocator_peak_bytes == 4096,
                "explicit allocator simulation")) return 1;
     if (expect(parsed.config->simulate_process_gpu_peak_bytes == 4096,

@@ -8,6 +8,7 @@
 #include "prisminfer/cuda_context_probe.h"
 #include "prisminfer/errors.h"
 #include "prisminfer/memory_cap.h"
+#include "prisminfer/model_sidecar.h"
 #include "prisminfer/runtime_state.h"
 #include "prisminfer/telemetry.h"
 
@@ -111,6 +112,36 @@ int main(int argc, char** argv) {
   prisminfer::CappedAllocatorTracker allocator(config.hard_cap_bytes);
   prisminfer::MemorySample sample;
   prisminfer::CudaProbeResult cuda;
+
+  const prisminfer::ModelSidecarValidationRequest validation_request{
+      config.model_path, config.sidecar_path, config.max_model_bytes,
+      config.max_sidecar_bytes};
+  const auto validation =
+      prisminfer::validate_model_sidecar(validation_request);
+  telemetry.emit(prisminfer::event::ModelSidecarValidated, config,
+                 {{"skipped", validation.skipped ? "true" : "false"},
+                  {"valid", validation.valid ? "true" : "false"},
+                  {"failure_reason", validation.failure_reason},
+                  {"model_path",
+                   validation.normalized_model_path.generic_string()},
+                  {"sidecar_path",
+                   validation.normalized_sidecar_path.generic_string()},
+                  {"model_size_bytes",
+                   std::to_string(validation.model_size_bytes)},
+                  {"sidecar_size_bytes",
+                   std::to_string(validation.sidecar_size_bytes)},
+                  {"model_sha256", validation.model_sha256}});
+
+  if (!validation.valid) {
+    telemetry.emit_memory_sample(config, sample, sample.telemetry_agreement);
+    telemetry.emit(prisminfer::event::FailedClosed, config,
+                   {{"failure_reason", validation.failure_reason}});
+    telemetry.emit(prisminfer::event::RunEnd, config,
+                   {{"status", "failed_closed"}});
+    return finish_probe(config, sample, cuda, "failed_closed",
+                        validation.failure_reason,
+                        prisminfer::ExitCode::FailedClosed);
+  }
 
   if (prisminfer::gpu_requested(config.mode)) {
     cuda = prisminfer::probe_cuda_context();

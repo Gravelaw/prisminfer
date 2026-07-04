@@ -50,6 +50,16 @@ Validate a probe lifecycle:
 .\build\Debug\prism-validate-lifecycle.exe probe.jsonl
 ```
 
+Validate model metadata without loading llama.cpp:
+
+```powershell
+.\build\Debug\prism-probe.exe --mode 1gb-safe-cpu --model tiny.gguf --sidecar tiny.gguf.prism.json
+```
+
+The sidecar skeleton validates path normalization, file size limits, schema
+version, `model_sha256`, and malformed sidecar rejection before any model
+runtime integration exists.
+
 Fail-closed cap paths can be tested without large allocations:
 
 ```powershell

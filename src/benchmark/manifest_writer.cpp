@@ -123,6 +123,8 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
       events.emplace_back("config_validated");
     } else if (line_contains(line, "\"event\":\"telemetry_probe\"")) {
       events.emplace_back("telemetry_probe");
+    } else if (line_contains(line, "\"event\":\"model_sidecar_validated\"")) {
+      events.emplace_back("model_sidecar_validated");
     } else if (line_contains(line, "\"event\":\"cuda_context_probe\"")) {
       events.emplace_back("cuda_context_probe");
     } else if (line_contains(line, "\"event\":\"cap_semantics_resolved\"")) {
@@ -177,6 +179,13 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
   if (position < events.size() && events[position] == "cuda_context_probe") {
     ++position;
   }
+  if (position < events.size() &&
+      events[position] == "model_sidecar_validated") {
+    ++position;
+  }
+  if (position < events.size() && events[position] == "cuda_context_probe") {
+    ++position;
+  }
 
   bool saw_terminal = false;
   bool saw_memory = false;
@@ -208,13 +217,20 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
       saw_terminal && !saw_cap_semantics &&
       std::find(events.begin(), events.end(), "cuda_context_probe") !=
           events.end();
-  if (!saw_cap_semantics && !early_cuda_fail_closed) {
+  const bool early_sidecar_fail_closed =
+      saw_terminal && !saw_cap_semantics &&
+      std::find(events.begin(), events.end(), "model_sidecar_validated") !=
+          events.end();
+  if (!saw_cap_semantics && !early_cuda_fail_closed &&
+      !early_sidecar_fail_closed) {
     return fail("missing_cap_semantics_resolved");
   }
-  if (!saw_host_prepare && !early_cuda_fail_closed) {
+  if (!saw_host_prepare && !early_cuda_fail_closed &&
+      !early_sidecar_fail_closed) {
     return fail("missing_host_prepare");
   }
-  if (!saw_backend_warmup && !early_cuda_fail_closed) {
+  if (!saw_backend_warmup && !early_cuda_fail_closed &&
+      !early_sidecar_fail_closed) {
     return fail("missing_backend_warmup");
   }
   if (!saw_terminal) {

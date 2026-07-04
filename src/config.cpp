@@ -112,6 +112,43 @@ ParseResult parse_args(const std::vector<std::string>& args) {
       }
       continue;
     }
+    if (arg == "--model") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--model requires a path"};
+      }
+      config.model_path = args[++i];
+      continue;
+    }
+    if (arg == "--sidecar") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--sidecar requires a path"};
+      }
+      config.sidecar_path = args[++i];
+      continue;
+    }
+    if (arg == "--max-model-bytes") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--max-model-bytes requires a value"};
+      }
+      if (!parse_u64(args[++i], &config.max_model_bytes) ||
+          config.max_model_bytes == 0) {
+        return ParseResult{std::nullopt,
+                           "--max-model-bytes must be a positive integer"};
+      }
+      continue;
+    }
+    if (arg == "--max-sidecar-bytes") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--max-sidecar-bytes requires a value"};
+      }
+      if (!parse_u64(args[++i], &config.max_sidecar_bytes) ||
+          config.max_sidecar_bytes == 0) {
+        return ParseResult{std::nullopt,
+                           "--max-sidecar-bytes must be a positive integer"};
+      }
+      continue;
+    }
     if (arg == "--simulate-allocator-peak-bytes") {
       if (i + 1 >= args.size()) {
         return ParseResult{std::nullopt,
@@ -177,6 +214,10 @@ Usage:
               [--telemetry PATH]
               [--manifest PATH]
               [--run-id ID]
+              [--model PATH]
+              [--sidecar PATH]
+              [--max-model-bytes BYTES]
+              [--max-sidecar-bytes BYTES]
               [--simulate-allocator-peak-bytes BYTES]
               [--simulate-process-gpu-peak-bytes BYTES]
               [--simulate-warmup-peak-bytes BYTES]
@@ -187,6 +228,8 @@ Defaults:
   --hard-cap-bytes 1073741824
   --telemetry prisminfer-probe.jsonl
   --manifest prisminfer-manifest.json
+  --max-model-bytes 1099511627776
+  --max-sidecar-bytes 65536
 )";
 }
 

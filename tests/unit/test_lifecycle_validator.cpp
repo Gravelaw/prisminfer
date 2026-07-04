@@ -90,6 +90,23 @@ int main() {
   if (expect(error == "missing_backend_warmup",
              "missing backend warmup reason set")) return 1;
 
+  {
+    std::ofstream out(path, std::ios::out | std::ios::trunc);
+    out << "{\"event\":\"run_start\"}\n"
+        << "{\"event\":\"config_validated\"}\n"
+        << "{\"event\":\"telemetry_probe\"}\n"
+        << "{\"event\":\"model_sidecar_validated\"}\n"
+        << "{\"event\":\"memory_sample\"}\n"
+        << "{\"event\":\"failed_closed\"}\n"
+        << "{\"event\":\"run_end\"}\n";
+  }
+
+  error.clear();
+  if (expect(prisminfer::validate_phase0_lifecycle(path, &error),
+             "early sidecar fail-closed lifecycle accepted")) {
+    return 1;
+  }
+
   std::error_code remove_error;
   std::filesystem::remove(path, remove_error);
   return 0;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <vector>
@@ -20,6 +21,10 @@ struct RuntimeConfig {
   std::string telemetry_path{"prisminfer-probe.jsonl"};
   std::string manifest_path{"prisminfer-manifest.json"};
   std::string run_id;
+  std::filesystem::path model_path;
+  std::filesystem::path sidecar_path;
+  std::uint64_t max_model_bytes{1ULL << 40};
+  std::uint64_t max_sidecar_bytes{64ULL * 1024ULL};
   std::uint64_t simulate_allocator_peak_bytes{0};
   std::uint64_t simulate_process_gpu_peak_bytes{0};
   std::uint64_t simulate_warmup_peak_bytes{0};
