@@ -15,7 +15,9 @@ bool reserved_event_field(const std::string& key) {
          key == "backend" || key == "backend_required" ||
          key == "dependency_pin_file" || key == "llama_executable" ||
          key == "context_tokens" || key == "gpu_layers" ||
-         key == "mmap_enabled" || key == "warmup_tokens";
+         key == "mmap_enabled" || key == "warmup_tokens" ||
+         key == "kv_accounting" || key == "kv_placement" ||
+         key == "kv_compression" || key == "quality_gate";
 }
 
 }  // namespace
@@ -70,7 +72,7 @@ void JsonlTelemetry::emit(
     return;
   }
 
-  out_ << "{\"schema_version\":\"0.2\""
+  out_ << "{\"schema_version\":\"0.3\""
        << ",\"timestamp_ns\":" << monotonic_time_ns()
        << ",\"run_id\":\"" << json_escape(config.run_id) << "\""
        << ",\"event\":\"" << json_escape(event) << "\""
@@ -94,7 +96,13 @@ void JsonlTelemetry::emit(
        << ",\"context_tokens\":" << config.context_tokens
        << ",\"gpu_layers\":" << config.gpu_layers
        << ",\"mmap_enabled\":" << (config.mmap_enabled ? "true" : "false")
-       << ",\"warmup_tokens\":" << config.warmup_tokens;
+       << ",\"warmup_tokens\":" << config.warmup_tokens
+       << ",\"kv_accounting\":"
+       << (config.kv_accounting ? "true" : "false")
+       << ",\"kv_placement\":\"" << json_escape(config.kv_placement) << "\""
+       << ",\"kv_compression\":\"" << json_escape(config.kv_compression)
+       << "\""
+       << ",\"quality_gate\":\"" << json_escape(config.quality_gate) << "\"";
 
   for (const auto& [key, value] : fields) {
     if (reserved_event_field(key)) {
@@ -114,7 +122,7 @@ void JsonlTelemetry::emit_memory_sample(const RuntimeConfig& config,
     return;
   }
 
-  out_ << "{\"schema_version\":\"0.2\""
+  out_ << "{\"schema_version\":\"0.3\""
        << ",\"timestamp_ns\":" << monotonic_time_ns()
        << ",\"run_id\":\"" << json_escape(config.run_id) << "\""
        << ",\"event\":\"memory_sample\""
@@ -139,12 +147,24 @@ void JsonlTelemetry::emit_memory_sample(const RuntimeConfig& config,
        << ",\"gpu_layers\":" << config.gpu_layers
        << ",\"mmap_enabled\":" << (config.mmap_enabled ? "true" : "false")
        << ",\"warmup_tokens\":" << config.warmup_tokens
+       << ",\"kv_accounting\":"
+       << (config.kv_accounting ? "true" : "false")
+       << ",\"kv_placement\":\"" << json_escape(config.kv_placement) << "\""
+       << ",\"kv_compression\":\"" << json_escape(config.kv_compression)
+       << "\""
+       << ",\"quality_gate\":\"" << json_escape(config.quality_gate) << "\""
        << ",\"allocator_bytes\":" << sample.allocator_bytes
        << ",\"allocator_peak_bytes\":" << sample.allocator_peak_bytes
        << ",\"process_gpu_bytes\":" << sample.process_gpu_bytes
        << ",\"process_gpu_peak_bytes\":" << sample.process_gpu_peak_bytes
        << ",\"warmup_peak_bytes\":" << sample.warmup_peak_bytes
        << ",\"retained_pool_bytes\":" << sample.retained_pool_bytes
+       << ",\"kv_gpu_peak_bytes\":" << sample.kv_gpu_peak_bytes
+       << ",\"kv_host_peak_bytes\":" << sample.kv_host_peak_bytes
+       << ",\"kv_compressed_peak_bytes\":"
+       << sample.kv_compressed_peak_bytes
+       << ",\"kv_metadata_peak_bytes\":" << sample.kv_metadata_peak_bytes
+       << ",\"kv_unknown_peak_bytes\":" << sample.kv_unknown_peak_bytes
        << ",\"device_used_bytes\":" << sample.device_used_bytes
        << ",\"device_delta_bytes\":" << sample.device_delta_bytes
        << ",\"unknown_post_warmup_bytes\":"

@@ -16,7 +16,7 @@ completed | failed_closed
 run_end
 ```
 
-Later phases add model mmap, llama baseline planning, backend warmup, tokenizer validation, prefill, ready-for-first-token, and token events.
+Phase 2 adds KV accounting, prefill/decode, and quality-gate events.
 
 Every event includes a `run_id` so telemetry can be correlated with the manifest.
 
@@ -34,3 +34,20 @@ Phase 0 lifecycle validation currently accepts either:
 - a CPU-safe path with no `cuda_context_probe`,
 - a GPU-probed path with `cuda_context_probe` followed by certification or fail-closed telemetry, or
 - an early CUDA fail-closed path when the CUDA context cannot be created.
+
+When `kv_cache_profile` appears, lifecycle validation requires this ordered
+segment after `backend_warmup` and before `memory_sample`:
+
+```text
+kv_cache_profile
+prefill_start
+kv_cache_sample
+prefill_end
+decode_start
+decode_token
+decode_end
+quality_gate_result
+```
+
+`quality_gate_result` must precede `memory_sample` so cap certification and
+manifests cannot be emitted before the quality/compression decision is known.

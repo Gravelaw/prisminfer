@@ -42,9 +42,17 @@ PrismInfer should borrow the accounting model before building kernels:
 - peak KV bytes,
 - cache hit/miss/promote/evict counters.
 
-Phase 1 should capture minimal backend-visible KV metadata and unknowns during
-real warmup. Phase 2 owns the KV block ledger, paging/reuse/offload accounting,
-and compression policy.
+Phase 1 captures backend warmup and unknown allocation evidence. Phase 2 owns
+the KV block ledger, paging/reuse/offload accounting, and compression policy.
+
+Current implementation status:
+
+- `none` and `accounting-only` are governed policy labels.
+- `reference` can be evaluated only when a quality gate is present.
+- KIVI/KVQuant, PolarQuant, TurboQuant, and QJL remain metadata-only research
+  lanes until actual implementation and task-level quality evidence exist.
+- A compression claim with no quality gate is rejected with
+  `quality_gate_required_for_compression`.
 
 ## Asymmetric KV Quantization
 

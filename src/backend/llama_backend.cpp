@@ -100,6 +100,56 @@ std::uint64_t extract_llama_allocation_bytes(
   return total;
 }
 
+bool extract_llama_kv_profile(const std::filesystem::path& log_path,
+                              const RuntimeConfig& config,
+                              KvCacheProfile* profile) {
+  std::ifstream in(log_path);
+  if (!in || profile == nullptr) {
+    return false;
+  }
+  std::uint32_t layer_count = 0;
+  std::uint32_t kv_head_count = 0;
+  std::uint32_t head_dim = 0;
+  std::string line;
+  while (std::getline(in, line)) {
+    const auto equals = line.rfind('=');
+    if (equals == std::string::npos) {
+      continue;
+    }
+    std::string value_text = line.substr(equals + 1);
+    const auto first_digit = value_text.find_first_of("0123456789");
+    if (first_digit == std::string::npos) {
+      continue;
+    }
+    value_text = value_text.substr(first_digit);
+    const auto end_digit = value_text.find_first_not_of("0123456789");
+    if (end_digit != std::string::npos) {
+      value_text = value_text.substr(0, end_digit);
+    }
+    const auto value = static_cast<std::uint32_t>(std::stoul(value_text));
+    if (line.find("llama.block_count") != std::string::npos ||
+        line.find("n_layer               =") != std::string::npos) {
+      layer_count = value;
+    } else if (line.find("llama.attention.head_count_kv") !=
+                   std::string::npos ||
+               line.find("n_head_kv") != std::string::npos) {
+      kv_head_count = value;
+    } else if (line.find("llama.rope.dimension_count") != std::string::npos ||
+               line.find("n_embd_head_k") != std::string::npos) {
+      head_dim = value;
+    }
+  }
+  KvCacheProfile extracted;
+  const auto result = make_kv_cache_profile(
+      layer_count, kv_head_count, head_dim, config.kv_block_tokens, 16, 16,
+      &extracted);
+  if (!result.ok) {
+    return false;
+  }
+  *profile = extracted;
+  return true;
+}
+
 class LlamaBackendAdapter final : public BackendAdapter {
  public:
   std::string name() const override { return "llama"; }
@@ -158,6 +208,8 @@ class LlamaBackendAdapter final : public BackendAdapter {
 
     result.backend_external_peak_bytes =
         extract_llama_allocation_bytes(log_path);
+    result.kv_profile_available =
+        extract_llama_kv_profile(log_path, config, &result.kv_profile);
     if (result.backend_external_peak_bytes == 0) {
       result.ok = false;
       result.failure_reason = "llama_allocation_evidence_missing";

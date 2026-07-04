@@ -10,9 +10,12 @@
 #include "prisminfer/cuda_context_probe.h"
 #include "prisminfer/errors.h"
 #include "prisminfer/host_memory_tracker.h"
+#include "prisminfer/kv_cache_ledger.h"
+#include "prisminfer/kv_compression_policy.h"
 #include "prisminfer/memory_cap.h"
 #include "prisminfer/memory_ledger.h"
 #include "prisminfer/model_sidecar.h"
+#include "prisminfer/quality_gate.h"
 #include "prisminfer/runtime_state.h"
 #include "prisminfer/telemetry.h"
 
@@ -70,16 +73,82 @@ void apply_simulated_breaches(const prisminfer::RuntimeConfig& config,
   }
 }
 
+std::uint64_t ceil_div(std::uint64_t lhs, std::uint64_t rhs) {
+  return (lhs + rhs - 1) / rhs;
+}
+
+prisminfer::KvCacheSample make_kv_sample(
+    const prisminfer::RuntimeConfig& config,
+    const prisminfer::KvCacheProfile& profile) {
+  prisminfer::KvCacheSample sample;
+  if (!config.kv_accounting || profile.bytes_per_token == 0) {
+    return sample;
+  }
+  sample.logical_tokens = config.context_tokens + config.warmup_tokens;
+  sample.active_blocks = ceil_div(sample.logical_tokens, profile.block_tokens);
+  sample.metadata_bytes = sample.active_blocks * 64;
+  const std::uint64_t baseline_bytes =
+      sample.logical_tokens * profile.bytes_per_token;
+  sample.evidence_status =
+      config.backend == prisminfer::BackendKind::Fake ? "reconciled"
+                                                      : "estimated";
+
+  if (config.kv_compression == "reference" ||
+      config.kv_compression == "experimental") {
+    const std::uint64_t compressed_per_token =
+        profile.layer_count * profile.kv_head_count * profile.head_dim *
+        static_cast<std::uint64_t>(config.kv_key_bits + config.kv_value_bits) /
+        8ULL;
+    sample.compressed_bytes = compressed_per_token * sample.logical_tokens;
+  }
+
+  const std::uint64_t payload_bytes =
+      sample.compressed_bytes > 0 ? sample.compressed_bytes : baseline_bytes;
+  if (config.kv_placement == "gpu") {
+    sample.gpu_bytes = payload_bytes;
+  } else if (config.kv_placement == "host") {
+    sample.host_bytes = payload_bytes;
+  } else if (config.kv_placement == "mixed") {
+    sample.gpu_bytes = payload_bytes / 2;
+    sample.host_bytes = payload_bytes - sample.gpu_bytes;
+  } else {
+    sample.unknown_bytes =
+        sample.evidence_status == "reconciled" ? 0 : payload_bytes;
+    if (sample.evidence_status == "reconciled") {
+      sample.host_bytes = payload_bytes;
+    }
+  }
+  return sample;
+}
+
+void apply_kv_sample_to_memory(const prisminfer::KvCacheSample& kv_sample,
+                               prisminfer::MemorySample* sample) {
+  sample->kv_gpu_peak_bytes = kv_sample.gpu_bytes;
+  sample->kv_host_peak_bytes = kv_sample.host_bytes;
+  sample->kv_compressed_peak_bytes = kv_sample.compressed_bytes;
+  sample->kv_metadata_peak_bytes = kv_sample.metadata_bytes;
+  sample->kv_unknown_peak_bytes = kv_sample.unknown_bytes;
+  if (sample->warmup_peak_bytes < kv_sample.gpu_bytes) {
+    sample->warmup_peak_bytes = kv_sample.gpu_bytes;
+  }
+  sample->unknown_post_warmup_bytes += kv_sample.unknown_bytes;
+}
+
 int finish_probe(const prisminfer::RuntimeConfig& config,
                  const prisminfer::MemorySample& sample,
                  const prisminfer::CudaProbeResult& cuda,
+                 const prisminfer::KvCacheProfile& kv_profile,
+                 const prisminfer::KvCacheSample& kv_sample,
+                 const prisminfer::QualityGateResult& quality,
+                 const prisminfer::KvCompressionResult& compression,
                  const std::string& status,
                  const std::string& reason,
                  prisminfer::ExitCode exit_code) {
   std::string manifest_error;
   const auto host = prisminfer::sample_host_telemetry();
   const prisminfer::ManifestInputs manifest{
-      config, sample, host, cuda, status, reason};
+      config, sample, host, cuda, kv_profile, kv_sample,
+      quality, compression, status, reason};
   if (!prisminfer::write_probe_manifest(config.manifest_path, manifest,
                                         &manifest_error)) {
     std::cerr << manifest_error << "\n";
@@ -117,6 +186,10 @@ int main(int argc, char** argv) {
   prisminfer::CappedAllocatorTracker allocator(config.hard_cap_bytes);
   prisminfer::MemorySample sample;
   prisminfer::CudaProbeResult cuda;
+  prisminfer::KvCacheProfile kv_profile;
+  prisminfer::KvCacheSample kv_sample;
+  prisminfer::QualityGateResult quality;
+  prisminfer::KvCompressionResult compression;
 
   const prisminfer::ModelSidecarValidationRequest validation_request{
       config.model_path, config.sidecar_path, config.max_model_bytes,
@@ -143,8 +216,8 @@ int main(int argc, char** argv) {
                    {{"failure_reason", validation.failure_reason}});
     telemetry.emit(prisminfer::event::RunEnd, config,
                    {{"status", "failed_closed"}});
-    return finish_probe(config, sample, cuda, "failed_closed",
-                        validation.failure_reason,
+    return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
+                        compression, "failed_closed", validation.failure_reason,
                         prisminfer::ExitCode::FailedClosed);
   }
 
@@ -162,7 +235,8 @@ int main(int argc, char** argv) {
                    {{"failure_reason", reason}});
     telemetry.emit(prisminfer::event::RunEnd, config,
                    {{"status", "failed_closed"}});
-    return finish_probe(config, sample, cuda, "failed_closed", reason,
+    return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
+                        compression, "failed_closed", reason,
                         prisminfer::ExitCode::FailedClosed);
   }
   telemetry.emit(prisminfer::event::DependencyPinsResolved, config,
@@ -198,8 +272,8 @@ int main(int argc, char** argv) {
                      {{"failure_reason", cuda.failure_reason}});
       telemetry.emit(prisminfer::event::RunEnd, config,
                      {{"status", "failed_closed"}});
-      return finish_probe(config, sample, cuda, "failed_closed",
-                          cuda.failure_reason,
+      return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
+                          compression, "failed_closed", cuda.failure_reason,
                           prisminfer::ExitCode::FailedClosed);
     }
 
@@ -251,7 +325,8 @@ int main(int argc, char** argv) {
                    {{"failure_reason", reason}});
     telemetry.emit(prisminfer::event::RunEnd, config,
                    {{"status", "failed_closed"}});
-    return finish_probe(config, sample, cuda, "failed_closed", reason,
+    return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
+                        compression, "failed_closed", reason,
                         prisminfer::ExitCode::FailedClosed);
   }
   telemetry.emit(prisminfer::event::BackendInit, config,
@@ -288,9 +363,120 @@ int main(int argc, char** argv) {
                    {{"failure_reason", warmup.failure_reason}});
     telemetry.emit(prisminfer::event::RunEnd, config,
                    {{"status", "failed_closed"}});
-    return finish_probe(config, sample, cuda, "failed_closed",
-                        warmup.failure_reason,
+    return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
+                        compression, "failed_closed", warmup.failure_reason,
                         prisminfer::ExitCode::FailedClosed);
+  }
+
+  if (config.kv_accounting) {
+    auto profile_result =
+        warmup.kv_profile_available
+            ? prisminfer::KvCacheLedgerResult{true, ""}
+            : prisminfer::make_kv_cache_profile(
+                  config.kv_layer_count, config.kv_head_count,
+                  config.kv_head_dim, config.kv_block_tokens, 16, 16,
+                  &kv_profile);
+    if (warmup.kv_profile_available) {
+      kv_profile = warmup.kv_profile;
+    }
+    if (!profile_result.ok) {
+      telemetry.emit_memory_sample(config, sample, sample.telemetry_agreement);
+      telemetry.emit(prisminfer::event::FailedClosed, config,
+                     {{"failure_reason", profile_result.failure_reason}});
+      telemetry.emit(prisminfer::event::RunEnd, config,
+                     {{"status", "failed_closed"}});
+      return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
+                          compression, "failed_closed",
+                          profile_result.failure_reason,
+                          prisminfer::ExitCode::FailedClosed);
+    }
+    telemetry.emit(prisminfer::event::KvCacheProfile, config,
+                   {{"layer_count", std::to_string(kv_profile.layer_count)},
+                    {"kv_head_count",
+                     std::to_string(kv_profile.kv_head_count)},
+                    {"head_dim", std::to_string(kv_profile.head_dim)},
+                    {"block_tokens", std::to_string(kv_profile.block_tokens)},
+                    {"key_bits", std::to_string(kv_profile.key_bits)},
+                    {"value_bits", std::to_string(kv_profile.value_bits)},
+                    {"bytes_per_token",
+                     std::to_string(kv_profile.bytes_per_token)},
+                    {"bytes_per_block",
+                     std::to_string(kv_profile.bytes_per_block)}});
+    telemetry.emit(prisminfer::event::PrefillStart, config);
+    kv_sample = make_kv_sample(config, kv_profile);
+    prisminfer::KvCacheLedger kv_ledger;
+    const auto record_result = kv_ledger.record_profile(kv_profile);
+    const auto sample_result =
+        record_result.ok
+            ? kv_ledger.sample(kv_sample, config.kv_metadata_budget_bytes)
+            : record_result;
+    telemetry.emit(prisminfer::event::KvCacheSample, config,
+                   {{"logical_tokens",
+                     std::to_string(kv_sample.logical_tokens)},
+                    {"active_blocks",
+                     std::to_string(kv_sample.active_blocks)},
+                    {"gpu_bytes", std::to_string(kv_sample.gpu_bytes)},
+                    {"host_bytes", std::to_string(kv_sample.host_bytes)},
+                    {"compressed_bytes",
+                     std::to_string(kv_sample.compressed_bytes)},
+                    {"metadata_bytes",
+                     std::to_string(kv_sample.metadata_bytes)},
+                    {"unknown_bytes",
+                     std::to_string(kv_sample.unknown_bytes)},
+                    {"evidence_status", kv_sample.evidence_status},
+                    {"failure_reason", sample_result.failure_reason}});
+    telemetry.emit(prisminfer::event::PrefillEnd, config);
+    telemetry.emit(prisminfer::event::DecodeStart, config);
+    for (std::uint64_t token = 0; token < config.warmup_tokens; ++token) {
+      telemetry.emit(prisminfer::event::DecodeToken, config,
+                     {{"token_index", std::to_string(token)}});
+    }
+    telemetry.emit(prisminfer::event::DecodeEnd, config);
+    apply_kv_sample_to_memory(kv_sample, &sample);
+
+    quality = prisminfer::evaluate_quality_gate(
+        prisminfer::QualityGateInput{config.quality_gate,
+                                     config.quality_baseline_score,
+                                     config.quality_observed_score,
+                                     config.quality_max_delta,
+                                     config.quality_deterministic_match,
+                                     config.quality_retrieval_passed});
+    const std::uint64_t baseline_kv_bytes =
+        kv_profile.bytes_per_token * kv_sample.logical_tokens;
+    compression = prisminfer::evaluate_kv_compression_claim(
+        prisminfer::KvCompressionInput{config.kv_compression,
+                                       baseline_kv_bytes,
+                                       kv_sample.compressed_bytes,
+                                       kv_sample.metadata_bytes,
+                                       quality});
+    telemetry.emit(prisminfer::event::QualityGateResult, config,
+                   {{"status", quality.status},
+                    {"passed", quality.passed ? "true" : "false"},
+                    {"failure_reason", quality.failure_reason},
+                    {"observed_delta",
+                     std::to_string(quality.observed_delta)},
+                    {"compression_status", compression.status},
+                    {"compression_accepted",
+                     compression.accepted ? "true" : "false"},
+                    {"compression_failure_reason",
+                     compression.failure_reason},
+                    {"kv_saved_bytes",
+                     std::to_string(compression.saved_bytes)}});
+    if (!sample_result.ok || !quality.passed || !compression.accepted) {
+      const std::string reason =
+          !sample_result.ok
+              ? sample_result.failure_reason
+              : (!quality.passed ? quality.failure_reason
+                                 : compression.failure_reason);
+      telemetry.emit_memory_sample(config, sample, sample.telemetry_agreement);
+      telemetry.emit(prisminfer::event::FailedClosed, config,
+                     {{"failure_reason", reason}});
+      telemetry.emit(prisminfer::event::RunEnd, config,
+                     {{"status", "failed_closed"}});
+      return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
+                          compression, "failed_closed", reason,
+                          prisminfer::ExitCode::FailedClosed);
+    }
   }
   apply_simulated_breaches(config, &allocator, &sample);
   telemetry.emit_memory_sample(config, sample, sample.telemetry_agreement);
@@ -306,13 +492,15 @@ int main(int argc, char** argv) {
                    {{"failure_reason", certification.failure_reason}});
     telemetry.emit(prisminfer::event::RunEnd, config,
                    {{"status", "failed_closed"}});
-    return finish_probe(config, sample, cuda, "failed_closed",
+    return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
+                        compression, "failed_closed",
                         certification.failure_reason,
                         prisminfer::ExitCode::FailedClosed);
   }
 
   telemetry.emit(prisminfer::event::Completed, config);
   telemetry.emit(prisminfer::event::RunEnd, config, {{"status", "ok"}});
-  return finish_probe(config, sample, cuda, "ok", "",
+  return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
+                      compression, "ok", "",
                       prisminfer::ExitCode::Ok);
 }

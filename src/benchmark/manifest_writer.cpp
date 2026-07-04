@@ -52,7 +52,7 @@ bool write_probe_manifest(const std::filesystem::path& path,
   }
 
   out << "{\n"
-      << "  \"manifest_version\": \"0.2\",\n"
+      << "  \"manifest_version\": \"0.3\",\n"
       << "  \"run_id\": \"" << json_escape(inputs.config.run_id) << "\",\n"
       << "  \"created_at_utc\": \"" << utc_timestamp() << "\",\n"
       << "  \"tool\": \"prism-probe\",\n"
@@ -95,6 +95,58 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << "  \"mmap_enabled\": "
       << (inputs.config.mmap_enabled ? "true" : "false") << ",\n"
       << "  \"warmup_tokens\": " << inputs.config.warmup_tokens << ",\n"
+      << "  \"kv_accounting\": "
+      << (inputs.config.kv_accounting ? "true" : "false") << ",\n"
+      << "  \"kv_layer_count\": " << inputs.kv_profile.layer_count << ",\n"
+      << "  \"kv_head_count\": " << inputs.kv_profile.kv_head_count << ",\n"
+      << "  \"kv_head_dim\": " << inputs.kv_profile.head_dim << ",\n"
+      << "  \"kv_block_tokens\": " << inputs.kv_profile.block_tokens << ",\n"
+      << "  \"kv_key_bits\": " << inputs.kv_profile.key_bits << ",\n"
+      << "  \"kv_value_bits\": " << inputs.kv_profile.value_bits << ",\n"
+      << "  \"kv_bytes_per_token\": " << inputs.kv_profile.bytes_per_token
+      << ",\n"
+      << "  \"kv_bytes_per_block\": " << inputs.kv_profile.bytes_per_block
+      << ",\n"
+      << "  \"kv_placement\": \"" << json_escape(inputs.config.kv_placement)
+      << "\",\n"
+      << "  \"kv_compression\": \""
+      << json_escape(inputs.config.kv_compression) << "\",\n"
+      << "  \"kv_logical_tokens\": " << inputs.kv_sample.logical_tokens
+      << ",\n"
+      << "  \"kv_active_blocks\": " << inputs.kv_sample.active_blocks
+      << ",\n"
+      << "  \"kv_gpu_bytes\": " << inputs.kv_sample.gpu_bytes << ",\n"
+      << "  \"kv_host_bytes\": " << inputs.kv_sample.host_bytes << ",\n"
+      << "  \"kv_compressed_bytes\": " << inputs.kv_sample.compressed_bytes
+      << ",\n"
+      << "  \"kv_metadata_bytes\": " << inputs.kv_sample.metadata_bytes
+      << ",\n"
+      << "  \"kv_unknown_bytes\": " << inputs.kv_sample.unknown_bytes
+      << ",\n"
+      << "  \"kv_evidence_status\": \""
+      << json_escape(inputs.kv_sample.evidence_status) << "\",\n"
+      << "  \"kv_metadata_budget_bytes\": "
+      << inputs.config.kv_metadata_budget_bytes << ",\n"
+      << "  \"quality_gate\": \"" << json_escape(inputs.config.quality_gate)
+      << "\",\n"
+      << "  \"quality_baseline_manifest\": \""
+      << json_escape(inputs.config.quality_baseline_manifest.generic_string())
+      << "\",\n"
+      << "  \"quality_status\": \"" << json_escape(inputs.quality.status)
+      << "\",\n"
+      << "  \"quality_passed\": "
+      << (inputs.quality.passed ? "true" : "false") << ",\n"
+      << "  \"quality_failure_reason\": \""
+      << json_escape(inputs.quality.failure_reason) << "\",\n"
+      << "  \"quality_observed_delta\": " << inputs.quality.observed_delta
+      << ",\n"
+      << "  \"kv_compression_status\": \""
+      << json_escape(inputs.compression.status) << "\",\n"
+      << "  \"kv_compression_accepted\": "
+      << (inputs.compression.accepted ? "true" : "false") << ",\n"
+      << "  \"kv_compression_failure_reason\": \""
+      << json_escape(inputs.compression.failure_reason) << "\",\n"
+      << "  \"kv_saved_bytes\": " << inputs.compression.saved_bytes << ",\n"
       << "  \"telemetry_path\": \""
       << json_escape(inputs.config.telemetry_path) << "\",\n"
       << "  \"status\": \"" << json_escape(inputs.status) << "\",\n"
@@ -119,6 +171,16 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << "  \"warmup_peak_bytes\": " << inputs.sample.warmup_peak_bytes
       << ",\n"
       << "  \"retained_pool_bytes\": " << inputs.sample.retained_pool_bytes
+      << ",\n"
+      << "  \"kv_gpu_peak_bytes\": " << inputs.sample.kv_gpu_peak_bytes
+      << ",\n"
+      << "  \"kv_host_peak_bytes\": " << inputs.sample.kv_host_peak_bytes
+      << ",\n"
+      << "  \"kv_compressed_peak_bytes\": "
+      << inputs.sample.kv_compressed_peak_bytes << ",\n"
+      << "  \"kv_metadata_peak_bytes\": "
+      << inputs.sample.kv_metadata_peak_bytes << ",\n"
+      << "  \"kv_unknown_peak_bytes\": " << inputs.sample.kv_unknown_peak_bytes
       << ",\n"
       << "  \"unknown_post_warmup_bytes\": "
       << inputs.sample.unknown_post_warmup_bytes << ",\n"
@@ -187,6 +249,22 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
       events.emplace_back("backend_init");
     } else if (line_contains(line, "\"event\":\"backend_warmup\"")) {
       events.emplace_back("backend_warmup");
+    } else if (line_contains(line, "\"event\":\"kv_cache_profile\"")) {
+      events.emplace_back("kv_cache_profile");
+    } else if (line_contains(line, "\"event\":\"prefill_start\"")) {
+      events.emplace_back("prefill_start");
+    } else if (line_contains(line, "\"event\":\"prefill_end\"")) {
+      events.emplace_back("prefill_end");
+    } else if (line_contains(line, "\"event\":\"kv_cache_sample\"")) {
+      events.emplace_back("kv_cache_sample");
+    } else if (line_contains(line, "\"event\":\"decode_start\"")) {
+      events.emplace_back("decode_start");
+    } else if (line_contains(line, "\"event\":\"decode_token\"")) {
+      events.emplace_back("decode_token");
+    } else if (line_contains(line, "\"event\":\"decode_end\"")) {
+      events.emplace_back("decode_end");
+    } else if (line_contains(line, "\"event\":\"quality_gate_result\"")) {
+      events.emplace_back("quality_gate_result");
     } else if (line_contains(line, "\"event\":\"memory_sample\"")) {
       events.emplace_back("memory_sample");
     } else if (line_contains(line, "\"event\":\"cap_certification_result\"")) {
@@ -250,6 +328,15 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
   bool saw_model_load_plan = false;
   bool saw_backend_init = false;
   bool saw_backend_warmup = false;
+  bool saw_kv_profile = false;
+  bool saw_prefill_start = false;
+  bool saw_kv_sample = false;
+  bool saw_prefill_end = false;
+  bool saw_decode_start = false;
+  bool saw_decode_end = false;
+  bool saw_quality_gate = false;
+  bool saw_memory_after_quality = false;
+  bool saw_quality_before_memory = false;
   for (; position < events.size(); ++position) {
     if (events[position] == "cap_semantics_resolved") {
       saw_cap_semantics = true;
@@ -272,7 +359,32 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
     if (events[position] == "backend_warmup") {
       saw_backend_warmup = true;
     }
+    if (events[position] == "kv_cache_profile") {
+      saw_kv_profile = true;
+    }
+    if (events[position] == "prefill_start") {
+      saw_prefill_start = true;
+    }
+    if (events[position] == "kv_cache_sample") {
+      saw_kv_sample = true;
+    }
+    if (events[position] == "prefill_end") {
+      saw_prefill_end = true;
+    }
+    if (events[position] == "decode_start") {
+      saw_decode_start = true;
+    }
+    if (events[position] == "decode_end") {
+      saw_decode_end = true;
+    }
+    if (events[position] == "quality_gate_result") {
+      saw_quality_gate = true;
+      saw_quality_before_memory = !saw_memory;
+    }
     if (events[position] == "memory_sample") {
+      if (saw_quality_gate) {
+        saw_memory_after_quality = true;
+      }
       saw_memory = true;
     }
     if (events[position] == "completed" || events[position] == "failed_closed") {
@@ -318,6 +430,15 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
   if (!saw_backend_warmup && !early_cuda_fail_closed &&
       !early_sidecar_fail_closed) {
     return fail("missing_backend_warmup");
+  }
+  if (saw_kv_profile) {
+    if (!saw_prefill_start || !saw_kv_sample || !saw_prefill_end ||
+        !saw_decode_start || !saw_decode_end || !saw_quality_gate) {
+      return fail("missing_phase2_kv_lifecycle_event");
+    }
+    if (!saw_quality_before_memory || !saw_memory_after_quality) {
+      return fail("phase2_quality_must_precede_memory_sample");
+    }
   }
   if (!saw_terminal) {
     return fail("missing_terminal_event");

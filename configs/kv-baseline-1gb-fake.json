@@ -1,0 +1,18 @@
+{
+  "mode": "1gb-safe-cpu",
+  "backend": "fake",
+  "model_parameter_bucket": "<=2B",
+  "parameter_count": 1000000,
+  "validation_cell_id": "phase2-kv-baseline-cell",
+  "validation_cell_status": "decode-smoke",
+  "context_tokens": 64,
+  "warmup_tokens": 2,
+  "kv_accounting": true,
+  "kv_layer_count": 2,
+  "kv_head_count": 4,
+  "kv_head_dim": 8,
+  "kv_block_tokens": 16,
+  "kv_placement": "host",
+  "kv_compression": "accounting-only",
+  "quality_gate": "smoke"
+}

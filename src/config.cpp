@@ -107,6 +107,44 @@ bool parse_on_off(const std::string& value, bool* output) {
   return false;
 }
 
+bool parse_bool_text(const std::string& value, bool* output) {
+  if (value == "true") {
+    *output = true;
+    return true;
+  }
+  if (value == "false") {
+    *output = false;
+    return true;
+  }
+  return false;
+}
+
+bool valid_kv_placement(const std::string& value) {
+  return value == "backend" || value == "gpu" || value == "host" ||
+         value == "mixed";
+}
+
+bool valid_kv_compression(const std::string& value) {
+  return value == "none" || value == "accounting-only" ||
+         value == "reference" || value == "experimental";
+}
+
+bool valid_quality_gate_name(const std::string& value) {
+  return value == "none" || value == "smoke" || value == "retrieval" ||
+         value == "long-context";
+}
+
+bool parse_double_value(const std::string& value, double* output) {
+  std::istringstream in(value);
+  double parsed = 0.0;
+  in >> parsed;
+  if (!in || !in.eof()) {
+    return false;
+  }
+  *output = parsed;
+  return true;
+}
+
 }  // namespace
 
 ParseResult parse_args(const std::vector<std::string>& args) {
@@ -272,6 +310,191 @@ ParseResult parse_args(const std::vector<std::string>& args) {
       }
       continue;
     }
+    if (arg == "--kv-accounting") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--kv-accounting requires on or off"};
+      }
+      if (!parse_on_off(args[++i], &config.kv_accounting)) {
+        return ParseResult{std::nullopt, "--kv-accounting must be on or off"};
+      }
+      continue;
+    }
+    if (arg == "--kv-layer-count") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--kv-layer-count requires a value"};
+      }
+      if (!parse_u32(args[++i], &config.kv_layer_count)) {
+        return ParseResult{std::nullopt,
+                           "--kv-layer-count must be an integer"};
+      }
+      continue;
+    }
+    if (arg == "--kv-head-count") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--kv-head-count requires a value"};
+      }
+      if (!parse_u32(args[++i], &config.kv_head_count)) {
+        return ParseResult{std::nullopt, "--kv-head-count must be an integer"};
+      }
+      continue;
+    }
+    if (arg == "--kv-head-dim") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--kv-head-dim requires a value"};
+      }
+      if (!parse_u32(args[++i], &config.kv_head_dim)) {
+        return ParseResult{std::nullopt, "--kv-head-dim must be an integer"};
+      }
+      continue;
+    }
+    if (arg == "--kv-block-tokens") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--kv-block-tokens requires a value"};
+      }
+      if (!parse_u32(args[++i], &config.kv_block_tokens) ||
+          config.kv_block_tokens == 0) {
+        return ParseResult{std::nullopt,
+                           "--kv-block-tokens must be a positive integer"};
+      }
+      continue;
+    }
+    if (arg == "--kv-placement") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--kv-placement requires a value"};
+      }
+      config.kv_placement = args[++i];
+      if (!valid_kv_placement(config.kv_placement)) {
+        return ParseResult{std::nullopt,
+                           "unsupported kv placement: " +
+                               config.kv_placement};
+      }
+      continue;
+    }
+    if (arg == "--kv-compression") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--kv-compression requires a value"};
+      }
+      config.kv_compression = args[++i];
+      if (!valid_kv_compression(config.kv_compression)) {
+        return ParseResult{std::nullopt,
+                           "unsupported kv compression: " +
+                               config.kv_compression};
+      }
+      continue;
+    }
+    if (arg == "--kv-key-bits") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--kv-key-bits requires a value"};
+      }
+      if (!parse_u32(args[++i], &config.kv_key_bits) ||
+          config.kv_key_bits == 0) {
+        return ParseResult{std::nullopt,
+                           "--kv-key-bits must be a positive integer"};
+      }
+      continue;
+    }
+    if (arg == "--kv-value-bits") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--kv-value-bits requires a value"};
+      }
+      if (!parse_u32(args[++i], &config.kv_value_bits) ||
+          config.kv_value_bits == 0) {
+        return ParseResult{std::nullopt,
+                           "--kv-value-bits must be a positive integer"};
+      }
+      continue;
+    }
+    if (arg == "--kv-metadata-budget-bytes") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--kv-metadata-budget-bytes requires a value"};
+      }
+      if (!parse_u64(args[++i], &config.kv_metadata_budget_bytes)) {
+        return ParseResult{
+            std::nullopt,
+            "--kv-metadata-budget-bytes must be an integer"};
+      }
+      continue;
+    }
+    if (arg == "--quality-gate") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt, "--quality-gate requires a value"};
+      }
+      config.quality_gate = args[++i];
+      if (!valid_quality_gate_name(config.quality_gate)) {
+        return ParseResult{std::nullopt,
+                           "unsupported quality gate: " +
+                               config.quality_gate};
+      }
+      continue;
+    }
+    if (arg == "--quality-baseline-manifest") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--quality-baseline-manifest requires a path"};
+      }
+      config.quality_baseline_manifest = args[++i];
+      continue;
+    }
+    if (arg == "--quality-baseline-score") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--quality-baseline-score requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.quality_baseline_score)) {
+        return ParseResult{std::nullopt,
+                           "--quality-baseline-score must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--quality-observed-score") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--quality-observed-score requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.quality_observed_score)) {
+        return ParseResult{std::nullopt,
+                           "--quality-observed-score must be a number"};
+      }
+      continue;
+    }
+    if (arg == "--quality-max-delta") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--quality-max-delta requires a value"};
+      }
+      if (!parse_double_value(args[++i], &config.quality_max_delta) ||
+          config.quality_max_delta < 0.0) {
+        return ParseResult{std::nullopt,
+                           "--quality-max-delta must be a non-negative number"};
+      }
+      continue;
+    }
+    if (arg == "--quality-retrieval-passed") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{std::nullopt,
+                           "--quality-retrieval-passed requires true or false"};
+      }
+      if (!parse_bool_text(args[++i], &config.quality_retrieval_passed)) {
+        return ParseResult{std::nullopt,
+                           "--quality-retrieval-passed must be true or false"};
+      }
+      continue;
+    }
+    if (arg == "--quality-deterministic-match") {
+      if (i + 1 >= args.size()) {
+        return ParseResult{
+            std::nullopt,
+            "--quality-deterministic-match requires true or false"};
+      }
+      if (!parse_bool_text(args[++i], &config.quality_deterministic_match)) {
+        return ParseResult{
+            std::nullopt,
+            "--quality-deterministic-match must be true or false"};
+      }
+      continue;
+    }
     if (arg == "--telemetry") {
       if (i + 1 >= args.size()) {
         return ParseResult{std::nullopt, "--telemetry requires a path"};
@@ -408,6 +631,23 @@ Usage:
               [--gpu-layers N]
               [--mmap on|off]
               [--warmup-tokens N]
+              [--kv-accounting on|off]
+              [--kv-layer-count N]
+              [--kv-head-count N]
+              [--kv-head-dim N]
+              [--kv-block-tokens N]
+              [--kv-placement backend|gpu|host|mixed]
+              [--kv-compression none|accounting-only|reference|experimental]
+              [--kv-key-bits N]
+              [--kv-value-bits N]
+              [--kv-metadata-budget-bytes BYTES]
+              [--quality-gate none|smoke|retrieval|long-context]
+              [--quality-baseline-manifest PATH]
+              [--quality-baseline-score N]
+              [--quality-observed-score N]
+              [--quality-max-delta N]
+              [--quality-retrieval-passed true|false]
+              [--quality-deterministic-match true|false]
               [--telemetry PATH]
               [--manifest PATH]
               [--run-id ID]

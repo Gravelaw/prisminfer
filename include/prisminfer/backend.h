@@ -7,6 +7,7 @@
 
 #include "prisminfer/allocator_tracker.h"
 #include "prisminfer/config.h"
+#include "prisminfer/kv_cache_ledger.h"
 #include "prisminfer/memory_cap.h"
 
 namespace prisminfer {
@@ -35,6 +36,8 @@ struct BackendWarmupResult {
   std::uint64_t backend_owned_peak_bytes{0};
   std::uint64_t backend_external_peak_bytes{0};
   std::uint64_t retained_pool_bytes{0};
+  bool kv_profile_available{false};
+  KvCacheProfile kv_profile;
 };
 
 class BackendAdapter {

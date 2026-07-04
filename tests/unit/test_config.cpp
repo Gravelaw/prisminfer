@@ -37,7 +37,16 @@ int main() {
         "metadata-only", "--backend", "fake", "--backend-required",
         "--dependency-pin-file", "pins.json", "--llama-executable",
         "llama-cli", "--context-tokens", "2048", "--gpu-layers", "4",
-        "--mmap", "off", "--warmup-tokens", "8",
+        "--mmap", "off", "--warmup-tokens", "8", "--kv-accounting", "on",
+        "--kv-layer-count", "12", "--kv-head-count", "4", "--kv-head-dim",
+        "64", "--kv-block-tokens", "32", "--kv-placement", "mixed",
+        "--kv-compression", "reference", "--kv-key-bits", "8",
+        "--kv-value-bits", "8", "--kv-metadata-budget-bytes", "1024",
+        "--quality-gate", "retrieval", "--quality-baseline-manifest",
+        "baseline.json", "--quality-baseline-score", "1.0",
+        "--quality-observed-score", "1.01", "--quality-max-delta", "0.02",
+        "--quality-retrieval-passed", "true",
+        "--quality-deterministic-match", "true",
         "--simulate-allocator-peak-bytes", "4096",
         "--simulate-process-gpu-peak-bytes", "4096",
         "--simulate-warmup-peak-bytes", "1024",
@@ -88,6 +97,33 @@ int main() {
     if (expect(!parsed.config->mmap_enabled, "explicit mmap off")) return 1;
     if (expect(parsed.config->warmup_tokens == 8,
                "explicit warmup tokens")) return 1;
+    if (expect(parsed.config->kv_accounting, "kv accounting enabled")) {
+      return 1;
+    }
+    if (expect(parsed.config->kv_layer_count == 12,
+               "explicit kv layer count")) return 1;
+    if (expect(parsed.config->kv_head_count == 4,
+               "explicit kv head count")) return 1;
+    if (expect(parsed.config->kv_head_dim == 64,
+               "explicit kv head dim")) return 1;
+    if (expect(parsed.config->kv_block_tokens == 32,
+               "explicit kv block tokens")) return 1;
+    if (expect(parsed.config->kv_placement == "mixed",
+               "explicit kv placement")) return 1;
+    if (expect(parsed.config->kv_compression == "reference",
+               "explicit kv compression")) return 1;
+    if (expect(parsed.config->kv_key_bits == 8,
+               "explicit kv key bits")) return 1;
+    if (expect(parsed.config->kv_value_bits == 8,
+               "explicit kv value bits")) return 1;
+    if (expect(parsed.config->kv_metadata_budget_bytes == 1024,
+               "explicit kv metadata budget")) return 1;
+    if (expect(parsed.config->quality_gate == "retrieval",
+               "explicit quality gate")) return 1;
+    if (expect(parsed.config->quality_baseline_manifest == "baseline.json",
+               "explicit quality baseline manifest")) return 1;
+    if (expect(parsed.config->quality_observed_score > 1.0,
+               "explicit quality score")) return 1;
     if (expect(parsed.config->simulate_allocator_peak_bytes == 4096,
                "explicit allocator simulation")) return 1;
     if (expect(parsed.config->simulate_process_gpu_peak_bytes == 4096,
