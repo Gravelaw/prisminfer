@@ -17,7 +17,7 @@
     "validation_cell_status"
   ],
   "properties": {
-    "schema_version": { "const": "0.3" },
+    "schema_version": { "const": "0.4" },
     "timestamp_ns": { "type": "integer", "minimum": 0 },
     "run_id": { "type": "string", "minLength": 1 },
     "event": { "type": "string", "minLength": 1 },
@@ -44,6 +44,9 @@
         "metadata-only",
         "warmup",
         "decode-smoke",
+        "quality-gated",
+        "profitable",
+        "validated",
         "rejected"
       ]
     },
@@ -71,6 +74,14 @@
       "type": "string",
       "enum": ["none", "smoke", "retrieval", "long-context"]
     },
+    "profitability_policy": {
+      "type": "string",
+      "enum": ["off", "warn", "fail-closed"]
+    },
+    "offload_policy": {
+      "type": "string",
+      "enum": ["none", "gpu", "host-kv", "nvme-simulated", "nvme-experimental"]
+    },
     "layer_count": { "type": "string" },
     "kv_head_count": { "type": "string" },
     "head_dim": { "type": "string" },
@@ -90,6 +101,18 @@
     "compression_accepted": { "type": "string" },
     "compression_failure_reason": { "type": "string" },
     "kv_saved_bytes": { "type": "string" },
+    "h2d_bytes": { "type": "string" },
+    "d2h_bytes": { "type": "string" },
+    "nvme_read_bytes": { "type": "string" },
+    "nvme_write_bytes": { "type": "string" },
+    "h2d_ms": { "type": "string" },
+    "d2h_ms": { "type": "string" },
+    "io_ms": { "type": "string" },
+    "wait_ms": { "type": "string" },
+    "prefill_ms": { "type": "string" },
+    "decode_ms": { "type": "string" },
+    "speedup_ratio": { "type": "string" },
+    "required_speedup_ratio": { "type": "string" },
     "backend_owned_peak_bytes": { "type": "integer", "minimum": 0 },
     "backend_external_peak_bytes": { "type": "integer", "minimum": 0 },
     "evidence_status": { "type": "string" },

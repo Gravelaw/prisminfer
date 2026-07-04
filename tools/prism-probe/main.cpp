@@ -15,9 +15,12 @@
 #include "prisminfer/memory_cap.h"
 #include "prisminfer/memory_ledger.h"
 #include "prisminfer/model_sidecar.h"
+#include "prisminfer/offload_planner.h"
+#include "prisminfer/profitability_policy.h"
 #include "prisminfer/quality_gate.h"
 #include "prisminfer/runtime_state.h"
 #include "prisminfer/telemetry.h"
+#include "prisminfer/transfer_metrics.h"
 
 namespace {
 
@@ -134,6 +137,29 @@ void apply_kv_sample_to_memory(const prisminfer::KvCacheSample& kv_sample,
   sample->unknown_post_warmup_bytes += kv_sample.unknown_bytes;
 }
 
+prisminfer::TransferSample make_transfer_sample(
+    const prisminfer::RuntimeConfig& config,
+    const prisminfer::OffloadPlan& plan) {
+  prisminfer::TransferSample sample;
+  sample.h2d_bytes = plan.h2d_bytes;
+  sample.d2h_bytes = plan.d2h_bytes;
+  sample.nvme_read_bytes = plan.nvme_read_bytes;
+  sample.nvme_write_bytes = plan.nvme_write_bytes;
+  sample.pinned_host_peak_bytes = plan.pinned_host_peak_bytes;
+  sample.staging_peak_bytes = plan.staging_peak_bytes;
+  sample.h2d_ms = config.transfer_h2d_ms;
+  sample.d2h_ms = config.transfer_d2h_ms;
+  sample.io_ms = config.transfer_io_ms;
+  sample.wait_ms = config.transfer_wait_ms;
+  sample.prefill_ms = config.prefill_ms;
+  sample.decode_ms = config.decode_ms;
+  sample.time_to_first_token_ms = config.observed_ttft_ms;
+  sample.decode_tokens_per_second = config.observed_decode_tps;
+  sample.token_latency_p50_ms = config.token_latency_p50_ms;
+  sample.token_latency_p95_ms = config.token_latency_p95_ms;
+  return sample;
+}
+
 int finish_probe(const prisminfer::RuntimeConfig& config,
                  const prisminfer::MemorySample& sample,
                  const prisminfer::CudaProbeResult& cuda,
@@ -141,6 +167,9 @@ int finish_probe(const prisminfer::RuntimeConfig& config,
                  const prisminfer::KvCacheSample& kv_sample,
                  const prisminfer::QualityGateResult& quality,
                  const prisminfer::KvCompressionResult& compression,
+                 const prisminfer::OffloadPlan& offload_plan,
+                 const prisminfer::TransferSample& transfer,
+                 const prisminfer::ProfitabilityDecision& profitability,
                  const std::string& status,
                  const std::string& reason,
                  prisminfer::ExitCode exit_code) {
@@ -148,7 +177,8 @@ int finish_probe(const prisminfer::RuntimeConfig& config,
   const auto host = prisminfer::sample_host_telemetry();
   const prisminfer::ManifestInputs manifest{
       config, sample, host, cuda, kv_profile, kv_sample,
-      quality, compression, status, reason};
+      quality, compression, offload_plan, transfer, profitability, status,
+      reason};
   if (!prisminfer::write_probe_manifest(config.manifest_path, manifest,
                                         &manifest_error)) {
     std::cerr << manifest_error << "\n";
@@ -190,6 +220,9 @@ int main(int argc, char** argv) {
   prisminfer::KvCacheSample kv_sample;
   prisminfer::QualityGateResult quality;
   prisminfer::KvCompressionResult compression;
+  prisminfer::OffloadPlan offload_plan;
+  prisminfer::TransferSample transfer;
+  prisminfer::ProfitabilityDecision profitability;
 
   const prisminfer::ModelSidecarValidationRequest validation_request{
       config.model_path, config.sidecar_path, config.max_model_bytes,
@@ -217,7 +250,8 @@ int main(int argc, char** argv) {
     telemetry.emit(prisminfer::event::RunEnd, config,
                    {{"status", "failed_closed"}});
     return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                        compression, "failed_closed", validation.failure_reason,
+                        compression, offload_plan, transfer, profitability,
+                        "failed_closed", validation.failure_reason,
                         prisminfer::ExitCode::FailedClosed);
   }
 
@@ -236,7 +270,8 @@ int main(int argc, char** argv) {
     telemetry.emit(prisminfer::event::RunEnd, config,
                    {{"status", "failed_closed"}});
     return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                        compression, "failed_closed", reason,
+                        compression, offload_plan, transfer, profitability,
+                        "failed_closed", reason,
                         prisminfer::ExitCode::FailedClosed);
   }
   telemetry.emit(prisminfer::event::DependencyPinsResolved, config,
@@ -273,7 +308,8 @@ int main(int argc, char** argv) {
       telemetry.emit(prisminfer::event::RunEnd, config,
                      {{"status", "failed_closed"}});
       return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                          compression, "failed_closed", cuda.failure_reason,
+                          compression, offload_plan, transfer, profitability,
+                          "failed_closed", cuda.failure_reason,
                           prisminfer::ExitCode::FailedClosed);
     }
 
@@ -326,7 +362,8 @@ int main(int argc, char** argv) {
     telemetry.emit(prisminfer::event::RunEnd, config,
                    {{"status", "failed_closed"}});
     return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                        compression, "failed_closed", reason,
+                        compression, offload_plan, transfer, profitability,
+                        "failed_closed", reason,
                         prisminfer::ExitCode::FailedClosed);
   }
   telemetry.emit(prisminfer::event::BackendInit, config,
@@ -364,7 +401,8 @@ int main(int argc, char** argv) {
     telemetry.emit(prisminfer::event::RunEnd, config,
                    {{"status", "failed_closed"}});
     return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                        compression, "failed_closed", warmup.failure_reason,
+                        compression, offload_plan, transfer, profitability,
+                        "failed_closed", warmup.failure_reason,
                         prisminfer::ExitCode::FailedClosed);
   }
 
@@ -386,7 +424,8 @@ int main(int argc, char** argv) {
       telemetry.emit(prisminfer::event::RunEnd, config,
                      {{"status", "failed_closed"}});
       return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                          compression, "failed_closed",
+                          compression, offload_plan, transfer, profitability,
+                          "failed_closed",
                           profile_result.failure_reason,
                           prisminfer::ExitCode::FailedClosed);
     }
@@ -474,7 +513,105 @@ int main(int argc, char** argv) {
       telemetry.emit(prisminfer::event::RunEnd, config,
                      {{"status", "failed_closed"}});
       return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                          compression, "failed_closed", reason,
+                          compression, offload_plan, transfer, profitability,
+                          "failed_closed", reason,
+                          prisminfer::ExitCode::FailedClosed);
+    }
+  }
+  if (config.profitability_policy != "off") {
+    telemetry.emit(prisminfer::event::BaselineSelected, config,
+                   {{"baseline_manifest",
+                     config.baseline_manifest.generic_string()},
+                    {"cpu_time_to_first_token_ms",
+                     std::to_string(config.cpu_baseline_ttft_ms)},
+                    {"cpu_decode_tokens_per_second",
+                     std::to_string(config.cpu_baseline_decode_tps)},
+                    {"cpu_peak_bytes",
+                     std::to_string(config.cpu_baseline_peak_bytes)}});
+
+    const auto plan_result = prisminfer::make_offload_plan(
+        config.offload_policy, config.pinned_host_budget_bytes,
+        config.staging_buffer_bytes, config.transfer_h2d_bytes,
+        config.transfer_d2h_bytes, config.nvme_read_bytes,
+        config.nvme_write_bytes, config.cold_cache_run);
+    offload_plan = plan_result.plan;
+    telemetry.emit(prisminfer::event::TransferPlan, config,
+                   {{"policy", offload_plan.policy},
+                    {"h2d_bytes", std::to_string(offload_plan.h2d_bytes)},
+                    {"d2h_bytes", std::to_string(offload_plan.d2h_bytes)},
+                    {"nvme_read_bytes",
+                     std::to_string(offload_plan.nvme_read_bytes)},
+                    {"nvme_write_bytes",
+                     std::to_string(offload_plan.nvme_write_bytes)},
+                    {"pinned_host_peak_bytes",
+                     std::to_string(offload_plan.pinned_host_peak_bytes)},
+                    {"staging_peak_bytes",
+                     std::to_string(offload_plan.staging_peak_bytes)},
+                    {"cold_cache_required",
+                     offload_plan.cold_cache_required ? "true" : "false"},
+                    {"failure_reason", plan_result.failure_reason}});
+    transfer = make_transfer_sample(config, offload_plan);
+    const auto transfer_result = prisminfer::validate_transfer_sample(
+        config.offload_policy, transfer, config.transfer_metrics,
+        config.cold_cache_run);
+    telemetry.emit(prisminfer::event::TransferSample, config,
+                   {{"h2d_bytes", std::to_string(transfer.h2d_bytes)},
+                    {"d2h_bytes", std::to_string(transfer.d2h_bytes)},
+                    {"nvme_read_bytes",
+                     std::to_string(transfer.nvme_read_bytes)},
+                    {"nvme_write_bytes",
+                     std::to_string(transfer.nvme_write_bytes)},
+                    {"h2d_ms", std::to_string(transfer.h2d_ms)},
+                    {"d2h_ms", std::to_string(transfer.d2h_ms)},
+                    {"io_ms", std::to_string(transfer.io_ms)},
+                    {"wait_ms", std::to_string(transfer.wait_ms)},
+                    {"prefill_ms", std::to_string(transfer.prefill_ms)},
+                    {"decode_ms", std::to_string(transfer.decode_ms)},
+                    {"time_to_first_token_ms",
+                     std::to_string(transfer.time_to_first_token_ms)},
+                    {"decode_tokens_per_second",
+                     std::to_string(transfer.decode_tokens_per_second)},
+                    {"failure_reason", transfer_result.failure_reason}});
+    telemetry.emit(prisminfer::event::OffloadSample, config,
+                   {{"policy", offload_plan.policy},
+                    {"evidence_label", offload_plan.evidence_label}});
+    profitability = prisminfer::evaluate_profitability(
+        prisminfer::ProfitabilityInput{
+            config.profitability_policy,
+            config.offload_policy,
+            config.min_speedup_ratio,
+            prisminfer::ProfitabilityBaseline{
+                config.cpu_baseline_ttft_ms,
+                config.cpu_baseline_decode_tps,
+                config.cpu_baseline_peak_bytes,
+                config.validation_cell_id},
+            transfer,
+            config.validation_cell_id,
+            true,
+            quality.passed,
+            transfer_result.ok});
+    std::string phase3_reason =
+        !plan_result.ok
+            ? plan_result.failure_reason
+            : (!transfer_result.ok ? transfer_result.failure_reason
+                                   : profitability.reason);
+    telemetry.emit(prisminfer::event::ProfitabilityResult, config,
+                   {{"status", profitability.status},
+                    {"accepted", profitability.accepted ? "true" : "false"},
+                    {"reason", phase3_reason},
+                    {"speedup_ratio",
+                     std::to_string(profitability.speedup_ratio)},
+                    {"required_speedup_ratio",
+                     std::to_string(profitability.required_speedup_ratio)}});
+    if (!plan_result.ok || !transfer_result.ok || !profitability.accepted) {
+      telemetry.emit_memory_sample(config, sample, sample.telemetry_agreement);
+      telemetry.emit(prisminfer::event::FailedClosed, config,
+                     {{"failure_reason", phase3_reason}});
+      telemetry.emit(prisminfer::event::RunEnd, config,
+                     {{"status", "failed_closed"}});
+      return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
+                          compression, offload_plan, transfer, profitability,
+                          "failed_closed", phase3_reason,
                           prisminfer::ExitCode::FailedClosed);
     }
   }
@@ -493,7 +630,8 @@ int main(int argc, char** argv) {
     telemetry.emit(prisminfer::event::RunEnd, config,
                    {{"status", "failed_closed"}});
     return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                        compression, "failed_closed",
+                        compression, offload_plan, transfer, profitability,
+                        "failed_closed",
                         certification.failure_reason,
                         prisminfer::ExitCode::FailedClosed);
   }
@@ -501,6 +639,6 @@ int main(int argc, char** argv) {
   telemetry.emit(prisminfer::event::Completed, config);
   telemetry.emit(prisminfer::event::RunEnd, config, {{"status", "ok"}});
   return finish_probe(config, sample, cuda, kv_profile, kv_sample, quality,
-                      compression, "ok", "",
+                      compression, offload_plan, transfer, profitability, "ok", "",
                       prisminfer::ExitCode::Ok);
 }

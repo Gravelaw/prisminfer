@@ -40,6 +40,12 @@ int main() {
   config.kv_placement = "host";
   config.kv_compression = "accounting-only";
   config.quality_gate = "smoke";
+  config.profitability_policy = "fail-closed";
+  config.offload_policy = "gpu";
+  config.baseline_manifest = "cpu-baseline.json";
+  config.min_speedup_ratio = 1.1;
+  config.cpu_baseline_ttft_ms = 100.0;
+  config.cpu_baseline_decode_tps = 10.0;
 
   prisminfer::MemorySample sample;
   sample.allocator_peak_bytes = 123;
@@ -84,10 +90,25 @@ int main() {
   prisminfer::KvCompressionResult compression;
   compression.accepted = true;
   compression.status = "accounting-only";
+  prisminfer::OffloadPlan offload_plan;
+  offload_plan.policy = "gpu";
+  offload_plan.h2d_bytes = 1024;
+  offload_plan.staging_peak_bytes = 2048;
+  offload_plan.evidence_label = "measured-offload";
+  prisminfer::TransferSample transfer;
+  transfer.h2d_bytes = 1024;
+  transfer.time_to_first_token_ms = 80.0;
+  transfer.decode_tokens_per_second = 12.0;
+  prisminfer::ProfitabilityDecision profitability;
+  profitability.accepted = true;
+  profitability.status = "accepted";
+  profitability.speedup_ratio = 1.2;
+  profitability.required_speedup_ratio = 1.1;
 
   const prisminfer::ManifestInputs inputs{config, sample, host, cuda, profile,
                                           kv_sample, quality, compression,
-                                          "ok", ""};
+                                          offload_plan, transfer,
+                                          profitability, "ok", ""};
   if (expect(prisminfer::write_probe_manifest(path, inputs, &error),
              error.c_str())) return 1;
 
@@ -98,7 +119,7 @@ int main() {
   in.close();
   const auto content = buffer.str();
 
-  if (expect(content.find("\"manifest_version\": \"0.3\"") !=
+  if (expect(content.find("\"manifest_version\": \"0.4\"") !=
                  std::string::npos,
              "manifest version written")) return 1;
   if (expect(content.find("\"run_id\": \"manifest-run\"") !=
@@ -147,6 +168,11 @@ int main() {
   if (expect(content.find("\"quality_status\": \"passed\"") !=
                  std::string::npos,
              "quality status written")) return 1;
+  if (expect(content.find("\"profitability_status\": \"accepted\"") !=
+                 std::string::npos,
+             "profitability status written")) return 1;
+  if (expect(content.find("\"h2d_bytes\": 1024") != std::string::npos,
+             "transfer bytes written")) return 1;
   if (expect(content.find("\"gpu_name\": \"test gpu\"") !=
                  std::string::npos,
              "gpu name written")) return 1;

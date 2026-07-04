@@ -52,7 +52,7 @@ bool write_probe_manifest(const std::filesystem::path& path,
   }
 
   out << "{\n"
-      << "  \"manifest_version\": \"0.3\",\n"
+      << "  \"manifest_version\": \"0.4\",\n"
       << "  \"run_id\": \"" << json_escape(inputs.config.run_id) << "\",\n"
       << "  \"created_at_utc\": \"" << utc_timestamp() << "\",\n"
       << "  \"tool\": \"prism-probe\",\n"
@@ -147,6 +147,65 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << "  \"kv_compression_failure_reason\": \""
       << json_escape(inputs.compression.failure_reason) << "\",\n"
       << "  \"kv_saved_bytes\": " << inputs.compression.saved_bytes << ",\n"
+      << "  \"profitability_policy\": \""
+      << json_escape(inputs.config.profitability_policy) << "\",\n"
+      << "  \"baseline_manifest\": \""
+      << json_escape(inputs.config.baseline_manifest.generic_string())
+      << "\",\n"
+      << "  \"min_speedup_ratio\": " << inputs.config.min_speedup_ratio
+      << ",\n"
+      << "  \"offload_policy\": \""
+      << json_escape(inputs.config.offload_policy) << "\",\n"
+      << "  \"pinned_host_budget_bytes\": "
+      << inputs.config.pinned_host_budget_bytes << ",\n"
+      << "  \"staging_buffer_bytes\": " << inputs.config.staging_buffer_bytes
+      << ",\n"
+      << "  \"transfer_metrics\": "
+      << (inputs.config.transfer_metrics ? "true" : "false") << ",\n"
+      << "  \"cold_cache_run\": "
+      << (inputs.config.cold_cache_run ? "true" : "false") << ",\n"
+      << "  \"cpu_baseline_ttft_ms\": "
+      << inputs.config.cpu_baseline_ttft_ms << ",\n"
+      << "  \"cpu_baseline_decode_tps\": "
+      << inputs.config.cpu_baseline_decode_tps << ",\n"
+      << "  \"cpu_baseline_peak_bytes\": "
+      << inputs.config.cpu_baseline_peak_bytes << ",\n"
+      << "  \"observed_ttft_ms\": "
+      << inputs.transfer.time_to_first_token_ms << ",\n"
+      << "  \"observed_decode_tps\": "
+      << inputs.transfer.decode_tokens_per_second << ",\n"
+      << "  \"token_latency_p50_ms\": "
+      << inputs.transfer.token_latency_p50_ms << ",\n"
+      << "  \"token_latency_p95_ms\": "
+      << inputs.transfer.token_latency_p95_ms << ",\n"
+      << "  \"h2d_bytes\": " << inputs.transfer.h2d_bytes << ",\n"
+      << "  \"d2h_bytes\": " << inputs.transfer.d2h_bytes << ",\n"
+      << "  \"nvme_read_bytes\": " << inputs.transfer.nvme_read_bytes
+      << ",\n"
+      << "  \"nvme_write_bytes\": " << inputs.transfer.nvme_write_bytes
+      << ",\n"
+      << "  \"pinned_host_peak_bytes\": "
+      << inputs.transfer.pinned_host_peak_bytes << ",\n"
+      << "  \"staging_peak_bytes\": " << inputs.transfer.staging_peak_bytes
+      << ",\n"
+      << "  \"h2d_ms\": " << inputs.transfer.h2d_ms << ",\n"
+      << "  \"d2h_ms\": " << inputs.transfer.d2h_ms << ",\n"
+      << "  \"io_ms\": " << inputs.transfer.io_ms << ",\n"
+      << "  \"wait_ms\": " << inputs.transfer.wait_ms << ",\n"
+      << "  \"prefill_ms\": " << inputs.transfer.prefill_ms << ",\n"
+      << "  \"decode_ms\": " << inputs.transfer.decode_ms << ",\n"
+      << "  \"offload_evidence_label\": \""
+      << json_escape(inputs.offload_plan.evidence_label) << "\",\n"
+      << "  \"profitability_status\": \""
+      << json_escape(inputs.profitability.status) << "\",\n"
+      << "  \"profitability_accepted\": "
+      << (inputs.profitability.accepted ? "true" : "false") << ",\n"
+      << "  \"profitability_reason\": \""
+      << json_escape(inputs.profitability.reason) << "\",\n"
+      << "  \"profitability_speedup_ratio\": "
+      << inputs.profitability.speedup_ratio << ",\n"
+      << "  \"profitability_required_speedup_ratio\": "
+      << inputs.profitability.required_speedup_ratio << ",\n"
       << "  \"telemetry_path\": \""
       << json_escape(inputs.config.telemetry_path) << "\",\n"
       << "  \"status\": \"" << json_escape(inputs.status) << "\",\n"
@@ -265,6 +324,16 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
       events.emplace_back("decode_end");
     } else if (line_contains(line, "\"event\":\"quality_gate_result\"")) {
       events.emplace_back("quality_gate_result");
+    } else if (line_contains(line, "\"event\":\"baseline_selected\"")) {
+      events.emplace_back("baseline_selected");
+    } else if (line_contains(line, "\"event\":\"transfer_plan\"")) {
+      events.emplace_back("transfer_plan");
+    } else if (line_contains(line, "\"event\":\"transfer_sample\"")) {
+      events.emplace_back("transfer_sample");
+    } else if (line_contains(line, "\"event\":\"offload_sample\"")) {
+      events.emplace_back("offload_sample");
+    } else if (line_contains(line, "\"event\":\"profitability_result\"")) {
+      events.emplace_back("profitability_result");
     } else if (line_contains(line, "\"event\":\"memory_sample\"")) {
       events.emplace_back("memory_sample");
     } else if (line_contains(line, "\"event\":\"cap_certification_result\"")) {
@@ -335,8 +404,13 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
   bool saw_decode_start = false;
   bool saw_decode_end = false;
   bool saw_quality_gate = false;
+  bool saw_baseline_selected = false;
+  bool saw_transfer_plan = false;
+  bool saw_transfer_sample = false;
+  bool saw_profitability_result = false;
   bool saw_memory_after_quality = false;
   bool saw_quality_before_memory = false;
+  bool saw_phase3_before_memory = false;
   for (; position < events.size(); ++position) {
     if (events[position] == "cap_semantics_resolved") {
       saw_cap_semantics = true;
@@ -380,6 +454,19 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
     if (events[position] == "quality_gate_result") {
       saw_quality_gate = true;
       saw_quality_before_memory = !saw_memory;
+    }
+    if (events[position] == "baseline_selected") {
+      saw_baseline_selected = true;
+    }
+    if (events[position] == "transfer_plan") {
+      saw_transfer_plan = true;
+    }
+    if (events[position] == "transfer_sample") {
+      saw_transfer_sample = true;
+    }
+    if (events[position] == "profitability_result") {
+      saw_profitability_result = true;
+      saw_phase3_before_memory = !saw_memory;
     }
     if (events[position] == "memory_sample") {
       if (saw_quality_gate) {
@@ -438,6 +525,16 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
     }
     if (!saw_quality_before_memory || !saw_memory_after_quality) {
       return fail("phase2_quality_must_precede_memory_sample");
+    }
+  }
+  if (saw_baseline_selected || saw_transfer_plan || saw_transfer_sample ||
+      saw_profitability_result) {
+    if (!saw_baseline_selected || !saw_transfer_plan || !saw_transfer_sample ||
+        !saw_profitability_result) {
+      return fail("missing_phase3_profitability_lifecycle_event");
+    }
+    if (!saw_phase3_before_memory) {
+      return fail("phase3_profitability_must_precede_memory_sample");
     }
   }
   if (!saw_terminal) {

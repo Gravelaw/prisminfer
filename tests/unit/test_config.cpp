@@ -47,6 +47,20 @@ int main() {
         "--quality-observed-score", "1.01", "--quality-max-delta", "0.02",
         "--quality-retrieval-passed", "true",
         "--quality-deterministic-match", "true",
+        "--profitability-policy", "fail-closed", "--baseline-manifest",
+        "cpu-baseline.json", "--min-speedup-ratio", "1.2",
+        "--offload-policy", "gpu", "--pinned-host-budget-bytes", "4096",
+        "--staging-buffer-bytes", "2048", "--transfer-metrics", "on",
+        "--cold-cache-run", "--cpu-baseline-ttft-ms", "100.0",
+        "--cpu-baseline-decode-tps", "10.0", "--cpu-baseline-peak-bytes",
+        "8192", "--observed-ttft-ms", "80.0", "--observed-decode-tps",
+        "12.0", "--token-latency-p50-ms", "20.0",
+        "--token-latency-p95-ms", "30.0", "--transfer-h2d-bytes", "1024",
+        "--transfer-d2h-bytes", "256", "--nvme-read-bytes", "512",
+        "--nvme-write-bytes", "128", "--transfer-h2d-ms", "1.0",
+        "--transfer-d2h-ms", "2.0", "--transfer-io-ms", "3.0",
+        "--transfer-wait-ms", "4.0", "--prefill-ms", "5.0",
+        "--decode-ms", "6.0",
         "--simulate-allocator-peak-bytes", "4096",
         "--simulate-process-gpu-peak-bytes", "4096",
         "--simulate-warmup-peak-bytes", "1024",
@@ -124,6 +138,32 @@ int main() {
                "explicit quality baseline manifest")) return 1;
     if (expect(parsed.config->quality_observed_score > 1.0,
                "explicit quality score")) return 1;
+    if (expect(parsed.config->profitability_policy == "fail-closed",
+               "explicit profitability policy")) return 1;
+    if (expect(parsed.config->baseline_manifest == "cpu-baseline.json",
+               "explicit baseline manifest")) return 1;
+    if (expect(parsed.config->min_speedup_ratio > 1.1,
+               "explicit min speedup ratio")) return 1;
+    if (expect(parsed.config->offload_policy == "gpu",
+               "explicit offload policy")) return 1;
+    if (expect(parsed.config->pinned_host_budget_bytes == 4096,
+               "explicit pinned host budget")) return 1;
+    if (expect(parsed.config->staging_buffer_bytes == 2048,
+               "explicit staging buffer")) return 1;
+    if (expect(parsed.config->transfer_metrics, "transfer metrics on")) {
+      return 1;
+    }
+    if (expect(parsed.config->cold_cache_run, "cold cache marker")) return 1;
+    if (expect(parsed.config->cpu_baseline_decode_tps == 10.0,
+               "explicit cpu baseline tps")) return 1;
+    if (expect(parsed.config->observed_decode_tps == 12.0,
+               "explicit observed tps")) return 1;
+    if (expect(parsed.config->transfer_h2d_bytes == 1024,
+               "explicit transfer h2d bytes")) return 1;
+    if (expect(parsed.config->nvme_read_bytes == 512,
+               "explicit nvme read bytes")) return 1;
+    if (expect(parsed.config->transfer_wait_ms == 4.0,
+               "explicit transfer wait ms")) return 1;
     if (expect(parsed.config->simulate_allocator_peak_bytes == 4096,
                "explicit allocator simulation")) return 1;
     if (expect(parsed.config->simulate_process_gpu_peak_bytes == 4096,
@@ -132,6 +172,24 @@ int main() {
                "explicit warmup simulation")) return 1;
     if (expect(parsed.config->simulate_unknown_post_warmup_bytes == 1,
                "explicit unknown post-warmup simulation")) return 1;
+  }
+  {
+    const auto parsed =
+        prisminfer::parse_args({"--profitability-policy", "invalid"});
+    if (expect(!parsed.config.has_value(),
+               "invalid profitability policy rejected")) return 1;
+    if (expect(parsed.error.find("unsupported profitability policy") !=
+                   std::string::npos,
+               "invalid profitability policy error is specific")) return 1;
+  }
+  {
+    const auto parsed = prisminfer::parse_args({"--offload-policy", "bad"});
+    if (expect(!parsed.config.has_value(), "invalid offload rejected")) {
+      return 1;
+    }
+    if (expect(parsed.error.find("unsupported offload policy") !=
+                   std::string::npos,
+               "invalid offload error is specific")) return 1;
   }
   {
     const auto parsed = prisminfer::parse_args({"--mode", "invalid"});

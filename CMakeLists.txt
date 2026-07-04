@@ -40,6 +40,7 @@ add_library(prisminfer_core
   src/backend/llama_backend.cpp
   src/backend/null_backend.cpp
   src/benchmark/manifest_writer.cpp
+  src/benchmark/transfer_metrics.cpp
   src/kv/kv_cache_ledger.cpp
   src/kv/kv_compression_policy.cpp
   src/quality/quality_gate.cpp
@@ -49,6 +50,8 @@ add_library(prisminfer_core
   src/governor/host_memory_tracker.cpp
   src/governor/memory_ledger.cpp
   src/governor/memory_cap.cpp
+  src/governor/profitability_policy.cpp
+  src/offload/offload_planner.cpp
   src/governor/cuda_context_probe.cpp
   src/validation/model_sidecar.cpp
   src/telemetry/telemetry_jsonl.cpp
@@ -134,3 +137,15 @@ add_test(NAME test_kv_cache_ledger COMMAND test_kv_cache_ledger)
 add_executable(test_quality_gate tests/unit/test_quality_gate.cpp)
 target_link_libraries(test_quality_gate PRIVATE prisminfer_core)
 add_test(NAME test_quality_gate COMMAND test_quality_gate)
+
+add_executable(test_transfer_metrics tests/unit/test_transfer_metrics.cpp)
+target_link_libraries(test_transfer_metrics PRIVATE prisminfer_core)
+add_test(NAME test_transfer_metrics COMMAND test_transfer_metrics)
+
+add_executable(test_profitability_policy tests/unit/test_profitability_policy.cpp)
+target_link_libraries(test_profitability_policy PRIVATE prisminfer_core)
+add_test(NAME test_profitability_policy COMMAND test_profitability_policy)
+
+add_executable(test_offload_planner tests/unit/test_offload_planner.cpp)
+target_link_libraries(test_offload_planner PRIVATE prisminfer_core)
+add_test(NAME test_offload_planner COMMAND test_offload_planner)
