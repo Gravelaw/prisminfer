@@ -10,7 +10,7 @@ General SDLC behavior is governed outside this repo. Keep this file focused on p
 
 PrismInfer is a C/C++ inference-governor and telemetry project for constrained-memory LLM inference.
 
-The repository is expected to evolve through multiple phases. Do not hard-code assumptions that only apply to the current milestone unless the active GitHub issue, milestone, or project board explicitly requires it.
+The repository is expected to evolve through multiple phases.
 
 Core direction:
 
@@ -18,7 +18,7 @@ Core direction:
 - Treat memory-cap evidence as a first-class product requirement.
 - Preserve fail-closed behavior when telemetry is missing, contradictory, or incomplete.
 - Keep CUDA support optional at build time unless the task explicitly targets CUDA.
-- Avoid custom kernels, runtime rewrites, or model-loading integrations unless the active GitHub issue/milestone calls for them.
+- Only add custom kernels, runtime rewrites, or model-loading integrations when the scoped issue requires them.
 
 ## Tracking
 
@@ -35,7 +35,7 @@ GitHub is the source of truth for scoped work:
 - Use milestones for phase boundaries.
 - Link PRs to issues with `Closes #<issue>` or `Refs #<issue>`.
 
-Normal development should happen through issue branches and PRs, not direct commits to `main`, unless the user explicitly asks for direct commit work.
+Normal development should happen through issue branches and PRs.
 
 ## Environment
 
@@ -44,24 +44,6 @@ Codex local environment commands are documented in:
 - `docs/codex-environment.md`
 
 The Codex environment may be rooted at `D:\Research` while this repo is under `D:\Research\prisminfer`, so use the robust commands from that document when configuring Codex setup, cleanup, and actions.
-
-Repo scripts:
-
-- `scripts/dev-setup.ps1`: checks tools and can run verification.
-- `scripts/verify.ps1`: runs workflow lint, CMake build, CTest, and optional probe smoke checks.
-- `scripts/dev-clean.ps1`: removes generated build directories and probe artifacts; supports `-WhatIf`.
-
-Expected local tools:
-
-- Git
-- GitHub CLI `gh`
-- CMake / CTest
-- Visual Studio 2022 Build Tools
-- Python
-- `actionlint`
-- `jq`
-- `ninja`
-- CUDA Toolkit, `nvcc`, and `nvidia-smi` when working on CUDA probe behavior
 
 ## Build and Test
 
@@ -168,7 +150,7 @@ Main code areas:
 
 ## Before Finishing
 
-For normal C/C++ changes, verify at least:
+Run the repo verification script before handing work back:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify.ps1
@@ -180,4 +162,4 @@ For CUDA-touching changes, also run:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify.ps1 -WithCuda
 ```
 
-Report any checks that were not run.
+For docs-only changes, a lighter verification is acceptable, but report what was run and what was skipped.
