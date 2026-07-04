@@ -1,6 +1,7 @@
 # PrismInfer
 
-PrismInfer is a Phase 0 scaffold for a low-VRAM LLM inference governor and telemetry harness.
+PrismInfer is a low-VRAM LLM inference governor, telemetry harness, and
+research scaffold for constrained GPU memory claims.
 
 The v0 direction is intentionally conservative:
 
@@ -8,7 +9,9 @@ The v0 direction is intentionally conservative:
 - start with `1gb-safe-cpu`,
 - allow GPU only through `1gb-safe-gpu-probed`,
 - fail closed when hard-cap telemetry is missing or contradictory,
-- postpone custom CUDA kernels until after Phase 0 and Phase 1 pass.
+- include one gated CUDA kernel prototype in Phase 5 after the benchmark,
+  schema, runtime evidence, 9B validation-cell, and allocation-reconciliation
+  gates pass.
 
 ## Build
 
@@ -81,8 +84,14 @@ Current research direction and post-Phase-0 implementation plans are tracked in:
 - `docs/phase3-implementation-plan.md`
 - `docs/phase4-implementation-plan.md`
 - `docs/phase4-90b-validation-policy.md`
+- `docs/phase5-compute-kernel-research-plan.md`
+- `docs/kernel-benchmark-methodology.md`
 - `docs/implementation-plan-phase1-to-phase4.md`
 
 The current roadmap caps GPU hard-limit validation at 16 GiB. The 90B hybrid
 profile is simulated/offline only until validated benchmark evidence exists.
+The first custom CUDA kernel target is the Phase 5 gated q4 decode-GEMV
+prototype. Broader fused dequantization, Tensor Core paths, IO-aware attention,
+MLA latent KV, low-rank compression, structured sparsity, and MoE runtime support
+remain gated until same-cell benchmark evidence and cap accounting are retained.
 Historical council notes live under `docs/archive/`.

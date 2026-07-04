@@ -7,6 +7,10 @@ project(PrismInfer
 
 option(PRISMINFER_ENABLE_CUDA_PROBE "Enable CUDA-specific probing code" OFF)
 option(PRISMINFER_ENABLE_LLAMA_BACKEND "Enable the llama.cpp backend adapter surface" OFF)
+option(PRISMINFER_ENABLE_CUDA_KERNELS "Enable guarded CUDA kernel prototypes" OFF)
+option(PRISMINFER_ENABLE_CUBLASLT_BASELINE "Enable cuBLASLt baseline discovery for kernel work" ON)
+option(PRISMINFER_ENABLE_CUTLASS_BASELINE "Enable CUTLASS baseline integration for kernel work" OFF)
+set(PRISMINFER_CUDA_KERNEL_ARCHS "" CACHE STRING "Explicit CMAKE_CUDA_ARCHITECTURES list for CUDA kernel prototypes")
 
 if(PRISMINFER_ENABLE_CUDA_PROBE)
   include(CheckLanguage)
@@ -29,6 +33,16 @@ if(PRISMINFER_ENABLE_CUDA_PROBE)
     REQUIRED)
 endif()
 
+if(PRISMINFER_ENABLE_CUDA_KERNELS)
+  if(PRISMINFER_CUDA_KERNEL_ARCHS STREQUAL "")
+    message(FATAL_ERROR
+      "PRISMINFER_ENABLE_CUDA_KERNELS requires PRISMINFER_CUDA_KERNEL_ARCHS")
+  endif()
+  enable_language(CUDA)
+  set(CMAKE_CUDA_ARCHITECTURES "${PRISMINFER_CUDA_KERNEL_ARCHS}")
+  find_package(CUDAToolkit REQUIRED)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -40,7 +54,10 @@ add_library(prisminfer_core
   src/backend/llama_backend.cpp
   src/backend/null_backend.cpp
   src/benchmark/manifest_writer.cpp
+  src/benchmark/benchmark_comparator.cpp
+  src/benchmark/kernel_evidence.cpp
   src/benchmark/transfer_metrics.cpp
+  src/kernels/q4_decode_gemv.cpp
   src/planner/hybrid_plan.cpp
   src/kv/kv_cache_ledger.cpp
   src/kv/kv_compression_policy.cpp
@@ -70,11 +87,24 @@ target_compile_definitions(prisminfer_core
     PRISMINFER_CMAKE_VERSION="${CMAKE_VERSION}"
     PRISMINFER_VERSION="${PROJECT_VERSION}"
     PRISMINFER_BUILD_CONFIG="$<CONFIG>"
+    PRISMINFER_CUDA_KERNEL_ARCHS="${PRISMINFER_CUDA_KERNEL_ARCHS}"
+    $<$<BOOL:${PRISMINFER_ENABLE_CUBLASLT_BASELINE}>:PRISMINFER_ENABLE_CUBLASLT_BASELINE=1>
+    $<$<BOOL:${PRISMINFER_ENABLE_CUTLASS_BASELINE}>:PRISMINFER_ENABLE_CUTLASS_BASELINE=1>
     $<$<BOOL:${PRISMINFER_ENABLE_CUDA_PROBE}>:PRISMINFER_ENABLE_CUDA_PROBE=1>
-    $<$<BOOL:${PRISMINFER_ENABLE_LLAMA_BACKEND}>:PRISMINFER_ENABLE_LLAMA_BACKEND=1>)
+    $<$<BOOL:${PRISMINFER_ENABLE_LLAMA_BACKEND}>:PRISMINFER_ENABLE_LLAMA_BACKEND=1>
+    $<$<BOOL:${PRISMINFER_ENABLE_CUDA_KERNELS}>:PRISMINFER_ENABLE_CUDA_KERNELS=1>)
 
 if(PRISMINFER_ENABLE_CUDA_PROBE)
   target_link_libraries(prisminfer_core PUBLIC CUDA::cudart ${PRISMINFER_NVML_LIBRARY})
+endif()
+
+if(PRISMINFER_ENABLE_CUDA_KERNELS)
+  add_library(prisminfer_cuda_kernels STATIC
+    src/kernels/cuda/q4_decode_gemv.cu)
+  target_include_directories(prisminfer_cuda_kernels
+    PUBLIC
+      ${CMAKE_CURRENT_SOURCE_DIR}/include)
+  target_link_libraries(prisminfer_cuda_kernels PUBLIC CUDA::cudart)
 endif()
 
 if(WIN32)
@@ -101,6 +131,9 @@ target_link_libraries(prism-plan-90b PRIVATE prisminfer_core)
 
 add_executable(prism-validate-claim tools/prism-validate-claim/main.cpp)
 target_link_libraries(prism-validate-claim PRIVATE prisminfer_core)
+
+add_executable(prism-compare-benchmark tools/prism-compare-benchmark/main.cpp)
+target_link_libraries(prism-compare-benchmark PRIVATE prisminfer_core)
 
 enable_testing()
 
@@ -175,3 +208,15 @@ add_test(NAME test_usability_policy COMMAND test_usability_policy)
 add_executable(test_evidence_bundle tests/unit/test_evidence_bundle.cpp)
 target_link_libraries(test_evidence_bundle PRIVATE prisminfer_core)
 add_test(NAME test_evidence_bundle COMMAND test_evidence_bundle)
+
+add_executable(test_benchmark_comparator tests/unit/test_benchmark_comparator.cpp)
+target_link_libraries(test_benchmark_comparator PRIVATE prisminfer_core)
+add_test(NAME test_benchmark_comparator COMMAND test_benchmark_comparator)
+
+add_executable(test_kernel_evidence tests/unit/test_kernel_evidence.cpp)
+target_link_libraries(test_kernel_evidence PRIVATE prisminfer_core)
+add_test(NAME test_kernel_evidence COMMAND test_kernel_evidence)
+
+add_executable(test_q4_decode_gemv tests/unit/test_q4_decode_gemv.cpp)
+target_link_libraries(test_q4_decode_gemv PRIVATE prisminfer_core)
+add_test(NAME test_q4_decode_gemv COMMAND test_q4_decode_gemv)

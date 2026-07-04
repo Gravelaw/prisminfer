@@ -14,7 +14,9 @@ useful under constrained GPU memory by combining:
 - quantized and paged KV cache,
 - CPU/GPU/NVMe offload,
 - strict lifecycle and manifest evidence,
-- task-level quality gates?
+- task-level quality gates,
+- one gated CUDA kernel prototype after same-cell baselines, 9B validation-cell
+  declaration, and allocation reconciliation?
 
 ## Non-Question
 
@@ -203,6 +205,55 @@ Exit claim:
 Only validated-benchmark or deployable-profile labels can imply real large-model
 or 90B inference. Simulated and measured-offload labels cannot.
 
+## Phase 5: Measured Compute Kernel Research
+
+Goal: implement and evaluate one PrismInfer-specific CUDA kernel prototype after
+llama.cpp/GGML baselines, vendor-library baselines, runtime telemetry, 9B
+validation-cell declaration, and allocation evidence are strong enough to make
+fair comparisons.
+
+Decision question:
+
+Can a narrow kernel path improve end-to-end decode or prefill performance for an
+exact validation cell without violating the <=16 GiB cap, hiding dequantization
+or launch overhead, bypassing quality gates, or making claims that llama.cpp,
+cuBLASLt, CUTLASS, or GGML already satisfy?
+
+Required prerequisites before the custom CUDA kernel prototype:
+
+- strict kernel benchmark and telemetry schemas that reject unknown kernel
+  fields,
+- same-cell benchmark comparator across model hash, quantization, context,
+  prompt fixture, backend, OS, GPU, driver, CUDA version, and cap tier,
+- real quality fixtures with retained hashes,
+- Windows driver mode, TDR, and WDAC/Application Control evidence where
+  applicable,
+- llama.cpp/backend allocation reconciliation, or an explicit
+  `measured-non-certified` label,
+- CPU reference and llama.cpp/GGML CUDA/MMQ baselines for the same cell,
+- a pinned 9B-class `>5B-10B` q4 GGUF validation cell before prototype
+  promotion.
+
+Initial implementation and research lanes:
+
+- one guarded CUDA implementation of fused q4 dequantization plus matmul for
+  batch-1 decode GEMV,
+- GEMM versus GEMV dispatch policy for decode and prefill,
+- cuBLASLt, CUTLASS, and Tensor Core baseline strategy before custom kernels,
+- FlashAttention-style IO-aware attention only after matmul evidence,
+- MLA-style latent KV only as a later KV/attention lane,
+- low-rank/SVD and structured sparsity first as accounting and artifact
+  metadata, not runtime compression,
+- MoE active-parameter accounting before any MoE runtime path.
+
+Exit claim:
+
+Phase 5 may keep one measured kernel prototype only when it is correct
+against a CPU reference, cap-accounted or explicitly non-certified, compared
+against same-cell llama.cpp/GGML/vendor baselines, and at least 10% faster on
+end-to-end decode for the declared cell. Otherwise the kernel lane remains
+research-only or is rejected.
+
 ## Claim Taxonomy
 
 | Claim label | Evidence requirement |
@@ -223,9 +274,20 @@ claims:
 1. `<=2B` under 1 GiB and 2 GiB caps: real backend warmup and decode smoke.
 2. `>2B-5B` under 1 GiB, 2 GiB, and 4 GiB caps: real backend warmup and decode
    smoke.
-3. `>5B-10B` and `>10B-15B`: quality-gated constrained inference by exact
-   validation cell.
-4. Larger buckets through `>85B-90B`: simulated, measured-offload, validated, or
+3. `>5B-10B`: first run a named 9B representative gate at
+   `context_tokens=2048`, `batch_size=1`, q4 GGUF quantization, and retained
+   model/quant hashes. The primary constrained target is `8 GiB`; `12 GiB` and
+   `16 GiB` are validation/reference tiers; `4 GiB` and `6 GiB` are
+   fail-closed or offload discovery tiers. Acceptance requires cap
+   certification, quality fixture pass rate `>=95%`, no quality regression
+   greater than `5%` versus same-cell llama.cpp/GGML reference, warm-cache
+   decode `p50 >=3 tokens/sec`, p95 inter-token latency `<=750 ms`, TTFT p95
+   `<=30 seconds`, and three-run repeatability CV `<=10%`.
+4. `>10B-15B`: quality-gated constrained inference by exact validation cell.
+5. Larger buckets through `>85B-90B`: simulated, measured-offload, validated, or
    rejected according to retained evidence.
+6. Compute kernel research: same-cell measured only, never generalized across
+   model buckets, quantization formats, batch sizes, GPU architectures, or cap
+   tiers by analogy.
 
 No cell above 16 GiB is in scope for the current roadmap.
