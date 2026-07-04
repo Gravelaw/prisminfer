@@ -39,6 +39,7 @@ add_library(prisminfer_core
   src/governor/allocator_tracker.cpp
   src/governor/memory_cap.cpp
   src/governor/cuda_context_probe.cpp
+  src/validation/model_sidecar.cpp
   src/telemetry/telemetry_jsonl.cpp
   src/telemetry/telemetry_clock.cpp)
 
@@ -94,3 +95,7 @@ add_test(NAME test_manifest_writer COMMAND test_manifest_writer)
 add_executable(test_lifecycle_validator tests/unit/test_lifecycle_validator.cpp)
 target_link_libraries(test_lifecycle_validator PRIVATE prisminfer_core)
 add_test(NAME test_lifecycle_validator COMMAND test_lifecycle_validator)
+
+add_executable(test_model_sidecar tests/unit/test_model_sidecar.cpp)
+target_link_libraries(test_model_sidecar PRIVATE prisminfer_core)
+add_test(NAME test_model_sidecar COMMAND test_model_sidecar)

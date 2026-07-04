@@ -6,6 +6,7 @@ inline constexpr const char* RunStart = "run_start";
 inline constexpr const char* ConfigValidated = "config_validated";
 inline constexpr const char* FailedClosed = "failed_closed";
 inline constexpr const char* TelemetryProbe = "telemetry_probe";
+inline constexpr const char* ModelSidecarValidated = "model_sidecar_validated";
 inline constexpr const char* CudaContextProbe = "cuda_context_probe";
 inline constexpr const char* CapSemanticsResolved = "cap_semantics_resolved";
 inline constexpr const char* HostPrepare = "host_prepare";
