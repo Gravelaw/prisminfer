@@ -12,6 +12,11 @@ struct MemorySample {
   std::uint64_t process_gpu_peak_bytes{0};
   std::uint64_t warmup_peak_bytes{0};
   std::uint64_t retained_pool_bytes{0};
+  std::uint64_t kv_gpu_peak_bytes{0};
+  std::uint64_t kv_host_peak_bytes{0};
+  std::uint64_t kv_compressed_peak_bytes{0};
+  std::uint64_t kv_metadata_peak_bytes{0};
+  std::uint64_t kv_unknown_peak_bytes{0};
   std::uint64_t device_used_bytes{0};
   std::uint64_t device_delta_bytes{0};
   std::uint64_t unknown_post_warmup_bytes{0};

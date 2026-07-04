@@ -17,7 +17,7 @@
     "validation_cell_status"
   ],
   "properties": {
-    "schema_version": { "const": "0.2" },
+    "schema_version": { "const": "0.3" },
     "timestamp_ns": { "type": "integer", "minimum": 0 },
     "run_id": { "type": "string", "minLength": 1 },
     "event": { "type": "string", "minLength": 1 },
@@ -58,6 +58,38 @@
     "gpu_layers": { "type": "integer", "minimum": 0 },
     "mmap_enabled": { "type": "boolean" },
     "warmup_tokens": { "type": "integer", "minimum": 1 },
+    "kv_accounting": { "type": "boolean" },
+    "kv_placement": {
+      "type": "string",
+      "enum": ["backend", "gpu", "host", "mixed"]
+    },
+    "kv_compression": {
+      "type": "string",
+      "enum": ["none", "accounting-only", "reference", "experimental"]
+    },
+    "quality_gate": {
+      "type": "string",
+      "enum": ["none", "smoke", "retrieval", "long-context"]
+    },
+    "layer_count": { "type": "string" },
+    "kv_head_count": { "type": "string" },
+    "head_dim": { "type": "string" },
+    "block_tokens": { "type": "string" },
+    "key_bits": { "type": "string" },
+    "value_bits": { "type": "string" },
+    "bytes_per_token": { "type": "string" },
+    "bytes_per_block": { "type": "string" },
+    "logical_tokens": { "type": "string" },
+    "active_blocks": { "type": "string" },
+    "gpu_bytes": { "type": "string" },
+    "host_bytes": { "type": "string" },
+    "compressed_bytes": { "type": "string" },
+    "metadata_bytes": { "type": "string" },
+    "unknown_bytes": { "type": "string" },
+    "compression_status": { "type": "string" },
+    "compression_accepted": { "type": "string" },
+    "compression_failure_reason": { "type": "string" },
+    "kv_saved_bytes": { "type": "string" },
     "backend_owned_peak_bytes": { "type": "integer", "minimum": 0 },
     "backend_external_peak_bytes": { "type": "integer", "minimum": 0 },
     "evidence_status": { "type": "string" },
@@ -78,6 +110,11 @@
     "device_delta_bytes": { "type": "integer", "minimum": 0 },
     "warmup_peak_bytes": { "type": "integer", "minimum": 0 },
     "retained_pool_bytes": { "type": "integer", "minimum": 0 },
+    "kv_gpu_peak_bytes": { "type": "integer", "minimum": 0 },
+    "kv_host_peak_bytes": { "type": "integer", "minimum": 0 },
+    "kv_compressed_peak_bytes": { "type": "integer", "minimum": 0 },
+    "kv_metadata_peak_bytes": { "type": "integer", "minimum": 0 },
+    "kv_unknown_peak_bytes": { "type": "integer", "minimum": 0 },
     "unknown_post_warmup_bytes": { "type": "integer", "minimum": 0 }
   },
   "additionalProperties": true

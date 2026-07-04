@@ -5,6 +5,9 @@
 #include <string>
 
 #include "prisminfer/benchmark.h"
+#include "prisminfer/kv_cache_ledger.h"
+#include "prisminfer/kv_compression_policy.h"
+#include "prisminfer/quality_gate.h"
 
 namespace {
 
@@ -33,6 +36,10 @@ int main() {
   config.validation_cell_id = "cell-manifest";
   config.validation_cell_status = "metadata-only";
   config.llama_executable_path = "llama-cli";
+  config.kv_accounting = true;
+  config.kv_placement = "host";
+  config.kv_compression = "accounting-only";
+  config.quality_gate = "smoke";
 
   prisminfer::MemorySample sample;
   sample.allocator_peak_bytes = 123;
@@ -40,6 +47,8 @@ int main() {
   sample.device_delta_bytes = 12;
   sample.warmup_peak_bytes = 99;
   sample.unknown_post_warmup_bytes = 7;
+  sample.kv_host_peak_bytes = 4096;
+  sample.kv_metadata_peak_bytes = 128;
 
   prisminfer::CudaProbeResult cuda;
   cuda.gpu_name = "test gpu";
@@ -54,8 +63,31 @@ int main() {
   host.process_io_write_bytes = 444;
 
   std::string error;
-  const prisminfer::ManifestInputs inputs{
-      config, sample, host, cuda, "ok", ""};
+  prisminfer::KvCacheProfile profile;
+  profile.layer_count = 2;
+  profile.kv_head_count = 4;
+  profile.head_dim = 8;
+  profile.block_tokens = 16;
+  profile.key_bits = 16;
+  profile.value_bits = 16;
+  profile.bytes_per_token = 256;
+  profile.bytes_per_block = 4096;
+  prisminfer::KvCacheSample kv_sample;
+  kv_sample.logical_tokens = 16;
+  kv_sample.active_blocks = 1;
+  kv_sample.host_bytes = 4096;
+  kv_sample.metadata_bytes = 128;
+  kv_sample.evidence_status = "reconciled";
+  prisminfer::QualityGateResult quality;
+  quality.passed = true;
+  quality.status = "passed";
+  prisminfer::KvCompressionResult compression;
+  compression.accepted = true;
+  compression.status = "accounting-only";
+
+  const prisminfer::ManifestInputs inputs{config, sample, host, cuda, profile,
+                                          kv_sample, quality, compression,
+                                          "ok", ""};
   if (expect(prisminfer::write_probe_manifest(path, inputs, &error),
              error.c_str())) return 1;
 
@@ -66,7 +98,7 @@ int main() {
   in.close();
   const auto content = buffer.str();
 
-  if (expect(content.find("\"manifest_version\": \"0.2\"") !=
+  if (expect(content.find("\"manifest_version\": \"0.3\"") !=
                  std::string::npos,
              "manifest version written")) return 1;
   if (expect(content.find("\"run_id\": \"manifest-run\"") !=
@@ -106,6 +138,15 @@ int main() {
   if (expect(content.find("\"unknown_post_warmup_bytes\": 7") !=
                  std::string::npos,
              "unknown post-warmup bytes written")) return 1;
+  if (expect(content.find("\"kv_bytes_per_token\": 256") !=
+                 std::string::npos,
+             "kv bytes per token written")) return 1;
+  if (expect(content.find("\"kv_host_bytes\": 4096") !=
+                 std::string::npos,
+             "kv host bytes written")) return 1;
+  if (expect(content.find("\"quality_status\": \"passed\"") !=
+                 std::string::npos,
+             "quality status written")) return 1;
   if (expect(content.find("\"gpu_name\": \"test gpu\"") !=
                  std::string::npos,
              "gpu name written")) return 1;

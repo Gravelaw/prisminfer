@@ -36,6 +36,9 @@ CapCertificationResult certify_cap(const MemorySample& sample,
   if (sample.warmup_peak_bytes > hard_cap_bytes) {
     return {false, "warmup_peak_exceeded_cap"};
   }
+  if (sample.kv_gpu_peak_bytes > hard_cap_bytes) {
+    return {false, "kv_gpu_peak_exceeded_cap"};
+  }
   if (sample.unknown_post_warmup_bytes > 0) {
     return {false, "unknown_post_warmup_allocation"};
   }

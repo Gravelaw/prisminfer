@@ -6,7 +6,10 @@
 #include "prisminfer/config.h"
 #include "prisminfer/cuda_context_probe.h"
 #include "prisminfer/host_memory_tracker.h"
+#include "prisminfer/kv_cache_ledger.h"
+#include "prisminfer/kv_compression_policy.h"
 #include "prisminfer/memory_cap.h"
+#include "prisminfer/quality_gate.h"
 
 namespace prisminfer {
 
@@ -15,6 +18,10 @@ struct ManifestInputs {
   MemorySample sample;
   HostTelemetrySample host;
   CudaProbeResult cuda_probe;
+  KvCacheProfile kv_profile;
+  KvCacheSample kv_sample;
+  QualityGateResult quality;
+  KvCompressionResult compression;
   std::string status;
   std::string failure_reason;
 };

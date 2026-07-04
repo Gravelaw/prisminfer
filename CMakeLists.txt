@@ -40,6 +40,9 @@ add_library(prisminfer_core
   src/backend/llama_backend.cpp
   src/backend/null_backend.cpp
   src/benchmark/manifest_writer.cpp
+  src/kv/kv_cache_ledger.cpp
+  src/kv/kv_compression_policy.cpp
+  src/quality/quality_gate.cpp
   src/governor/allocator_tracker.cpp
   src/governor/backend_memory_observer.cpp
   src/governor/gpu_cap_policy.cpp
@@ -83,6 +86,9 @@ target_link_libraries(prism-probe PRIVATE prisminfer_core)
 add_executable(prism-validate-lifecycle tools/prism-validate-lifecycle/main.cpp)
 target_link_libraries(prism-validate-lifecycle PRIVATE prisminfer_core)
 
+add_executable(prism-quality tools/prism-quality/main.cpp)
+target_link_libraries(prism-quality PRIVATE prisminfer_core)
+
 enable_testing()
 
 add_executable(test_config tests/unit/test_config.cpp)
@@ -120,3 +126,11 @@ add_test(NAME test_backend_adapter COMMAND test_backend_adapter)
 add_executable(test_host_memory_tracker tests/unit/test_host_memory_tracker.cpp)
 target_link_libraries(test_host_memory_tracker PRIVATE prisminfer_core)
 add_test(NAME test_host_memory_tracker COMMAND test_host_memory_tracker)
+
+add_executable(test_kv_cache_ledger tests/unit/test_kv_cache_ledger.cpp)
+target_link_libraries(test_kv_cache_ledger PRIVATE prisminfer_core)
+add_test(NAME test_kv_cache_ledger COMMAND test_kv_cache_ledger)
+
+add_executable(test_quality_gate tests/unit/test_quality_gate.cpp)
+target_link_libraries(test_quality_gate PRIVATE prisminfer_core)
+add_test(NAME test_quality_gate COMMAND test_quality_gate)
