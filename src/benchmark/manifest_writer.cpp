@@ -1,5 +1,6 @@
 #include "prisminfer/benchmark.h"
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -56,6 +57,7 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << "  \"tool\": \"prism-probe\",\n"
       << "  \"prisminfer_version\": \"" << PRISMINFER_VERSION << "\",\n"
       << "  \"cmake_version\": \"" << PRISMINFER_CMAKE_VERSION << "\",\n"
+      << "  \"build_config\": \"" << PRISMINFER_BUILD_CONFIG << "\",\n"
       << "  \"compiler\": \"" << json_escape(compiler_name()) << "\",\n"
       << "  \"os\": \"" << os_name() << "\",\n"
       << "  \"cuda_probe_compiled\": "
@@ -87,7 +89,16 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << "  \"allocator_peak_bytes\": "
       << inputs.sample.allocator_peak_bytes << ",\n"
       << "  \"process_gpu_peak_bytes\": "
-      << inputs.sample.process_gpu_peak_bytes << "\n"
+      << inputs.sample.process_gpu_peak_bytes << ",\n"
+      << "  \"warmup_peak_bytes\": " << inputs.sample.warmup_peak_bytes
+      << ",\n"
+      << "  \"unknown_post_warmup_bytes\": "
+      << inputs.sample.unknown_post_warmup_bytes << ",\n"
+      << "  \"required_telemetry_present\": "
+      << (inputs.sample.required_telemetry_present ? "true" : "false")
+      << ",\n"
+      << "  \"telemetry_agreement\": "
+      << (inputs.sample.telemetry_agreement ? "true" : "false") << "\n"
       << "}\n";
 
   return true;
@@ -116,6 +127,10 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
       events.emplace_back("cuda_context_probe");
     } else if (line_contains(line, "\"event\":\"cap_semantics_resolved\"")) {
       events.emplace_back("cap_semantics_resolved");
+    } else if (line_contains(line, "\"event\":\"host_prepare\"")) {
+      events.emplace_back("host_prepare");
+    } else if (line_contains(line, "\"event\":\"backend_warmup\"")) {
+      events.emplace_back("backend_warmup");
     } else if (line_contains(line, "\"event\":\"memory_sample\"")) {
       events.emplace_back("memory_sample");
     } else if (line_contains(line, "\"event\":\"cap_certification_result\"")) {
@@ -165,7 +180,19 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
 
   bool saw_terminal = false;
   bool saw_memory = false;
+  bool saw_cap_semantics = false;
+  bool saw_host_prepare = false;
+  bool saw_backend_warmup = false;
   for (; position < events.size(); ++position) {
+    if (events[position] == "cap_semantics_resolved") {
+      saw_cap_semantics = true;
+    }
+    if (events[position] == "host_prepare") {
+      saw_host_prepare = true;
+    }
+    if (events[position] == "backend_warmup") {
+      saw_backend_warmup = true;
+    }
     if (events[position] == "memory_sample") {
       saw_memory = true;
     }
@@ -176,6 +203,19 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
 
   if (!saw_memory) {
     return fail("missing_memory_sample");
+  }
+  const bool early_cuda_fail_closed =
+      saw_terminal && !saw_cap_semantics &&
+      std::find(events.begin(), events.end(), "cuda_context_probe") !=
+          events.end();
+  if (!saw_cap_semantics && !early_cuda_fail_closed) {
+    return fail("missing_cap_semantics_resolved");
+  }
+  if (!saw_host_prepare && !early_cuda_fail_closed) {
+    return fail("missing_host_prepare");
+  }
+  if (!saw_backend_warmup && !early_cuda_fail_closed) {
+    return fail("missing_backend_warmup");
   }
   if (!saw_terminal) {
     return fail("missing_terminal_event");

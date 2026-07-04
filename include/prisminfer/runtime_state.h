@@ -9,9 +9,9 @@ inline constexpr const char* TelemetryProbe = "telemetry_probe";
 inline constexpr const char* CudaContextProbe = "cuda_context_probe";
 inline constexpr const char* CapSemanticsResolved = "cap_semantics_resolved";
 inline constexpr const char* HostPrepare = "host_prepare";
+inline constexpr const char* BackendWarmup = "backend_warmup";
 inline constexpr const char* CapCertificationResult = "cap_certification_result";
 inline constexpr const char* Completed = "completed";
 inline constexpr const char* RunEnd = "run_end";
 
 }  // namespace prisminfer::event
-

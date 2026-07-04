@@ -1,14 +1,14 @@
 # PrismInfer Risk Register
 
-| Risk | Severity | Phase | Mitigation |
-|---|---:|---|---|
-| CUDA context consumes most of 1GB | High | 0 | probe before GPU use; fail closed |
-| Telemetry disagreement on Windows/WDDM | High | 0 | benchmark mode fails closed; allocator tracker, CUDA runtime, and NVML evidence are reported separately |
-| Owned allocation escapes PrismInfer accounting | High | 0/1 | Phase 0 adds capped allocator tracker; Phase 1 must connect llama.cpp/backend allocation paths before claiming full governance |
-| llama.cpp hidden allocations | High | 1 | mandatory backend warmup before certification |
-| GPU offload slower than CPU | High | 3 | transfer-inclusive profitability rule |
-| KV compression passes perplexity but fails retrieval | High | 2 | task-level quality gates |
-| 90B hybrid appears feasible but is unusably slow | High | 4 | simulated and validated labels remain separate |
+| Risk | Severity | Phase | Mitigation | Current status | Remaining blocker |
+|---|---:|---|---|---|---|
+| CUDA context consumes most of 1GB | High | 0 | probe before GPU use; fail closed | CUDA context probe and GPU smoke exist | Retain successful self-hosted CUDA artifacts for Phase 0 exit |
+| Telemetry disagreement on Windows/WDDM | High | 0 | benchmark mode fails closed; allocator tracker, CUDA runtime, and NVML evidence are reported separately | Disagreement reasons and tolerances are explicit | Review real CUDA artifacts across Class B/C hardware |
+| Owned allocation escapes PrismInfer accounting | High | 0/1 | Phase 0 adds capped allocator tracker; Phase 1 must connect llama.cpp/backend allocation paths before claiming full governance | Owned allocation tracker and breach tests exist | llama.cpp/backend allocation bridge remains Phase 1 |
+| llama.cpp hidden allocations | High | 1 | mandatory backend warmup before certification | Phase 0 backend warmup placeholder event exists | Replace placeholder with real llama.cpp warmup in Phase 1 |
+| GPU offload slower than CPU | High | 3 | transfer-inclusive profitability rule | Out of Phase 0 scope | Needs Phase 3 benchmark policy |
+| KV compression passes perplexity but fails retrieval | High | 2 | task-level quality gates | Out of Phase 0 scope | Needs Phase 2 quality gates |
+| 90B hybrid appears feasible but is unusably slow | High | 4 | simulated and validated labels remain separate | Out of Phase 0 scope | Needs Phase 4 validated evidence policy |
 
 ## Original Plan Traceability
 

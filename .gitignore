@@ -8,6 +8,7 @@ build-ninja/
 *.VC.VC.opendb
 
 # Generated probe evidence. Keep checked-in fixtures under tests/fixtures/.
+.github-run-artifacts/
 *.jsonl
 *-manifest.json
 prisminfer-manifest.json

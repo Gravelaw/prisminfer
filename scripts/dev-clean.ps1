@@ -10,7 +10,8 @@ try {
     $paths = @(
         "build",
         "build-cuda",
-        "build-ninja"
+        "build-ninja",
+        ".github-run-artifacts"
     )
 
     foreach ($path in $paths) {
