@@ -38,15 +38,18 @@ Verification:
 - `cmake -S . -B build-kernel-gate-check -DPRISMINFER_ENABLE_CUDA_KERNELS=ON`
   failed closed with
   `PRISMINFER_ENABLE_CUDA_KERNELS requires PRISMINFER_CUDA_KERNEL_ARCHS`.
+- `nvcc -std=c++20 -I include -ccbin <MSVC Hostx64 x64 bin> -c
+  src\kernels\cuda\q4_decode_gemv.cu -o %TEMP%\q4_decode_gemv.obj`
+  compiled the guarded CUDA source successfully.
 
 Local CUDA kernel compile note:
 
 This machine has `nvcc` from CUDA 13.3 and reports an RTX 5080 Laptop GPU with
-compute capability `12.0`. The Visual Studio CMake generator still failed CUDA
-language enablement with `No CUDA toolset found`, so the guarded `.cu` source
-was not locally compiled in this pass. The default non-CUDA build is unaffected,
-and kernel compilation remains owned by explicit CUDA-kernel build jobs with an
-installed CUDA CMake toolset.
+compute capability `12.0`. Direct `nvcc` compilation succeeds when MSVC
+`cl.exe` is supplied with `-ccbin`. The Visual Studio CMake generator still
+failed CUDA language enablement with `No CUDA toolset found`, so the remaining
+local limitation is CMake/Visual Studio CUDA toolset discovery rather than CUDA
+source validity. The default non-CUDA build is unaffected.
 
 Disallowed claims:
 
