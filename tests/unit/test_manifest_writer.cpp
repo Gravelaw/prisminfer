@@ -184,11 +184,25 @@ int main() {
                  std::string::npos,
              "quality status written")) return 1;
   if (expect(content.find("\"profitability_status\": \"accepted\"") !=
+                  std::string::npos,
+              "profitability status written")) return 1;
+  if (expect(content.find("\"compression_status\": \"accounting-only\"") !=
                  std::string::npos,
-             "profitability status written")) return 1;
+             "phase6 compression status written")) return 1;
+  if (expect(content.find("\"effective_bits_per_value\": 0") !=
+                 std::string::npos,
+             "phase6 effective bits default written")) return 1;
+  if (expect(content.find("\"kv_payload_bytes\": 0") != std::string::npos,
+             "phase6 kv payload bytes written")) return 1;
+  if (expect(content.find("\"quality_gate_id\": \"smoke\"") !=
+                 std::string::npos,
+             "phase6 quality gate id written")) return 1;
+  if (expect(content.find("\"cap_certification_status\": \"research-only\"") !=
+                 std::string::npos,
+             "phase6 cap status remains research-only")) return 1;
   if (expect(content.find("\"claim_validation_status\": \"accepted\"") !=
-                 std::string::npos,
-             "claim validation status written")) return 1;
+                  std::string::npos,
+              "claim validation status written")) return 1;
   if (expect(content.find("\"h2d_bytes\": 1024") != std::string::npos,
              "transfer bytes written")) return 1;
   if (expect(content.find("\"gpu_name\": \"test gpu\"") !=

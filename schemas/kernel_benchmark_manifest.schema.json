@@ -32,6 +32,9 @@
     "full_dequant_materialized",
     "workspace_peak_bytes",
     "speedup_ratio",
+    "compression_status",
+    "quality_gate_id",
+    "cap_certification_status",
     "claim_status"
   ],
   "properties": {
@@ -89,10 +92,65 @@
     "profiler_artifact_path": { "type": "string" },
     "profiler_artifact_sha256": { "type": "string" },
     "speedup_ratio": { "type": "number" },
+    "compression_status": {
+      "type": "string",
+      "enum": ["none", "accounting-only", "reference", "experimental"]
+    },
+    "compression_profile_id": { "type": "string" },
+    "quantization_scope": { "type": "string" },
+    "algorithm_family": { "type": "string" },
+    "payload_bits_per_value": { "type": "number", "minimum": 0 },
+    "effective_bits_per_value": { "type": "number", "minimum": 0 },
+    "metadata_bits_per_value": { "type": "number", "minimum": 0 },
+    "key_quant_axis": { "type": "string" },
+    "value_quant_axis": { "type": "string" },
+    "pre_rope_or_post_rope": { "type": "string" },
+    "group_size": { "type": "integer", "minimum": 0 },
+    "residual_fp_window_tokens": { "type": "integer", "minimum": 0 },
+    "outlier_policy": { "type": "string" },
+    "rotation_policy": { "type": "string" },
+    "rotation_seed": { "type": "integer", "minimum": 0 },
+    "projection_policy": { "type": "string" },
+    "qjl_residual_bits": { "type": "integer", "minimum": 0 },
+    "dequant_workspace_peak_bytes": { "type": "integer", "minimum": 0 },
+    "kv_payload_bytes": { "type": "integer", "minimum": 0 },
+    "kv_metadata_bytes": { "type": "integer", "minimum": 0 },
+    "kv_residual_or_sketch_bytes": { "type": "integer", "minimum": 0 },
+    "compression_decode_overhead_ms": { "type": "number", "minimum": 0 },
+    "attention_logit_error_p95": { "type": "number", "minimum": 0 },
+    "attention_logit_error_p99": { "type": "number", "minimum": 0 },
+    "attention_topk_overlap": { "type": "number", "minimum": 0, "maximum": 1 },
+    "quality_gate_id": { "type": "string", "minLength": 1 },
+    "quality_result_path": { "type": "string" },
+    "cap_certification_status": {
+      "type": "string",
+      "enum": ["research-only", "measured-non-certified", "quality-gated", "validated-benchmark", "rejected"]
+    },
     "claim_status": {
       "type": "string",
       "enum": ["measured", "measured-non-certified", "rejected", "research-only"]
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "compression_status": {
+            "enum": ["accounting-only", "reference", "experimental"]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "effective_bits_per_value",
+          "metadata_bits_per_value",
+          "kv_payload_bytes",
+          "kv_metadata_bytes",
+          "compression_decode_overhead_ms",
+          "quality_result_path"
+        ]
+      }
+    }
+  ],
   "additionalProperties": false
 }

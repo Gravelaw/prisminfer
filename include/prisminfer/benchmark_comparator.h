@@ -20,6 +20,7 @@ struct BenchmarkCell {
   std::uint32_t cuda_driver_version{0};
   std::uint32_t cuda_runtime_version{0};
   std::uint32_t vram_tier_gib{0};
+  std::uint64_t hard_cap_bytes{0};
   std::string op_type;
   std::string sequence_phase;
   std::string kernel_backend;
