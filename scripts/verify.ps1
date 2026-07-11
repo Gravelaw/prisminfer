@@ -1,5 +1,6 @@
 param(
     [switch]$WithCuda,
+    [ValidateRange(1, 64)][int]$BuildJobs = 8,
     [switch]$SkipProbeSmoke
 )
 
@@ -129,7 +130,7 @@ try {
     }
 
     Run-Step "Build default Debug" {
-        cmake --build build --config Debug --parallel
+        cmake --build build --config Debug --parallel $BuildJobs
     }
 
     Run-Step "CTest default Debug" {
@@ -163,7 +164,7 @@ try {
         }
 
         Run-Step "Build CUDA probe Debug" {
-            cmake --build build-cuda --config Debug --parallel
+            cmake --build build-cuda --config Debug --parallel $BuildJobs
         }
 
         Run-Step "CTest CUDA probe Debug" {
