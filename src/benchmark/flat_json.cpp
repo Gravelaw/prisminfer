@@ -232,7 +232,8 @@ FlatJsonResult read_flat_json_file(const std::filesystem::path& path,
   if (!GetFileInformationByHandle(handle.get(), &before)) {
     return fail("manifest_metadata_unavailable");
   }
-  if ((before.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U ||
+  if (GetFileType(handle.get()) != FILE_TYPE_DISK ||
+      (before.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U ||
       (before.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0U) {
     return fail("manifest_not_regular_file");
   }
@@ -296,7 +297,13 @@ FlatJsonResult read_flat_json_file(const std::filesystem::path& path,
   struct stat after {};
   if (fstat(handle.get(), &after) != 0 || after.st_dev != before.st_dev ||
       after.st_ino != before.st_ino || after.st_size != before.st_size ||
-      after.st_mtime != before.st_mtime) {
+#if defined(__APPLE__)
+      after.st_mtimespec.tv_sec != before.st_mtimespec.tv_sec ||
+      after.st_mtimespec.tv_nsec != before.st_mtimespec.tv_nsec) {
+#else
+      after.st_mtim.tv_sec != before.st_mtim.tv_sec ||
+      after.st_mtim.tv_nsec != before.st_mtim.tv_nsec) {
+#endif
     return fail("manifest_changed_during_read");
   }
 #endif
