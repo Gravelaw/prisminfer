@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prisminfer.local/schemas/phase6_kernel_gate.schema.json",
+  "title": "PrismInfer Phase 6 kernel gate config",
+  "type": "object",
+  "required": [
+    "mode",
+    "hard_cap_bytes",
+    "model_parameter_bucket",
+    "parameter_count",
+    "vram_tier_gib",
+    "validation_cell_id",
+    "validation_cell_status",
+    "context_tokens",
+    "quantization_format",
+    "claim_label",
+    "phase6_kernel_gate"
+  ],
+  "properties": {
+    "mode": { "const": "1gb-safe-gpu-probed" },
+    "hard_cap_bytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 17179869184
+    },
+    "model_parameter_bucket": { "const": ">5B-10B" },
+    "parameter_count": { "type": "integer", "minimum": 1 },
+    "vram_tier_gib": { "type": "integer", "enum": [8, 12, 16] },
+    "validation_cell_id": { "type": "string", "minLength": 1 },
+    "validation_cell_status": {
+      "type": "string",
+      "enum": ["not-started", "metadata-only", "warmup", "decode-smoke", "quality-gated", "profitable", "validated", "rejected"]
+    },
+    "backend": { "type": "string", "enum": ["llama", "fake", "null"] },
+    "backend_required": { "type": "boolean" },
+    "context_tokens": { "type": "integer", "minimum": 1 },
+    "gpu_layers": { "type": "integer", "minimum": 0 },
+    "mmap_enabled": { "type": "boolean" },
+    "warmup_tokens": { "type": "integer", "minimum": 1 },
+    "kv_accounting": { "type": "boolean" },
+    "quality_gate": {
+      "type": "string",
+      "enum": ["none", "smoke", "retrieval", "long-context"]
+    },
+    "profitability_policy": {
+      "type": "string",
+      "enum": ["off", "warn", "fail-closed"]
+    },
+    "offload_policy": {
+      "type": "string",
+      "enum": ["none", "gpu", "host-kv", "nvme-simulated", "nvme-experimental"]
+    },
+    "claim_label": { "const": "metadata-only" },
+    "quantization_format": { "type": "string", "minLength": 1 },
+    "claim_validation": {
+      "type": "string",
+      "enum": ["off", "warn", "fail-closed"]
+    },
+    "phase6_kernel_gate": {
+      "type": "object",
+      "required": [
+        "evidence_status",
+        "artifact_hash_status",
+        "model_hash",
+        "quant_artifact_sha256",
+        "prompt_fixture_hash",
+        "tokenizer_metadata_hash",
+        "op_type",
+        "sequence_phase",
+        "batch_size",
+        "decode_sample_tokens",
+        "compression_policy",
+        "quality_gate_id",
+        "kernel_backend",
+        "kernel_name",
+        "required_baselines",
+        "full_dequant_materialized"
+      ],
+      "properties": {
+        "evidence_status": {
+          "type": "string",
+          "enum": ["research-only", "measured-non-certified", "quality-gated", "validated-benchmark", "rejected"]
+        },
+        "artifact_hash_status": {
+          "type": "string",
+          "enum": ["absent", "retained"]
+        },
+        "model_hash": { "type": "string" },
+        "quant_artifact_sha256": { "type": "string" },
+        "prompt_fixture_hash": { "type": "string" },
+        "tokenizer_metadata_hash": { "type": "string" },
+        "op_type": { "const": "matmul" },
+        "sequence_phase": { "const": "decode" },
+        "batch_size": { "type": "integer", "minimum": 1 },
+        "decode_sample_tokens": { "type": "integer", "minimum": 1 },
+        "compression_policy": {
+          "type": "string",
+          "enum": ["none", "accounting-only", "reference", "experimental"]
+        },
+        "quality_gate_id": { "type": "string", "minLength": 1 },
+        "kernel_backend": { "type": "string", "minLength": 1 },
+        "kernel_name": { "type": "string", "minLength": 1 },
+        "required_baselines": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "min_end_to_end_decode_speedup_ratio": { "type": "number", "minimum": 0 },
+        "quality_fixture_pass_rate_min": { "type": "number", "minimum": 0, "maximum": 1 },
+        "max_quality_regression": { "type": "number", "minimum": 0 },
+        "warm_cache_decode_tps_p50_min": { "type": "number", "minimum": 0 },
+        "inter_token_latency_p95_ms_max": { "type": "number", "minimum": 0 },
+        "ttft_p95_ms_max": { "type": "number", "minimum": 0 },
+        "repeatability_cv_max": { "type": "number", "minimum": 0 },
+        "full_dequant_materialized": { "const": false }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "evidence_status": { "const": "research-only" } } },
+          "then": {
+            "properties": {
+              "artifact_hash_status": { "const": "absent" },
+              "model_hash": { "maxLength": 0 },
+              "quant_artifact_sha256": { "maxLength": 0 },
+              "prompt_fixture_hash": { "maxLength": 0 },
+              "tokenizer_metadata_hash": { "maxLength": 0 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "evidence_status": {
+                "enum": ["measured-non-certified", "quality-gated", "validated-benchmark"]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "artifact_hash_status": { "const": "retained" },
+              "model_hash": { "minLength": 1 },
+              "quant_artifact_sha256": { "minLength": 1 },
+              "prompt_fixture_hash": { "minLength": 1 },
+              "tokenizer_metadata_hash": { "minLength": 1 }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

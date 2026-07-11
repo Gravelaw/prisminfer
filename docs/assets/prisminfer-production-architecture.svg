@@ -1,0 +1,201 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1200" viewBox="0 0 1800 1200" role="img" aria-labelledby="title desc">
+  <title id="title">PrismInfer production constrained-VRAM inference architecture</title>
+  <desc id="desc">Architecture and workflow for production-grade PrismInfer inference with artifact validation, memory governance, compression, runtime serving, telemetry, and claim gates.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#243447"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#2563eb"/>
+    </marker>
+    <marker id="arrowRed" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#b91c1c"/>
+    </marker>
+    <style>
+      .bg { fill: #f7fafc; }
+      .title { font: 700 38px Segoe UI, Arial, sans-serif; fill: #111827; }
+      .subtitle { font: 400 20px Segoe UI, Arial, sans-serif; fill: #4b5563; }
+      .laneTitle { font: 700 21px Segoe UI, Arial, sans-serif; fill: #111827; }
+      .small { font: 400 15px Segoe UI, Arial, sans-serif; fill: #374151; }
+      .tiny { font: 400 13px Segoe UI, Arial, sans-serif; fill: #4b5563; }
+      .boxTitle { font: 700 17px Segoe UI, Arial, sans-serif; fill: #111827; }
+      .boxText { font: 400 14px Segoe UI, Arial, sans-serif; fill: #374151; }
+      .noteTitle { font: 700 16px Segoe UI, Arial, sans-serif; fill: #7f1d1d; }
+      .noteText { font: 400 13px Segoe UI, Arial, sans-serif; fill: #7f1d1d; }
+      .lane { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; rx: 18; }
+      .box { fill: #ffffff; stroke: #94a3b8; stroke-width: 2; rx: 12; }
+      .boxBlue { fill: #eff6ff; stroke: #60a5fa; stroke-width: 2; rx: 12; }
+      .boxGreen { fill: #ecfdf5; stroke: #34d399; stroke-width: 2; rx: 12; }
+      .boxAmber { fill: #fffbeb; stroke: #f59e0b; stroke-width: 2; rx: 12; }
+      .boxRed { fill: #fef2f2; stroke: #ef4444; stroke-width: 2; rx: 12; }
+      .boxPurple { fill: #f5f3ff; stroke: #8b5cf6; stroke-width: 2; rx: 12; }
+      .arrow { stroke: #243447; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .arrowBlue { stroke: #2563eb; stroke-width: 3; fill: none; marker-end: url(#arrowBlue); }
+      .arrowRed { stroke: #b91c1c; stroke-width: 3; fill: none; marker-end: url(#arrowRed); }
+      .dash { stroke-dasharray: 8 8; }
+      .pill { fill: #111827; rx: 14; }
+      .pillText { font: 700 13px Segoe UI, Arial, sans-serif; fill: #ffffff; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1800" height="1200"/>
+  <text class="title" x="70" y="70">PrismInfer Production Architecture for Constrained-VRAM LLM Inference</text>
+  <text class="subtitle" x="70" y="105">Evidence-first serving: exact model cell, q4 resident weights, governed KV compression, cap certification, and same-cell baselines.</text>
+
+  <rect class="lane" x="55" y="145" width="520" height="880"/>
+  <text class="laneTitle" x="85" y="185">1. Model Supply Chain and Evidence</text>
+
+  <rect class="boxBlue" x="85" y="220" width="220" height="95"/>
+  <text class="boxTitle" x="105" y="250">Pinned Model Artifact</text>
+  <text class="boxText" x="105" y="275">Exact 9B GGUF</text>
+  <text class="boxText" x="105" y="296">hash, license, quant format</text>
+
+  <rect class="boxBlue" x="330" y="220" width="210" height="95"/>
+  <text class="boxTitle" x="350" y="250">Sidecar Validation</text>
+  <text class="boxText" x="350" y="275">tokenizer, context, params</text>
+  <text class="boxText" x="350" y="296">prompt fixture hash</text>
+
+  <path class="arrowBlue" d="M305 268 H330"/>
+
+  <rect class="box" x="85" y="360" width="455" height="110"/>
+  <text class="boxTitle" x="105" y="390">Validation Cell Manifest</text>
+  <text class="boxText" x="105" y="416">model hash + quant artifact + context + batch</text>
+  <text class="boxText" x="105" y="438">GPU, driver, CUDA, OS, VRAM tier, hard cap</text>
+
+  <path class="arrowBlue" d="M435 315 V360"/>
+
+  <rect class="boxGreen" x="85" y="520" width="455" height="140"/>
+  <text class="boxTitle" x="105" y="550">Same-Cell Baselines</text>
+  <text class="boxText" x="105" y="576">CPU/reference correctness</text>
+  <text class="boxText" x="105" y="598">llama.cpp/GGML same-quant</text>
+  <text class="boxText" x="105" y="620">llama.cpp/GGML CUDA/MMQ</text>
+  <text class="boxText" x="105" y="642">PrismInfer no-custom path</text>
+
+  <path class="arrowBlue" d="M312 470 V520"/>
+
+  <rect class="boxAmber" x="85" y="715" width="455" height="150"/>
+  <text class="boxTitle" x="105" y="745">Evidence Store</text>
+  <text class="boxText" x="105" y="771">telemetry JSONL, manifests, lifecycle result</text>
+  <text class="boxText" x="105" y="793">quality result, comparator output</text>
+  <text class="boxText" x="105" y="815">profiler artifacts only for hardware claims</text>
+  <text class="boxText" x="105" y="837">retained hashes for reproducibility</text>
+
+  <path class="arrow" d="M312 660 V715"/>
+
+  <rect class="lane" x="620" y="145" width="590" height="880"/>
+  <text class="laneTitle" x="650" y="185">2. PrismInfer Runtime on Constrained GPU</text>
+
+  <rect class="boxPurple" x="650" y="220" width="240" height="100"/>
+  <text class="boxTitle" x="670" y="250">Admission Controller</text>
+  <text class="boxText" x="670" y="276">select profile by cap</text>
+  <text class="boxText" x="670" y="298">reject unknown evidence</text>
+
+  <rect class="boxPurple" x="940" y="220" width="240" height="100"/>
+  <text class="boxTitle" x="960" y="250">Cap Governor</text>
+  <text class="boxText" x="960" y="276">8 GiB primary target</text>
+  <text class="boxText" x="960" y="298">16 GiB project ceiling</text>
+
+  <path class="arrow" d="M890 270 H940"/>
+
+  <rect class="boxBlue" x="650" y="365" width="240" height="120"/>
+  <text class="boxTitle" x="670" y="395">q4 Resident Weights</text>
+  <text class="boxText" x="670" y="421">GGUF/GGML semantics</text>
+  <text class="boxText" x="670" y="443">no full FP16 materialization</text>
+  <text class="boxText" x="670" y="465">exact tensor-slice tests</text>
+
+  <rect class="boxBlue" x="940" y="365" width="240" height="120"/>
+  <text class="boxTitle" x="960" y="395">Fused/Tiled Dequant</text>
+  <text class="boxText" x="960" y="421">register/shared/scratch only</text>
+  <text class="boxText" x="960" y="443">bounded workspace</text>
+  <text class="boxText" x="960" y="465">decode GEMV first</text>
+
+  <path class="arrowBlue" d="M770 320 V365"/>
+  <path class="arrowBlue" d="M890 425 H940"/>
+
+  <rect class="boxGreen" x="650" y="535" width="240" height="145"/>
+  <text class="boxTitle" x="670" y="565">KV Ledger</text>
+  <text class="boxText" x="670" y="591">tokens, layers, heads</text>
+  <text class="boxText" x="670" y="613">block bytes and peaks</text>
+  <text class="boxText" x="670" y="635">reuse, evict, offload</text>
+  <text class="boxText" x="670" y="657">metadata included</text>
+
+  <rect class="boxGreen" x="940" y="535" width="240" height="145"/>
+  <text class="boxTitle" x="960" y="565">KV Compression</text>
+  <text class="boxText" x="960" y="591">KIVI / KVQuant / QServe</text>
+  <text class="boxText" x="960" y="613">PolarQuant / TurboQuant</text>
+  <text class="boxText" x="960" y="635">QJL offline first</text>
+  <text class="boxText" x="960" y="657">quality-gated hot path</text>
+
+  <path class="arrowBlue" d="M1060 485 V535"/>
+  <path class="arrowBlue" d="M890 607 H940"/>
+
+  <rect class="boxAmber" x="650" y="735" width="240" height="120"/>
+  <text class="boxTitle" x="670" y="765">Memory Ledger</text>
+  <text class="boxText" x="670" y="791">weights + KV + workspace</text>
+  <text class="boxText" x="670" y="813">context + pools + unknown</text>
+  <text class="boxText" x="670" y="835">host/offload pressure</text>
+
+  <rect class="boxAmber" x="940" y="735" width="240" height="120"/>
+  <text class="boxTitle" x="960" y="765">Decode Engine</text>
+  <text class="boxText" x="960" y="791">prefill, decode, sampling</text>
+  <text class="boxText" x="960" y="813">batch-1 first target</text>
+  <text class="boxText" x="960" y="835">bounded latency profile</text>
+
+  <path class="arrow" d="M770 680 V735"/>
+  <path class="arrow" d="M1060 680 V735"/>
+  <path class="arrow" d="M890 795 H940"/>
+
+  <rect class="lane" x="1255" y="145" width="490" height="880"/>
+  <text class="laneTitle" x="1285" y="185">3. Production Serving and Governance</text>
+
+  <rect class="box" x="1285" y="220" width="200" height="95"/>
+  <text class="boxTitle" x="1305" y="250">Client/API</text>
+  <text class="boxText" x="1305" y="276">chat, batch, eval</text>
+  <text class="boxText" x="1305" y="298">SLO and cap request</text>
+
+  <rect class="box" x="1515" y="220" width="200" height="95"/>
+  <text class="boxTitle" x="1535" y="250">Gateway</text>
+  <text class="boxText" x="1535" y="276">auth, rate limits</text>
+  <text class="boxText" x="1535" y="298">profile routing</text>
+
+  <path class="arrow" d="M1485 268 H1515"/>
+
+  <rect class="boxPurple" x="1285" y="360" width="430" height="110"/>
+  <text class="boxTitle" x="1305" y="390">Scheduler and Profile Selector</text>
+  <text class="boxText" x="1305" y="416">choose exact validation cell and compression policy</text>
+  <text class="boxText" x="1305" y="438">fail closed if evidence, cap, or profile is missing</text>
+
+  <path class="arrow" d="M1615 315 V360"/>
+
+  <rect class="boxGreen" x="1285" y="520" width="430" height="130"/>
+  <text class="boxTitle" x="1305" y="550">Runtime Health and Telemetry</text>
+  <text class="boxText" x="1305" y="576">VRAM, process GPU bytes, RSS, IO, page faults</text>
+  <text class="boxText" x="1305" y="598">TTFT, decode p50/p95, quality drift, errors</text>
+  <text class="boxText" x="1305" y="620">manifest and evidence emission per run</text>
+
+  <rect class="boxRed" x="1285" y="705" width="430" height="140"/>
+  <text class="noteTitle" x="1305" y="735">Claim and Safety Gate</text>
+  <text class="noteText" x="1305" y="761">No 9B claim without retained exact-cell evidence.</text>
+  <text class="noteText" x="1305" y="783">No Tensor Core claim without profiler proof.</text>
+  <text class="noteText" x="1305" y="805">No constrained-VRAM claim with full FP16 weights.</text>
+  <text class="noteText" x="1305" y="827">No bucket-wide claim from one model.</text>
+
+  <path class="arrow" d="M1500 470 V520"/>
+  <path class="arrowRed" d="M1500 650 V705"/>
+
+  <path class="arrow" d="M540 415 C585 415, 605 270, 650 270"/>
+  <path class="arrow" d="M1180 795 C1235 795, 1230 585, 1285 585"/>
+  <path class="arrow dash" d="M1715 415 C1760 415, 1760 940, 1180 940 C930 940, 680 910, 540 790"/>
+  <path class="arrow" d="M1285 415 C1240 415, 1230 270, 1180 270"/>
+
+  <rect class="pill" x="85" y="1070" width="260" height="32"/>
+  <text class="pillText" x="105" y="1091">Primary target: 9B q4 @ 8 GiB</text>
+  <rect class="pill" x="370" y="1070" width="300" height="32"/>
+  <text class="pillText" x="390" y="1091">Project ceiling: &lt;=16 GiB GPU cap</text>
+  <rect class="pill" x="695" y="1070" width="315" height="32"/>
+  <text class="pillText" x="715" y="1091">Pass only with exact-cell evidence</text>
+  <rect class="pill" x="1035" y="1070" width="340" height="32"/>
+  <text class="pillText" x="1055" y="1091">Compression: KV first, offline before hot path</text>
+
+  <text class="tiny" x="70" y="1150">Production rule: every promoted result must carry model hash, quant hash, prompt fixture, cap, telemetry, quality, comparator output, and lifecycle evidence.</text>
+</svg>

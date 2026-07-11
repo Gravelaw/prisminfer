@@ -54,6 +54,55 @@ Current implementation status:
 - A compression claim with no quality gate is rejected with
   `quality_gate_required_for_compression`.
 
+## Phase 6 Compression Architecture
+
+Phase 6 uses compression only as an exact-cell candidate profile for the pinned
+9B validation cell. Compression is not a replacement for artifact pinning,
+same-cell baselines, memory certification, or quality gates.
+
+Architecture:
+
+```text
+model artifact
+  -> q4 resident weights
+  -> bounded q4 dequant hot path
+  -> KV block ledger
+  -> optional compression policy
+  -> KV dequant/reconstruct hot path
+  -> memory ledger
+  -> quality and performance gates
+  -> same-cell comparator classification
+```
+
+Required byte ledger:
+
+```text
+resident_q4_weight_bytes
+weight_scale_zero_metadata_bytes
+weight_dequant_workspace_peak_bytes
+kv_payload_bytes
+kv_metadata_bytes
+kv_residual_window_bytes
+kv_rotation_or_projection_metadata_bytes
+kv_reconstruction_workspace_peak_bytes
+activation_workspace_peak_bytes
+kernel_workspace_peak_bytes
+retained_pool_bytes
+unknown_device_bytes
+```
+
+Implementation order for 9B compression tests:
+
+1. q4 resident weights with no runtime compression novelty.
+2. KV accounting-only, including uncompressed baseline bytes by layer/head/token.
+3. KIVI/KVQuant/QServe-style asymmetric KV compression.
+4. PolarQuant/TurboQuant/QJL offline/reference evaluator.
+5. GPU hot-path reconstruction only after offline quality and overhead pass.
+
+Do not combine several new compression techniques in the first candidate run.
+Each policy must be compared against the same q4, same prompt, same context,
+same backend, same OS/GPU/driver/CUDA, and same cap tier baseline.
+
 ## Asymmetric KV Quantization
 
 KIVI-style work suggests keys and values should not necessarily use the same
@@ -125,6 +174,67 @@ Nominal bit width is not enough. A `2-bit`, `3-bit`, or `4-bit` claim counts
 only when effective bits, metadata overhead, decode overhead, and task deltas
 are reported for the exact validation cell.
 
+## Phase 6 9B Compression Workflow
+
+For the first 9B constrained-VRAM cell, compression is staged as an evidence
+pipeline:
+
+```text
+pinned 9B q4 GGUF
+  -> exact artifact and q4 tensor-slice validation
+  -> uncompressed KV ledger
+  -> same-cell llama.cpp/GGML baseline
+  -> PrismInfer q4 candidate
+  -> offline KV compression evaluator
+  -> quality gate
+  -> cap and benchmark manifest comparison
+```
+
+The architecture separates weight compression from KV compression:
+
+- q4 GGUF weight residency is the first requirement for 9B under constrained
+  VRAM,
+- KV compression reduces context-growth pressure after weight residency is
+  already governed,
+- PolarQuant, TurboQuant, and QJL are treated as KV/vector compression research
+  lanes, not replacements for q4 weight residency,
+- any runtime compression path must prove overhead and quality before it can
+  participate in a promoted 9B benchmark.
+
+The first implementation order for 9B compression should be:
+
+1. Extend manifests with compression payload bytes, metadata bytes, effective
+   bits, decode/reconstruction overhead, and quality gate id.
+2. Add a KV tensor capture or fixture format for offline evaluation.
+3. Add an uncompressed KV baseline report for the exact 9B cell.
+4. Add KIVI/KVQuant/QServe-style reference evaluators before CUDA hot-path
+   kernels.
+5. Add PolarQuant/TurboQuant/QJL offline evaluators with attention-logit and
+   top-k-overlap metrics.
+6. Promote to runtime integration only after quality, memory, and overhead
+   gates pass.
+
+Phase 6 compression claims must report:
+
+```text
+kv_payload_bytes_uncompressed
+kv_payload_bytes_compressed
+kv_metadata_bytes
+kv_residual_or_sketch_bytes
+effective_bits_per_value
+compression_encode_time_ms
+compression_decode_time_ms
+attention_logit_error_p95
+attention_logit_error_p99
+attention_topk_overlap
+quality_fixture_pass_rate
+task_quality_regression_pct
+```
+
+Reject the compression profile when memory savings are erased by metadata,
+residuals, reconstruction workspace, host/offload pressure, or quality
+regression.
+
 ## Other Bit and Byte Representations
 
 Candidate representations:
@@ -177,9 +287,15 @@ codebook_policy
 outlier_policy
 rotation_policy
 projection_policy
+residual_window_tokens
+reconstruction_workspace_peak_bytes
+attention_logit_error_p95
+attention_logit_error_p99
+attention_topk_overlap
 quality_gate_id
 calibration_dataset_id
 quant_artifact_sha256
+compression_artifact_sha256
 decode_policy
 cap_certification_status
 ```
@@ -189,6 +305,7 @@ cap_certification_status
 - PagedAttention: https://arxiv.org/abs/2309.06180
 - KIVI: https://arxiv.org/abs/2402.02750
 - KVQuant: https://arxiv.org/abs/2401.18079
+- QServe: https://arxiv.org/abs/2405.04532
 - PolarQuant: https://arxiv.org/abs/2502.02617
 - TurboQuant: https://arxiv.org/abs/2504.19874
 - Google Research TurboQuant summary: https://research.google/blog/turboquant-redefining-ai-efficiency-with-extreme-compression/

@@ -56,6 +56,9 @@ add_library(prisminfer_core
   src/benchmark/manifest_writer.cpp
   src/benchmark/benchmark_comparator.cpp
   src/benchmark/kernel_evidence.cpp
+  src/benchmark/flat_json.cpp
+  src/benchmark/kernel_benchmark_manifest_schema.cpp
+  src/benchmark/kernel_benchmark_manifest.cpp
   src/benchmark/transfer_metrics.cpp
   src/kernels/q4_decode_gemv.cpp
   src/planner/hybrid_plan.cpp
@@ -217,6 +220,30 @@ add_executable(test_kernel_evidence tests/unit/test_kernel_evidence.cpp)
 target_link_libraries(test_kernel_evidence PRIVATE prisminfer_core)
 add_test(NAME test_kernel_evidence COMMAND test_kernel_evidence)
 
+add_executable(test_kernel_benchmark_manifest tests/unit/test_kernel_benchmark_manifest.cpp)
+target_link_libraries(test_kernel_benchmark_manifest PRIVATE prisminfer_core)
+add_test(NAME test_kernel_benchmark_manifest COMMAND test_kernel_benchmark_manifest)
+
 add_executable(test_q4_decode_gemv tests/unit/test_q4_decode_gemv.cpp)
 target_link_libraries(test_q4_decode_gemv PRIVATE prisminfer_core)
 add_test(NAME test_q4_decode_gemv COMMAND test_q4_decode_gemv)
+
+add_test(NAME prism_compare_benchmark_manifest_same
+  COMMAND prism-compare-benchmark
+    --baseline-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/baseline-valid.json
+    --candidate-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/candidate-variant-valid.json)
+add_test(NAME prism_compare_benchmark_manifest_mismatch
+  COMMAND prism-compare-benchmark
+    --baseline-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/baseline-valid.json
+    --candidate-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/candidate-model-mismatch.json)
+set_tests_properties(prism_compare_benchmark_manifest_mismatch PROPERTIES WILL_FAIL TRUE)
+add_test(NAME prism_compare_benchmark_manifest_unknown_field
+  COMMAND prism-compare-benchmark
+    --baseline-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/baseline-valid.json
+    --candidate-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/candidate-unknown-field.json)
+set_tests_properties(prism_compare_benchmark_manifest_unknown_field PROPERTIES WILL_FAIL TRUE)
+add_test(NAME prism_compare_benchmark_manifest_validation_cell_mismatch
+  COMMAND prism-compare-benchmark
+    --baseline-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/baseline-valid.json
+    --candidate-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/candidate-validation-cell-mismatch.json)
+set_tests_properties(prism_compare_benchmark_manifest_validation_cell_mismatch PROPERTIES WILL_FAIL TRUE)

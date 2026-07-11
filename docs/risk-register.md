@@ -27,6 +27,11 @@
 | Full FP16 materialization violates constrained-VRAM claim | Critical | 5 | forbid full weight dequantization for constrained kernel claims; record `full_dequant_materialized` | New roadmap control | Needs kernel evidence schema and tests |
 | Synthetic quality fixtures overstate kernel correctness | High | 5 | require retained prompt fixture hashes, CPU reference outputs, and tolerance policy | New roadmap control | Needs real quality fixture contract |
 | Tensor Core or vendor path claim is unproven | High | 5 | require capability detection, dtype/layout/alignment evidence, fallback reason, and profiler artifact hash | New roadmap control | Needs CUDA feature/profiler evidence contract |
+| CLI-only comparator evidence bypasses retained artifact review | High | 6 | require manifest-to-manifest comparison against strict kernel benchmark manifests | New roadmap control | Needs kernel manifest ingestion and required-field validation |
+| Toy q4 block semantics misrepresent GGUF Q4_K_M behavior | High | 6 | add exact selected GGUF/GGML q4 tensor-slice reference fixtures before performance claims | New roadmap control | Needs real q4 block decoder and fixture hashes |
+| CUDA kernel compile smoke mistaken for CUDA correctness | High | 6 | add guarded device launch correctness test with sync, error checks, copy-back, and CPU-reference tolerance | New roadmap control | Needs self-hosted CUDA correctness workflow |
+| 9B artifact or prompt fixture drift invalidates comparisons | High | 6 | pin model hash, quant artifact hash, tokenizer metadata, prompt fixture hash, and baseline manifest hash | New roadmap control | Needs retained artifact store and runbook |
+| Compression result overgeneralized across q4 formats or model families | High | 6 | bind compression result to exact model hash, quant artifact, q4 format, context, prompt fixture, backend, GPU, driver, CUDA version, and cap tier | New roadmap control | Needs comparator support for compression variant fields |
 
 ## Original Plan Traceability
 
@@ -42,7 +47,7 @@
 
 | Research document | Purpose |
 |---|---|
-| `docs/research-roadmap-constrained-llm-inference.md` | Phase 1 through Phase 5 constrained-inference roadmap. |
+| `docs/research-roadmap-constrained-llm-inference.md` | Phase 1 through Phase 6 constrained-inference roadmap. |
 | `docs/validation-matrix.md` | Canonical model-bucket and VRAM-tier validation envelope, capped at 16 GiB. |
 | `docs/claim-taxonomy.md` | Canonical claim labels and non-promotion rules. |
 | `docs/host-memory-and-io-telemetry.md` | Host RAM, pagefile, mmap, and IO evidence policy. |
@@ -54,6 +59,9 @@
 | `docs/phase4-implementation-plan.md` | Concrete Phase 4 large-model and 90B claim taxonomy, evidence bundle, and validation implementation plan. |
 | `docs/phase4-90b-validation-policy.md` | Large-model and 90B validation policy under the current <=16 GiB cap. |
 | `docs/phase5-compute-kernel-research-plan.md` | Concrete Phase 5 measured compute-kernel research plan and stop/go gates. |
+| `docs/phase6-implementation-plan.md` | Concrete Phase 6 9B evidence and kernel validation plan. |
+| `docs/phase6-compression-architecture.md` | Phase 6 compression workflow, memory ledger, lane order, and claim classification. |
+| `docs/phase6-evidence.md` | Phase 6 evidence status and audit placeholder. |
 | `docs/kernel-benchmark-methodology.md` | Benchmark, comparator, baseline, and profiler evidence policy for kernel work. |
 
 Archived context:

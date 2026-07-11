@@ -153,7 +153,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev-clean.ps1 -WhatI
 ```
 
 - Default builds are non-CUDA and use `cmake -S . -B build`, `cmake --build build --config Debug --parallel 8`, then CTest. Focused tests may use `ctest --test-dir build -C Debug -R "test_name" --output-on-failure`.
-- CUDA kernels remain opt-in. This prerequisite does not establish the VS 2026 kernel preset, the #73 synthetic fixture, or its workflow. Do not invoke or document that lane as available until its dedicated PR lands; later attended CUDA/sanitizer runs must remain serial and bounded.
+- CUDA kernels remain opt-in. The `vs2026-cuda-sm120` preset is a local, attended, non-promotable build lane only; it does not establish the #73 synthetic fixture or its workflow. Do not invoke or document the #73 lane as available until its dedicated PR lands; later attended CUDA/sanitizer runs must remain serial and bounded.
 
 ## Code and Evidence Map
 

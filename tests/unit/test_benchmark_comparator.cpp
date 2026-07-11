@@ -25,6 +25,7 @@ int main() {
   baseline.cuda_driver_version = 13030;
   baseline.cuda_runtime_version = 13030;
   baseline.vram_tier_gib = 8;
+  baseline.hard_cap_bytes = 8589934592ULL;
   baseline.op_type = "matmul";
   baseline.sequence_phase = "decode";
   baseline.kernel_backend = "ggml-cuda-mmq";
@@ -37,8 +38,18 @@ int main() {
     return 1;
   }
 
+  candidate.kernel_backend = "prisminfer-cuda";
+  candidate.kernel_name = "q4-decode-gemv";
+  candidate.kernel_version = "2";
+  if (expect(prisminfer::compare_benchmark_cells(baseline, candidate).same_cell,
+             "kernel variant fields do not change validation cell")) {
+    return 1;
+  }
+
+  candidate = baseline;
   candidate.batch_size = 2;
   candidate.sequence_phase = "prefill";
+  candidate.hard_cap_bytes = 17179869184ULL;
   const auto mismatch =
       prisminfer::compare_benchmark_cells(baseline, candidate);
   if (expect(!mismatch.same_cell, "mismatched cells rejected")) return 1;
@@ -50,6 +61,14 @@ int main() {
   }
   if (expect(reasons.find("sequence_phase_mismatch") != std::string::npos,
              "sequence mismatch reported")) {
+    return 1;
+  }
+  if (expect(reasons.find("hard_cap_bytes_mismatch") != std::string::npos,
+             "hard cap mismatch reported")) {
+    return 1;
+  }
+  if (expect(reasons.find("kernel_backend_mismatch") == std::string::npos,
+             "kernel backend variant not reported as identity mismatch")) {
     return 1;
   }
   return 0;

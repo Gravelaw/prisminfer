@@ -46,16 +46,12 @@ BenchmarkComparison compare_benchmark_cells(const BenchmarkCell& baseline,
                 candidate.cuda_runtime_version, &result.mismatch_reasons);
   compare_field("vram_tier_gib", baseline.vram_tier_gib,
                 candidate.vram_tier_gib, &result.mismatch_reasons);
+  compare_field("hard_cap_bytes", baseline.hard_cap_bytes,
+                candidate.hard_cap_bytes, &result.mismatch_reasons);
   compare_field("op_type", baseline.op_type, candidate.op_type,
                 &result.mismatch_reasons);
   compare_field("sequence_phase", baseline.sequence_phase,
                 candidate.sequence_phase, &result.mismatch_reasons);
-  compare_field("kernel_backend", baseline.kernel_backend,
-                candidate.kernel_backend, &result.mismatch_reasons);
-  compare_field("kernel_name", baseline.kernel_name, candidate.kernel_name,
-                &result.mismatch_reasons);
-  compare_field("kernel_version", baseline.kernel_version,
-                candidate.kernel_version, &result.mismatch_reasons);
   result.same_cell = result.mismatch_reasons.empty();
   return result;
 }
