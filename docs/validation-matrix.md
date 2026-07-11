@@ -86,6 +86,60 @@ context; post-context reject means no model load.
 The watchdog may reduce the admitted effective cap as live conditions worsen;
 it cannot grow the cap during a run.
 
+## Host Admission Envelope
+
+Host admission is workload-relative and independent from the requested GPU
+tier. The canonical T-101 formulas are maintained in the
+[threshold registry](adaptive-runtime/threshold-registry.md); this matrix never
+uses a fixed free-RAM prerequisite such as 24 GiB.
+
+For each decision, calculate separate live payloads:
+
+```text
+effective_physical_reserve_bytes = max(
+  lane_physical_reserve_bytes, explicit_physical_reserve_bytes)
+
+effective_commit_reserve_bytes = max(
+  lane_commit_reserve_bytes, explicit_commit_reserve_bytes)
+
+physical_payload_bytes = checked_subtract(
+  physical_available_bytes, effective_physical_reserve_bytes)
+
+commit_headroom_bytes = checked_subtract(
+  system_commit_limit_bytes, system_commit_total_bytes)
+
+commit_payload_bytes = checked_subtract(
+  commit_headroom_bytes, effective_commit_reserve_bytes)
+
+required_resident_bytes =
+  planned_incremental_resident_peak_bytes
+  + resident_uncertainty_bytes
+  + pinned_host_bytes
+
+required_commit_bytes =
+  planned_incremental_commit_peak_bytes
+  + commit_uncertainty_bytes
+  + pinned_host_bytes
+```
+
+Admit only when each requirement fits its corresponding payload. Pagefile or
+commit capacity cannot be credited as physical payload. On Windows, system
+commit counters must come from `GetPerformanceInfo`; process-bounded
+`MEMORYSTATUSEX` pagefile fields are not authoritative for this decision.
+
+Required deterministic host cells are:
+
+| Cell | Expected result |
+|---|---|
+| 32 GiB physical total, 64 GiB commit limit/16 GiB charge, development lane with 8 GiB physical available, and a bounded plan inside its payload | Admit as non-promotable. |
+| Same pinned totals/charge, evidence lane with 8 GiB physical available, and a bounded plan inside its stricter payload | Admit as promotion-eligible only when promotion is requested; #103 and every other gate still control actual evidence promotion. |
+| Same pinned totals/charge, evidence lane with 12 GiB and 15 GiB physical available | Admit or reject solely from the exact planned peaks and live payload, never the absence of 24 GiB free. |
+| Adequate physical availability with insufficient system commit headroom | Reject on the commit reserve or planned commit peak. |
+| Missing, stale, process-bounded, contradictory, mismatched, or overflowing host telemetry | Fail closed before allocation. |
+| Development receipt presented for promotion | Reject; require fresh evidence-lane admission. |
+| Pinned-host request above the T-101 cap | Reject before pinning. |
+| Explicit per-run physical or commit reserve exceeds its lane floor | Use the higher effective reserve; reject if it consumes the reserve or planned payload. |
+
 Each validation cell must account for the resident GPU memory envelope:
 
 ```text
@@ -356,6 +410,8 @@ Promoted cells require retained artifacts:
 - backend and OS/hardware profile,
 - policy ceiling, requested tier, live observations, reserve, effective cap,
   both admission decisions, and cap certification or precise fail-closed reason,
+- host admission lane, authoritative counter source, physical/commit reserves,
+  exact planned peaks, uncertainty, pinned bytes, payloads, and typed decision,
 - quality gate result when the claim mentions useful output,
 - host memory and IO telemetry when CPU/offload participates,
 - transfer metrics when GPU/offload profitability is claimed,

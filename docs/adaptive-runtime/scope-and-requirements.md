@@ -346,8 +346,15 @@ authorize implementation before the relevant gate.
   memory. Owned-allocation and physical-residency claims remain separate.
 - **FR-042:** Measure H2D/D2H bytes, durations, overlap, and uncovered wait.
 - **FR-043:** Measure the child/process tree through native handles/Job Object;
-  retain working set, private/commit, available RAM, file-identity-aware model
-  IO, pagefile/ETW evidence or explicit ambiguity.
+  retain working set, private/commit, authoritative system physical and commit
+  counters, file-identity-aware model IO, pagefile/ETW evidence or explicit
+  ambiguity.
+- **FR-043A:** Admit host use through the T-101
+  `development_nonpromotable` or `evidence_promotable` lane using separate live
+  physical and commit payloads plus exact planned incremental peaks and
+  uncertainty. Never impose a fixed free-RAM prerequisite; pagefile capacity
+  cannot increase physical payload, and development receipts cannot be
+  promoted.
 - **FR-044:** Record requested and actual actuator values with acknowledgement,
   lifecycle, recovery class, and reason.
 - **FR-045:** Hash and retain profiler artifacts for hardware-path claims.
@@ -373,7 +380,9 @@ authorize implementation before the relevant gate.
 
 - **NFR-001 Correctness:** Differential tests against exact GGML/GGUF reference
   semantics are mandatory before performance claims.
-- **NFR-002 Safety:** Memory evidence remains fail-closed.
+- **NFR-002 Safety:** Memory evidence remains fail-closed. Safety reserves are
+  workload-relative and lane-specific; an arbitrary 24 GiB-free requirement is
+  not a substitute for exact admission.
 - **NFR-002A Hardware supervision:** Model-backed work requires pre-context
   admission, an exclusive experiment lease, dispatch deadlines, bounded
   cancellation, live GPU/host pressure supervision, and known-safe cleanup as
@@ -494,6 +503,9 @@ question.
 
 ### Phase 7 entry
 
+- [#109](https://github.com/Gravelaw/prisminfer/issues/109) supplies the pure
+  workload-relative host-admission primitive and authoritative Windows commit
+  source consumed by #82/#103/#84; it grants no hardware clearance by itself.
 - [#103](https://github.com/Gravelaw/prisminfer/issues/103) is closed with
   retained supervisor, pre-context admission, watchdog, cancellation, and
   fault-injection evidence before any model-backed Phase 6/7 execution.

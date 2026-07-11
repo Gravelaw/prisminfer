@@ -1,6 +1,6 @@
 # Threshold and Sampling Registry
 
-Registry version: `adaptive-thresholds-v0.2-provisional`
+Registry version: `adaptive-thresholds-v0.3-provisional`
 Status: proposed policy values; not distribution-free guarantees
 
 This registry centralizes thresholds that were previously scattered across
@@ -56,13 +56,13 @@ optimizer cannot trade it against throughput or quality.
 | ID | Provisional threshold | Enforcement | Provisional owner and approval gate |
 |---|---|---|---|
 | T-100 | `policy_ceiling=16 GiB`; pre-context live capacity uses physical/reportable local bytes and DXGI budget; post-context also includes `owned+cuda_free`; `gpu_reserve=max(1 GiB, ceil(10% * pre_live), ceil(10% * post_live))`; the post-context effective cap is the minimum of the requested tier, pre-context admitted cap, and post-context reserve-adjusted live cap. | Every stage requires `peak <= effective_cap`; reserve is never payload. The admitted run cap can shrink under the watchdog but cannot grow during a run. | P6-04A/#103 runtime-safety owner; GPU architect plus safety reviewer approve any validated replacement. |
-| T-101 | Host physical-available and system-commit headroom must each retain `max(4 GiB, ceil(15% * physical_ram))`; total PrismInfer pinned-host bytes are capped at `min(512 MiB, floor(2% * physical_ram))`. | Reject before allocation and cancel on observed reserve breach; pagefile capacity does not satisfy physical reserve. | P6-04A/#103 CPU/memory owner; CPU architect plus safety reviewer approve. |
+| T-101 | No fixed minimum available RAM is permitted. `development_nonpromotable` retains physical `max(2 GiB, ceil(8% * physical_total))` and commit `max(2 GiB, ceil(5% * commit_limit))`. `evidence_promotable` retains physical `max(4 GiB, ceil(15% * physical_total))` and commit `max(4 GiB, ceil(10% * commit_limit), ceil(15% * physical_total))`. Explicit reserves may raise but never lower the lane floor. Total PrismInfer pinned-host bytes are capped at `min(512 MiB, floor(2% * physical_total))` and count in both planned peaks. | Admit only the exact planned incremental resident and commit peaks plus uncertainty against their separate live payloads. Development results are always non-promotable. Reject before allocation and cancel on hard-reserve breach; pagefile/commit never increases physical payload. | #109 policy/primitive; P6-04A/#103 watchdog/token owner; CPU architect plus safety reviewer approve. |
 | T-102 | GPU warning at `min(78 C, reported_target - 8 C)` and stop at `min(82 C, reported_target - 5 C, reported_slowdown - 5 C)` using every available bound. For a materially participating CPU with an approved package sensor, warn at `min(85 C, TjMax - 15 C)` and stop at `min(90 C, TjMax - 10 C)`. Restart only after every participating device is `<=70 C` continuously for 60 s and a fresh preflight. | Warning forbids scale-up. Stop immediately blocks new submissions and enters cancellation. Missing target/slowdown may use another GPU bound; a missing current sensor blocks C2+ for a materially participating device, except a separately approved short attended cell that proves the device is not a material load source. | P6-04A/#103 GPU/CPU owners; device-specific evidence and safety reviewer required before change. |
 | T-103 | Supervisor sample period `<=100 ms`; worker heartbeat period `<=250 ms`; required guard sample or heartbeat age `<=500 ms`. | Stale/missing required evidence enters cancellation. Sampling must be outside the worker and record monotonic timestamps/drops. | P6-04A/#103 telemetry owner; runtime and GPU reviewers approve. |
 | T-104 | New GPU work must show measured single-dispatch `p99 <250 ms` on the exact bounded fixture before scale-up; no individual admitted dispatch may use a declared bound above 500 ms. | Split/tile work that misses the gate. A timeout/device-lost result is context-fatal and cannot be retried automatically. This is a PrismInfer engineering margin, not a Windows TDR guarantee. | CUDA owner for measurement; P6-04A/#103 safety owner grants the exact-fixture gate. |
 | T-105 | On breach, block submissions immediately; cooperative cancellation acknowledgement within 500 ms; worker exit within 2 s of request; otherwise terminate the Job; cleanup/lease reconciliation within 5 s; automatic same-context retry count `0`. | Supervisor timestamps every transition. Missed deadlines force abort/quarantine and review before another hardware run. | P6-04A/#103 process-safety owner; Windows/runtime safety reviewer approves. |
 
-Definitions used by T-100:
+Definitions used by T-100 and T-101:
 
 ```text
 pre_context_live_capacity_bytes = min(
@@ -108,6 +108,62 @@ watchdog_effective_cap_bytes = min(
   post_context_effective_cap_bytes,
   current_reserve_adjusted_live_cap_bytes)
 ```
+
+Host admission uses system-wide `CommitTotal` and `CommitLimit` from Windows
+`GetPerformanceInfo`, not the process-bounded `MEMORYSTATUSEX` pagefile fields:
+
+```text
+host_lane = development_nonpromotable | evidence_promotable
+
+development_physical_reserve_bytes = max(
+  2 GiB, ceil(0.08 * physical_total_bytes))
+development_commit_reserve_bytes = max(
+  2 GiB, ceil(0.05 * commit_limit_bytes))
+
+evidence_physical_reserve_bytes = max(
+  4 GiB, ceil(0.15 * physical_total_bytes))
+evidence_commit_reserve_bytes = max(
+  4 GiB,
+  ceil(0.10 * commit_limit_bytes),
+  ceil(0.15 * physical_total_bytes))
+
+physical_reserve_bytes = max(
+  lane_physical_reserve_bytes,
+  explicit_physical_reserve_bytes)
+commit_reserve_bytes = max(
+  lane_commit_reserve_bytes,
+  explicit_commit_reserve_bytes)
+
+physical_payload_bytes = max(
+  0, physical_available_bytes - physical_reserve_bytes)
+commit_headroom_bytes = max(
+  0, commit_limit_bytes - commit_total_bytes)
+commit_payload_bytes = max(
+  0, commit_headroom_bytes - commit_reserve_bytes)
+
+required_resident_bytes =
+  planned_incremental_resident_peak_bytes
+  + resident_uncertainty_bytes
+  + pinned_host_bytes
+required_commit_bytes =
+  planned_incremental_commit_peak_bytes
+  + commit_uncertainty_bytes
+  + pinned_host_bytes
+
+host_admission = pass only when
+  required_resident_bytes <= physical_payload_bytes
+  and required_commit_bytes <= commit_payload_bytes
+  and pinned_host_bytes <= pinned_host_cap_bytes
+```
+
+All arithmetic is checked and saturating subtraction is used only to produce a
+zero payload before rejection. Missing/stale telemetry, a non-authoritative
+commit source, overflow, contradictory totals, reserve breach, or a request
+above either payload fails closed. A development receipt cannot be relabeled:
+promotion requires a fresh `evidence_promotable` admission and token. Ordinary
+CPU development may continue when its exact incremental request fits the
+development lane; a plan that needs 24 GiB is rejected or downscaled without
+disabling smaller plans merely because less than 24 GiB is currently free.
 
 The three cap meanings are distinct: `policy_ceiling_bytes` defines product
 scope, `requested_tier_bytes` defines the validation cell, and

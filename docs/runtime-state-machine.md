@@ -153,7 +153,10 @@ requested_tier_bytes
 physical_or_reportable_local_bytes
 dxgi_local_budget/current_usage and observation age
 predicted context/runtime/backend/model/state/workspace/fragmentation bytes
-GPU reserve and host physical/commit reserves
+GPU reserve and T-101 host admission lane
+authoritative system physical total/available and commit charge/limit/headroom
+planned incremental resident/commit peaks, uncertainty and pinned bytes
+separate host physical/commit reserves and payload decisions
 thermal target/slowdown/stop values and sensor freshness
 artifact, quantization-profile, tensor-inventory, runtime and plan hashes
 clearance stage and run deadline
@@ -161,6 +164,10 @@ clearance stage and run deadline
 
 The conservative predicted peak must fit the reserve-adjusted effective live
 cap. Unknown or stale required input is a rejection, not an estimate of zero.
+Host admission has no fixed free-RAM threshold. A smaller exact workload may
+pass when 8-15 GiB is available, while a 24 GiB incremental plan rejects or is
+downscaled. Development-lane tokens are non-promotable and cannot transition
+to evidence execution without a fresh evidence-lane admission.
 
 ### Context reconciliation and post-context admission
 

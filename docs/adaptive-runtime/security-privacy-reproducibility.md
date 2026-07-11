@@ -53,13 +53,17 @@ actual context footprint and live budget before issuing an exact, bounded,
 one-shot workload token.
 
 The out-of-process watchdog monitors wall time, owned allocations, effective
-GPU budget, host commit, temperature/power evidence, worker liveness and sensor
-health. Missing or contradictory mandatory evidence, budget loss, deadline,
+GPU budget, T-101 lane-specific physical/commit payload, temperature/power
+evidence, worker liveness and sensor health. Missing or contradictory mandatory
+evidence, budget loss, deadline,
 thermal threshold, worker crash or device-fatal error initiates bounded cancel
 then Job termination. Evidence is published atomically as complete or aborted;
 partial output cannot be promoted. This gate is tested with arithmetic
 boundaries, sensor loss, admission rejection, worker crash, timeout, budget
 drop, thermal trip and cleanup fault injection before any 8B/9B calibration.
+Host admission uses exact incremental resident/commit peaks and authoritative
+system counters; no fixed free-RAM prerequisite is accepted, and development
+lane receipts are always non-promotable.
 
 ## Native Process Launch Contract
 

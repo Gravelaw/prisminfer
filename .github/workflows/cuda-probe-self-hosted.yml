@@ -102,7 +102,7 @@ jobs:
       - name: Build
         run: |
           $env:Path = "{0};{1}" -f [Environment]::GetEnvironmentVariable('Path','Machine'), [Environment]::GetEnvironmentVariable('Path','User')
-          cmake --build build-cuda --config Debug --parallel 8
+          cmake --build build-cuda --config Debug --parallel 1
 
       - name: Unit tests
         run: |

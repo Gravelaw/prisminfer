@@ -63,8 +63,15 @@ int main() {
 
   prisminfer::HostTelemetrySample host;
   host.available = true;
+  host.system_commit_source = "get_performance_info";
+  host.captured_monotonic_milliseconds = 12345;
   host.process_working_set_bytes = 111;
   host.process_private_bytes = 222;
+  host.system_memory_total_bytes = 1000;
+  host.system_memory_available_bytes = 700;
+  host.system_commit_total_bytes = 400;
+  host.system_commit_limit_bytes = 900;
+  host.system_commit_available_bytes = 500;
   host.process_io_read_bytes = 333;
   host.process_io_write_bytes = 444;
 
@@ -161,6 +168,21 @@ int main() {
   if (expect(content.find("\"process_working_set_bytes\": 111") !=
                  std::string::npos,
              "host working set written")) return 1;
+  if (expect(content.find("\"system_memory_total_bytes\": 1000") !=
+                 std::string::npos,
+             "host physical total written") ||
+      expect(content.find("\"system_commit_available_bytes\": 500") !=
+                 std::string::npos,
+             "host system commit headroom written") ||
+      expect(
+          content.find("\"system_commit_source\": \"get_performance_info\"") !=
+              std::string::npos,
+          "host system commit source written") ||
+      expect(content.find("\"host_captured_monotonic_milliseconds\": 12345") !=
+                 std::string::npos,
+             "host monotonic capture time written")) {
+    return 1;
+  }
   if (expect(content.find("\"build_config\":") != std::string::npos,
              "build config written")) return 1;
   if (expect(content.find("\"kernel_build_enabled\": false") !=

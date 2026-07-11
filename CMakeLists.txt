@@ -68,6 +68,7 @@ add_library(prisminfer_core
   src/governor/allocator_tracker.cpp
   src/governor/backend_memory_observer.cpp
   src/governor/gpu_cap_policy.cpp
+  src/governor/host_admission.cpp
   src/governor/host_memory_tracker.cpp
   src/governor/memory_ledger.cpp
   src/governor/memory_cap.cpp
@@ -185,6 +186,10 @@ add_test(NAME test_backend_adapter COMMAND test_backend_adapter)
 add_executable(test_host_memory_tracker tests/unit/test_host_memory_tracker.cpp)
 target_link_libraries(test_host_memory_tracker PRIVATE prisminfer_core)
 add_test(NAME test_host_memory_tracker COMMAND test_host_memory_tracker)
+
+add_executable(test_host_admission tests/unit/test_host_admission.cpp)
+target_link_libraries(test_host_admission PRIVATE prisminfer_core)
+add_test(NAME test_host_admission COMMAND test_host_admission)
 
 add_executable(test_kv_cache_ledger tests/unit/test_kv_cache_ledger.cpp)
 target_link_libraries(test_kv_cache_ledger PRIVATE prisminfer_core)
