@@ -1,9 +1,17 @@
 #include "prisminfer/flat_json.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cstdint>
-#include <fstream>
-#include <sstream>
+#include <limits>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 namespace prisminfer {
 
@@ -115,6 +123,44 @@ FlatJsonResult fail(const std::string& error) {
   return result;
 }
 
+#ifdef _WIN32
+
+class NativeManifestHandle {
+ public:
+  explicit NativeManifestHandle(HANDLE handle) : handle_(handle) {}
+  ~NativeManifestHandle() {
+    if (handle_ != INVALID_HANDLE_VALUE) {
+      (void)CloseHandle(handle_);
+    }
+  }
+  NativeManifestHandle(const NativeManifestHandle&) = delete;
+  NativeManifestHandle& operator=(const NativeManifestHandle&) = delete;
+  HANDLE get() const { return handle_; }
+
+ private:
+  HANDLE handle_{INVALID_HANDLE_VALUE};
+};
+
+#else
+
+class NativeManifestHandle {
+ public:
+  explicit NativeManifestHandle(int handle) : handle_(handle) {}
+  ~NativeManifestHandle() {
+    if (handle_ >= 0) {
+      (void)close(handle_);
+    }
+  }
+  NativeManifestHandle(const NativeManifestHandle&) = delete;
+  NativeManifestHandle& operator=(const NativeManifestHandle&) = delete;
+  int get() const { return handle_; }
+
+ private:
+  int handle_{-1};
+};
+
+#endif
+
 FlatJsonResult parse_flat_json_object(const std::string& json) {
   FlatJsonResult result;
   std::size_t position = 0;
@@ -173,36 +219,87 @@ FlatJsonResult parse_flat_json_object(const std::string& json) {
 
 FlatJsonResult read_flat_json_file(const std::filesystem::path& path,
                                    std::uint64_t max_bytes) {
-  std::error_code error;
-  const auto status = std::filesystem::symlink_status(path, error);
-  if (error || !std::filesystem::is_regular_file(status) ||
-      std::filesystem::is_symlink(status)) {
-    return fail("manifest_not_regular_file");
-  }
-
-  std::ifstream in(path, std::ios::in | std::ios::binary);
-  if (!in) {
+#ifdef _WIN32
+  const NativeManifestHandle handle(CreateFileW(
+      path.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING,
+      FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT |
+          FILE_FLAG_BACKUP_SEMANTICS,
+      nullptr));
+  if (handle.get() == INVALID_HANDLE_VALUE) {
     return fail("manifest_open_failed");
   }
+  BY_HANDLE_FILE_INFORMATION before{};
+  if (!GetFileInformationByHandle(handle.get(), &before)) {
+    return fail("manifest_metadata_unavailable");
+  }
+  if ((before.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U ||
+      (before.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0U) {
+    return fail("manifest_not_regular_file");
+  }
+  const std::uint64_t size =
+      (static_cast<std::uint64_t>(before.nFileSizeHigh) << 32U) |
+      static_cast<std::uint64_t>(before.nFileSizeLow);
+#else
+  const NativeManifestHandle handle(
+      open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW));
+  if (handle.get() < 0) {
+    return fail("manifest_open_failed");
+  }
+  struct stat before {};
+  if (fstat(handle.get(), &before) != 0) {
+    return fail("manifest_metadata_unavailable");
+  }
+  if (!S_ISREG(before.st_mode) || before.st_size < 0) {
+    return fail("manifest_not_regular_file");
+  }
+  const std::uint64_t size = static_cast<std::uint64_t>(before.st_size);
+#endif
+  if (size > max_bytes ||
+      size > (std::numeric_limits<std::size_t>::max)()) {
+    return fail("manifest_size_exceeds_limit");
+  }
 
-  std::string content;
-  content.reserve(static_cast<std::size_t>(max_bytes));
-  char chunk[4096];
-  while (in) {
-    in.read(chunk, static_cast<std::streamsize>(sizeof(chunk)));
-    const auto count = in.gcount();
-    if (count <= 0) {
-      break;
+  std::string content(static_cast<std::size_t>(size), '\0');
+  std::size_t offset = 0;
+  while (offset < content.size()) {
+#ifdef _WIN32
+    const auto remaining = content.size() - offset;
+    const auto request = static_cast<DWORD>(
+        (std::min)(remaining, static_cast<std::size_t>(MAXDWORD)));
+    DWORD received = 0;
+    if (!ReadFile(handle.get(), content.data() + offset, request, &received,
+                  nullptr) || received == 0U) {
+      return fail("manifest_read_failed");
     }
-    const auto bytes = static_cast<std::uint64_t>(count);
-    if (bytes > max_bytes || content.size() > max_bytes - bytes) {
-      return fail("manifest_size_exceeds_limit");
+    offset += static_cast<std::size_t>(received);
+#else
+    const auto received =
+        read(handle.get(), content.data() + offset, content.size() - offset);
+    if (received <= 0) {
+      return fail("manifest_read_failed");
     }
-    content.append(chunk, static_cast<std::size_t>(count));
+    offset += static_cast<std::size_t>(received);
+#endif
   }
-  if (!in.eof()) {
-    return fail("manifest_read_failed");
+
+#ifdef _WIN32
+  BY_HANDLE_FILE_INFORMATION after{};
+  if (!GetFileInformationByHandle(handle.get(), &after) ||
+      after.nFileIndexHigh != before.nFileIndexHigh ||
+      after.nFileIndexLow != before.nFileIndexLow ||
+      after.nFileSizeHigh != before.nFileSizeHigh ||
+      after.nFileSizeLow != before.nFileSizeLow ||
+      CompareFileTime(&after.ftLastWriteTime, &before.ftLastWriteTime) != 0) {
+    return fail("manifest_changed_during_read");
   }
+#else
+  struct stat after {};
+  if (fstat(handle.get(), &after) != 0 || after.st_dev != before.st_dev ||
+      after.st_ino != before.st_ino || after.st_size != before.st_size ||
+      after.st_mtime != before.st_mtime) {
+    return fail("manifest_changed_during_read");
+  }
+#endif
   return parse_flat_json_object(content);
 }
 
