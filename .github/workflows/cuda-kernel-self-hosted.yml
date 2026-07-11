@@ -1,0 +1,91 @@
+name: CUDA Kernel Self-Hosted
+
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Full 40-character SHA reviewed at the current tip of main
+        required: true
+        type: string
+      preflight_confirmed:
+        description: Confirm the AGENTS.md hardware preflight is complete and the run is attended
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prisminfer-self-hosted-gpu-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch-guard:
+    name: Validate trusted main dispatch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require reviewed main SHA and operator preflight
+        shell: bash
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          PREFLIGHT_CONFIRMED: ${{ inputs.preflight_confirmed }}
+        run: |
+          set -euo pipefail
+          [[ "$DISPATCH_REF" == "refs/heads/main" ]]
+          [[ "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$REVIEWED_SHA" == "$DISPATCH_SHA" ]]
+          [[ "$PREFLIGHT_CONFIRMED" == "true" ]]
+
+  cuda-kernel:
+    name: Synthetic CUDA q4 correctness
+    needs: dispatch-guard
+    runs-on:
+      - self-hosted
+      - Windows
+      - NVIDIA
+      - CUDA
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: powershell
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          clean: true
+          persist-credentials: false
+          ref: ${{ inputs.reviewed_sha }}
+
+      - name: Require a clean CUDA kernel workspace
+        run: |
+          if (Test-Path -LiteralPath build/vs2026-cuda-sm120) {
+            throw "actions/checkout did not provide a clean CUDA kernel workspace"
+          }
+
+      - name: Show CUDA kernel toolchain
+        run: |
+          $env:Path = "{0};{1}" -f [Environment]::GetEnvironmentVariable('Path','Machine'), [Environment]::GetEnvironmentVariable('Path','User')
+          cmake --version
+          nvcc --version
+          nvidia-smi
+
+      - name: Verify synthetic CUDA q4 correctness
+        run: |
+          $env:Path = "{0};{1}" -f [Environment]::GetEnvironmentVariable('Path','Machine'), [Environment]::GetEnvironmentVariable('Path','User')
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify.ps1 -WithCudaKernels -CudaArchs 120 -SkipProbeSmoke
+
+      - name: Upload CUDA kernel logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cuda-kernel-correctness-logs
+          path: |
+            build/vs2026-cuda-sm120/Testing/Temporary/*.log
+            build/vs2026-cuda-sm120/CMakeFiles/CMakeOutput.log
+            build/vs2026-cuda-sm120/CMakeFiles/CMakeError.log
+          if-no-files-found: ignore

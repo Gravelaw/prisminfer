@@ -1,5 +1,7 @@
 param(
     [switch]$WithCuda,
+    [switch]$WithCudaKernels,
+    [string]$CudaArchs = "120",
     [ValidateRange(1, 64)][int]$BuildJobs = 8,
     [switch]$SkipProbeSmoke
 )
@@ -176,6 +178,24 @@ try {
                 Invoke-ProbeExpectSuccess ".\build-cuda\Debug\prism-probe.exe" ".\build-cuda\Debug\prism-validate-lifecycle.exe" "1gb-safe-gpu-probed" "verify-gpu-smoke" "verify-gpu-smoke.jsonl" "verify-gpu-smoke-manifest.json"
                 Remove-ProbeArtifacts @("verify-gpu-smoke.jsonl", "verify-gpu-smoke-manifest.json")
             }
+        }
+    }
+
+    if ($WithCudaKernels) {
+        if ([string]::IsNullOrWhiteSpace($CudaArchs)) {
+            throw "-WithCudaKernels requires a non-empty -CudaArchs value"
+        }
+
+        Run-Step "Configure CUDA kernel build" {
+            cmake -S . -B build/vs2026-cuda-sm120 -G "Visual Studio 18 2026" -A x64 -DPRISMINFER_ENABLE_CUDA_KERNELS=ON "-DPRISMINFER_CUDA_KERNEL_ARCHS=$CudaArchs"
+        }
+
+        Run-Step "Build CUDA kernel correctness test" {
+            cmake --build --preset vs2026-cuda-sm120 --parallel 1
+        }
+
+        Run-Step "CTest CUDA kernel correctness" {
+            ctest --test-dir build/vs2026-cuda-sm120 -C Debug -L cuda_kernel --output-on-failure
         }
     }
 } finally {
