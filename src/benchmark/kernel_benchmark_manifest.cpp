@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <climits>
+#include <cmath>
 #include <sstream>
 
 #include "prisminfer/flat_json.h"
@@ -45,7 +46,7 @@ bool parse_double(const FlatJsonValue& value, double* output) {
   }
   std::istringstream in(value.text);
   in >> *output;
-  return in && in.eof();
+  return in && in.eof() && std::isfinite(*output);
 }
 
 bool parse_bool(const FlatJsonValue& value, bool* output) {
@@ -66,6 +67,74 @@ bool parse_string(const FlatJsonValue& value, std::string* output) {
 
 bool parse_non_empty_string(const FlatJsonValue& value, std::string* output) {
   return parse_string(value, output) && !output->empty();
+}
+
+template <typename T, typename Parser, typename Constraint>
+bool validate_optional_field(const std::map<std::string, FlatJsonValue>& fields,
+                             const char* key,
+                             Parser parser,
+                             Constraint constraint,
+                             std::string* error) {
+  const auto found = fields.find(key);
+  if (found == fields.end()) {
+    return true;
+  }
+  T value{};
+  if (!parser(found->second, &value) || !constraint(value)) {
+    *error = std::string("invalid_field:") + key;
+    return false;
+  }
+  return true;
+}
+
+bool validate_optional_schema_fields(
+    const std::map<std::string, FlatJsonValue>& fields, std::string* error) {
+  const auto any_bool = [](bool) { return true; };
+  const auto any_string = [](const std::string&) { return true; };
+  const auto nonnegative_u64 = [](std::uint64_t) { return true; };
+  const auto nonnegative_double = [](double value) { return value >= 0.0; };
+  const auto unit_interval = [](double value) {
+    return value >= 0.0 && value <= 1.0;
+  };
+
+  for (const char* key : {"dequant_fused", "tensor_core_claimed",
+                          "tensor_core_used"}) {
+    if (!validate_optional_field<bool>(fields, key, parse_bool, any_bool,
+                                       error)) {
+      return false;
+    }
+  }
+  for (const char* key : {"workspace_bytes", "transfer_h2d_bytes",
+                          "transfer_d2h_bytes", "group_size",
+                          "residual_fp_window_tokens", "rotation_seed",
+                          "qjl_residual_bits", "dequant_workspace_peak_bytes"}) {
+    if (!validate_optional_field<std::uint64_t>(fields, key, parse_u64,
+                                                nonnegative_u64, error)) {
+      return false;
+    }
+  }
+  for (const char* key : {"kernel_ms", "launch_ms", "sync_ms",
+                          "payload_bits_per_value"}) {
+    if (!validate_optional_field<double>(fields, key, parse_double,
+                                         nonnegative_double, error)) {
+      return false;
+    }
+  }
+  if (!validate_optional_field<double>(fields, "attention_topk_overlap",
+                                       parse_double, unit_interval, error)) {
+    return false;
+  }
+  for (const char* key : {"profiler_artifact_path", "profiler_artifact_sha256",
+                          "quantization_scope", "key_quant_axis",
+                          "value_quant_axis", "pre_rope_or_post_rope",
+                          "outlier_policy", "rotation_policy",
+                          "projection_policy"}) {
+    if (!validate_optional_field<std::string>(fields, key, parse_string,
+                                              any_string, error)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 template <typename T, typename Parser>
@@ -125,8 +194,12 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
     }
   }
 
-  KernelBenchmarkManifest manifest;
   std::string error;
+  if (!validate_optional_schema_fields(fields, &error)) {
+    return fail(error);
+  }
+
+  KernelBenchmarkManifest manifest;
   if (!read_required(fields, "manifest_version", &manifest.manifest_version,
                      parse_non_empty_string, &error) ||
       manifest.manifest_version != "0.1") {

@@ -145,6 +145,18 @@ int main() {
              "invalid enum reason")) return 1;
   std::filesystem::remove(enum_path, remove_error);
 
+  const auto optional_type_path = write_manifest(
+      "prisminfer-kernel-optional-type.json",
+      replace_once(valid_manifest(), "  \"workspace_peak_bytes\":",
+                   "  \"dequant_fused\": \"not-a-bool\",\n"
+                   "  \"workspace_peak_bytes\":"));
+  const auto optional_type =
+      prisminfer::read_kernel_benchmark_manifest(optional_type_path);
+  if (expect(!optional_type.ok, "optional schema type rejected")) return 1;
+  if (expect(optional_type.error == "invalid_field:dequant_fused",
+             "optional type reason")) return 1;
+  std::filesystem::remove(optional_type_path, remove_error);
+
   const auto duplicate_path = write_manifest(
       "prisminfer-kernel-duplicate.json",
       replace_once(valid_manifest(), "  \"model_hash\":",

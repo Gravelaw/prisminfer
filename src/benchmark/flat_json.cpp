@@ -174,24 +174,36 @@ FlatJsonResult parse_flat_json_object(const std::string& json) {
 FlatJsonResult read_flat_json_file(const std::filesystem::path& path,
                                    std::uint64_t max_bytes) {
   std::error_code error;
-  if (!std::filesystem::is_regular_file(path, error)) {
+  const auto status = std::filesystem::symlink_status(path, error);
+  if (error || !std::filesystem::is_regular_file(status) ||
+      std::filesystem::is_symlink(status)) {
     return fail("manifest_not_regular_file");
-  }
-  const auto size = std::filesystem::file_size(path, error);
-  if (error) {
-    return fail("manifest_size_unavailable");
-  }
-  if (size > max_bytes) {
-    return fail("manifest_size_exceeds_limit");
   }
 
   std::ifstream in(path, std::ios::in | std::ios::binary);
   if (!in) {
     return fail("manifest_open_failed");
   }
-  std::ostringstream buffer;
-  buffer << in.rdbuf();
-  return parse_flat_json_object(buffer.str());
+
+  std::string content;
+  content.reserve(static_cast<std::size_t>(max_bytes));
+  char chunk[4096];
+  while (in) {
+    in.read(chunk, static_cast<std::streamsize>(sizeof(chunk)));
+    const auto count = in.gcount();
+    if (count <= 0) {
+      break;
+    }
+    const auto bytes = static_cast<std::uint64_t>(count);
+    if (bytes > max_bytes || content.size() > max_bytes - bytes) {
+      return fail("manifest_size_exceeds_limit");
+    }
+    content.append(chunk, static_cast<std::size_t>(count));
+  }
+  if (!in.eof()) {
+    return fail("manifest_read_failed");
+  }
+  return parse_flat_json_object(content);
 }
 
 }  // namespace prisminfer
