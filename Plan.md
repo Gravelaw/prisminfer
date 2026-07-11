@@ -1,0 +1,322 @@
+# PrismInfer Final Plan
+
+Status: final theory and implementation freeze; safety foundation and Phase 6
+evidence repair are the active program.
+Last reconciled: 2026-07-11
+Operational tracker: [GitHub Project #2](https://github.com/users/Gravelaw/projects/2)
+
+## Authority and Change Control
+
+This file is the single program-control source for thesis, scope, dependency
+order, clearances, current status, and phase exit. The authority order is:
+
+1. `AGENTS.md` for safety and repository-operation invariants;
+2. this `Plan.md` for program order and clearance;
+3. GitHub Project #2 and linked issues for live execution status;
+4. `docs/adaptive-runtime/` and phase documents for detailed contracts;
+5. source, schemas, tests, and retained evidence for what is actually
+   implemented or proven.
+
+If these disagree, no hardware/model promotion may proceed. Reconcile this
+file, the affected detailed contract, issue body, and Project fields in the
+same change. Project status cannot waive an `AGENTS.md` stop rule. A local or
+unmerged document is not implementation evidence.
+
+## Frozen Thesis
+
+> PrismInfer is a safety-supervised, calibration-driven control plane and plan
+> executor over a pinned llama.cpp/GGML/GGUF substrate. For one exact
+> hardware/runtime/model/service cell, it performs two-stage resource
+> admission, measures real execution, enumerates only implemented and
+> acknowledged actuators, builds one conservative static plan offline, and
+> replays that plan deterministically inside a contained worker.
+
+The first objective is truthful, safe selection and replay—not a clean-sheet
+runtime and not a mandatory speedup. The controller may select the strongest
+upstream plan or abstain. A speedup claim requires a fresh same-cell win over
+the strongest measured upstream sweep.
+
+Kernel selection, staging/prefetch, KV or architecture-state compression,
+progressive weights, speculative offload, and structured compute are separate
+optional hypotheses. None repairs a failed safety/evidence substrate or a
+failed static-controller thesis.
+
+## Success and Falsification Taxonomy
+
+| Thesis | Pass condition | Valid negative conclusion |
+|---|---|---|
+| Safety/evidence substrate | Containment, two-stage admission, cleanup, watchdog, checked arithmetic, telemetry-loss, crash, timeout, budget-drop, thermal and device-fatal tests pass; promoted unknown bytes are zero. | Automatic hardware/model execution remains disabled. |
+| Static controller | An exact-cell plan is executable and acknowledged, stays inside the effective cap, preserves the same quantized-model semantics, meets frozen overhead/regret gates, and abstains outside support. | PrismInfer remains an admission/evidence tool rather than an automatic optimizer. |
+| Optimization benefit | Fresh held-out same-cell evidence beats the strongest upstream sweep under cap, quality and tail-latency gates. | Safe selection/replay is retained without a speedup claim. |
+| Large-model feasibility | An exact artifact passes optimistic capacity, bandwidth and service-envelope admission before execution. | That exact 30B/70B/90B cell is rejected or classified slow/offline without being loaded. |
+
+Negative, rejected, research-only, measured-non-certified, slow/offline and
+validated results are first-class outcomes. The program must stop instead of
+changing thresholds after observing a failure.
+
+## Current Executable Baseline
+
+| Area | Current truth |
+|---|---|
+| Phases 0–5 | Governance, telemetry, lifecycle, manifests, fake/process backend scaffolding, KV/quality/offload policies, claim taxonomy, comparator and a toy q4 CPU/CUDA scaffold exist. Historical milestone closure does not imply production readiness. |
+| Phase 6 branch | Manifest/config foundations and the completed #73 tiny synthetic CUDA launch/copy-back lane are merged. The CUDA path uses toy nibble-plus-scale semantics, not exact selected-artifact GGML quant semantics. |
+| Allocation safety | CUDA context creation precedes reservation; a rejected context reservation can be recorded without immediately ending the run. The 16 GiB value is only a policy ceiling. |
+| Backend boundary | The llama adapter invokes a shell command through `std::system`; there is no native Job-contained worker, bounded cancellation, or child-tree evidence. |
+| Hardware safety | No exclusive GPU lease, staged admission token, live WDDM/host/thermal watchdog, or atomic abort/cleanup state exists. |
+| Model evidence | No approved foundation/Ornith artifact hashes or complete retained same-cell 8B/9B evidence exist. The checked-in 9B gate hashes are empty. |
+| Adaptive runtime | Actuator, recovery, optimizer and evidence contracts are documented; the in-process adapter, calibration store, selector and plan executor are proposed, not implemented. |
+| Worktree/PR | The #79 final safety and adaptive-runtime controls are being reviewed as the current freeze; historical PR #72 checks are not hardware clearance. PR #105 supplies only the completed tiny synthetic CUDA/sanitizer evidence. |
+
+## Frozen Scope
+
+### Core implementation
+
+- checked arithmetic, bounded configuration and release-active validation;
+- native worker launch, Job containment, approved artifact roots and identity;
+- trusted outer supervisor, exclusive GPU lease and two-stage admission;
+- effective GPU/host/pinned/storage budgets with nonzero reserves;
+- exact artifact catalog and architecture-state descriptors;
+- secure external upstream baseline and worker-contained libllama/GGML adapter;
+- actual allocation, operator/path, state, transfer and child-tree evidence;
+- pinned actuator, acknowledgement and R0/R1/R2 recovery inventory;
+- immutable raw calibration observations and conservative cost tables;
+- one static plan per exact non-semantic service profile;
+- deterministic replay, drift invalidation, abstention and bounded recovery;
+- foundation confirmation, Ornith stress, then 30B static truth or rejection.
+
+### Optional independently falsified providers
+
+- per-shape upstream/custom kernel dispatch and matmul candidates;
+- bounded staging and prefetch;
+- full-attention KV placement/quantization and architecture-specific state
+  policies;
+- activation-transfer compression or a static progressive-weight artifact;
+- exact committed-output-aware speculative offload;
+- structured-compute oracle, followed by router/adaptation only if admitted;
+- joint optimization only after at least two mechanisms pass independently.
+
+### Out of scope for this implementation program
+
+- replacing llama.cpp/GGML wholesale;
+- global online optimization or learned exploration in the token path;
+- per-query recompression of immutable weights;
+- prompt-only permanent neuron/layer disabling without an adapted artifact;
+- individual-neuron CPU/GPU transfers;
+- Mojo as the native Windows runtime (it may be an isolated C ABI provider);
+- unadmitted 70B/90B execution;
+- multi-GPU, distributed serving or general multi-tenant scheduling;
+- broad model training or benchmark-score claims copied from model cards.
+
+## Model and Quantization Cells
+
+| Cell | Frozen role | Gate |
+|---|---|---|
+| Tiny deterministic artifact | Parser, schema, lifecycle, fault and CPU/tiny-CUDA correctness. | Pin before automated safety tests. |
+| Llama 3.1 8B Instruct | Preferred conventional text/GQA foundation if license/access, pinned llama.cpp support, self-produced GGUF and quality baseline are accepted. | #80 final immutable selection. |
+| Gemma 2 9B | Optional architecture-aware transformer control only; its alternating local/global attention must be modeled. It is not a globally full-attention control. | Separate exact cell if retained. |
+| Ornith-1.0-9B | Secondary capability and hybrid Qwen3.5-family stress cell. Text main artifact, MTP, mmproj and multimodal scope are distinct. | Attempt only after foundation clearance and converter/operator/state coverage. |
+| Qwen3.5-9B | Ornith lineage and architecture reference, not an independent conventional control. | Metadata/support comparison only unless separately admitted. |
+| Exact 30B | First heterogeneous static-placement truth cell. | #84 admission, then #90. |
+| Exact 70B/90B | Capacity/resource-DAG lower bounds first. | #97 refreshed admission; #99/#100 activate independently only if admitted. |
+
+`Q4_K_M` is a quantization recipe/file-type label that can contain multiple
+per-tensor `ggml_type` values. #74 must inventory every type in the pinned
+artifact, provide exact reference fixtures for every type used by a claimed
+path, and acknowledge upstream fallback for unsupported tensors. A custom
+kernel may claim only its eligible tensor subset. Full FP16 materialization is
+never hidden behind a constrained-VRAM claim.
+
+## Supervisor and Worker Boundary
+
+```mermaid
+flowchart TD
+  P["Trusted PrismInfer supervisor"] --> L["Acquire exclusive GPU lease"]
+  L --> A0["Stage A: read-only DXGI/NVML/host/thermal admission"]
+  A0 --> W["Create suspended Job-contained worker"]
+  W --> C["Context-only initialization"]
+  C --> A1["Stage B: reconcile context, CUDA free bytes and reserves"]
+  A1 --> T["Issue exact one-shot admission token"]
+  T --> R["Run bounded model/workload with out-of-process watchdog"]
+  R --> E["Atomic completed evidence"]
+  A0 --> X["Reject and publish non-promotable evidence"]
+  A1 --> X
+  R -->|"deadline, budget, thermal, sensor, heartbeat or device failure"| K["Cancel, terminate Job, verify cleanup"]
+  K --> X
+```
+
+Pre-context admission is conservative because it cannot know the exact CUDA
+context footprint. Model/workload allocation is allowed only after the second
+post-context reconciliation succeeds. A rejected/stale token or allocator
+reservation ends the transition immediately.
+
+## Clearance Matrix
+
+| Clearance | Required closure/evidence | Newly permitted work |
+|---|---|---|
+| C0 CPU and simulation | Current dependency preflight and CPU verification. | Documentation, schemas, unit/fuzz fixtures, offline planning and simulated breaches. |
+| C1 tiny attended CUDA | #73 lane, hardware preflight, serial 60-second fixture and required sanitizer result. | Tiny deterministic correctness only; no sustained/model work. |
+| C2 hardware-safety prerequisite | #81 secure Job worker + #82 safety evidence subset + #103 supervisor/admission fault suite. | Supervised tiny CUDA and a separately admitted small smoke artifact. Not 8B/9B or calibration. |
+| C3 supervised model-evidence run | C2 plus #74/#75/#76 tooling, #80 artifact pin and #84 exact admission. | The short attended #77 foundation warmup/baseline only, under its exact one-shot admission token; #77 owns the resulting evidence. |
+| C4 calibration readiness | #78 Phase 6 audit, #83 actuator inventory, #85 actual-path adapter, #86 frozen sample plans and drift rules. | Designed supervised foundation calibration. |
+| C5 calibrated static replay | #87 selector/oracle gates and #88 immutable acknowledged replay/recovery tests. | First safe calibrated static foundation replay. |
+| C6 Phase 7 exact-cell clearance | #89 fresh confirmation and security/evidence/claim audit. | Exact foundation result; Ornith only as its separately admitted stress cell. |
+| C7 30B static | #84 exact 30B admission and #90. | One exact 30B static result or rejection. |
+| C8 optional mechanisms | #90 plus each mechanism's own #91–#95 entry and evidence gate; #96 audit. | Only independently passing optional providers. |
+| C9 large-model/portability | #97 refreshed admission, conditional #98–#100, #101 and #102. | Only admitted exact scale cells and final classifications. |
+
+No issue, milestone or Project status may skip a clearance row.
+
+## Canonical Dependency Matrix
+
+Dependencies, not phase numbers, determine execution order. Safety work from
+Phase 7 may therefore execute before model-backed Phase 6 evidence.
+
+| Issue | Responsibility | Required predecessors | Planned state at freeze |
+|---|---|---|---|
+| #73 | Tiny synthetic CUDA correctness only. | C0 and attended hardware preflight. | Done |
+| #74 | Exact per-tensor GGML quant semantics/fixtures. | #73 for CUDA reuse; CPU reference work may start now. | Ready |
+| #75 | Strict manifest-emitting evidence runner. | #74. | Blocked |
+| #76 | Mandatory quality fixtures; optional offline KV evaluator remains separately classified. | #80 for final artifact; model execution also requires C2 and #84. | Ready |
+| #77 | Supervised same-cell upstream and PrismInfer foundation evidence; no mandatory custom-kernel/KV win. | #73-#76, #80-#82, #84 and #103. | Blocked |
+| #78 | Phase 6 evidence and claim audit. | #77. | Blocked |
+| #79 | Final council, root Plan and tracker freeze. | Current repository/session evidence. | In Progress until linked PR review |
+| #80 | Pin foundation, Ornith stress and smoke artifacts. | #79 plus Phase 6 artifact rules. | Ready |
+| #81 | Secure native external worker/Job boundary. | #79 and pinned external executable identity. | Ready |
+| #82 | Minimum live Windows/WDDM/host/file/transfer evidence. | #79; integrates #81. | Ready |
+| #83 | Pinned actuator/acknowledgement/recovery inventory. | #79 and pinned runtime source/build. | Ready |
+| #84 | Exact 8B/9B/30B/70B/90B capacity and bandwidth admission. | #74, #80, #82 and #103. | Blocked |
+| #85 | Worker-contained in-process adapter and actual-path trace. | #78, #80-#83 and #103. | Blocked |
+| #86 | Fingerprint, immutable calibration store and metric sample plans. | #84, #85 and #103. | Blocked |
+| #87 | Static resource-DAG selector and feasible-oracle comparison. | #83 and #86. | Blocked |
+| #88 | Immutable acknowledged plan replay and R0/R1/R2 recovery. | #83, #87 and #103. | Blocked |
+| #89 | Foundation confirmation, Ornith stress and Phase 7 audit. | #78, #80, #84, #88 and #103. | Blocked |
+| #90 | Exact 30B static heterogeneous placement or rejection. | #84 and #89. | Backlog |
+| #91 | Optional kernel dispatch and bounded staging hypotheses. | #90 and #88. | Backlog |
+| #92 | Optional KV/architecture-state policy. | #90 and approved #76 offline evidence. | Backlog |
+| #93 | Optional committed-output-aware speculative offload. | #90 and #88. | Backlog |
+| #94 | Optional progressive representation hypotheses. | #90 plus security/provider/quality approval. | Backlog |
+| #95 | Optional structured-compute oracle, then router gate. | #90 plus privacy/quality approval. | Backlog |
+| #96 | Independent optional decisions and Phase 8 audit. | #90 and a pass/reject/not-admitted record for #91-#95. | Backlog |
+| #97 | Refresh exact scale admission. | #84 and #96. | Backlog |
+| #98 | Optional admitted 30B dynamic result. | #90 and #97. | Backlog |
+| #99 | Exact admitted 70B result/rejection. | #97 admission of that artifact. | Blocked |
+| #100 | Exact admitted 90B result/rejection. | #97 admission of that artifact. | Blocked |
+| #101 | Portability, invalidation and recalibration. | #98 plus each activated/rejected #99/#100 record. | Backlog |
+| #102 | Final security, evidence and claim audit. | #96 and #101. | Backlog |
+| #103 | Fail-closed hardware supervisor and staged admission boundary. | #79, #81 and the safety subset of #82. | Ready |
+
+## Critical Path
+
+```text
+#79 final Plan/tracker freeze
+  -> #81 secure worker + #82 minimum live evidence
+  -> #103 supervisor and staged-admission clearance
+  -> #74/#75/#76 truth fixtures and evidence tooling
+  -> #80 exact artifact cells
+  -> #84 exact admission
+  -> #77 supervised foundation evidence -> #78 Phase 6 audit
+  -> #83 actuator inventory -> #85 actual-path adapter
+  -> #86 calibration -> #87 selector -> #88 replay -> #89 Phase 7 audit
+  -> #90 30B static truth
+  -> #91-#95 independent optional hypotheses -> #96 audit
+  -> #97 refreshed scale admission -> conditional #98/#99/#100
+  -> #101 portability -> #102 final audit
+```
+
+Safe parallel work is limited to independent CPU/source/fixture work whose
+predecessors are satisfied. Hardware steps remain serial per device.
+
+## Phase Outcomes
+
+### Phase 6: safety and exact evidence foundation
+
+- #103 closes the hardware-safety prerequisite.
+- Exact per-tensor quant truth, quality fixtures and strict evidence tooling
+  exist.
+- #77 records the supervised same-cell baseline/candidate result.
+- #78 classifies the evidence honestly.
+- A custom-kernel or KV-compression win is optional. `>=1.10x` remains only a
+  threshold for a custom-kernel speedup claim, not a phase-exit requirement.
+
+### Phase 7: secure static calibrated controller
+
+- One exact foundation plan is measured, selected/abstained, acknowledged and
+  replayed inside the supervisor/worker boundary.
+- Ornith is attempted only as a separate hybrid stress cell.
+- Safe selection of the upstream winner is controller success but not an
+  optimization-benefit claim.
+
+### Phase 8: 30B static truth and optional mechanisms
+
+- Measure or reject 30B static placement first.
+- Each optional mechanism passes, rejects or is not admitted independently.
+- Joint planning runs only after two independent mechanisms pass.
+
+### Phase 9: admitted scale and final audit
+
+- Refresh all artifact/hardware admission before long runs.
+- Execute only independently admitted exact 30B/70B/90B cells.
+- Finish portability/invalidation and final security/evidence/claim audit.
+
+## Verification and Definition of Done
+
+Every implementation issue must include, as applicable:
+
+- checked arithmetic and negative/boundary tests;
+- CPU/reference differential correctness before performance work;
+- strict warnings/static analysis and host sanitizer/fuzz evidence;
+- tiny bounded Compute Sanitizer evidence for changed CUDA paths;
+- timeout, cancellation, cleanup and fault-injection results;
+- exact source/runtime/artifact/fixture/environment hashes;
+- requested-versus-actual execution acknowledgement;
+- raw trials, threshold/sample-plan version and claim classification;
+- documentation, risk register, issue dependency and Project field updates;
+- no performance promotion from stale, mismatched or pre-policy CI artifacts.
+
+An issue is not Done merely because code exists locally. Its required tests and
+evidence must pass, its PR must be reviewable/merged as appropriate, and Project
+#2 must read back the status and fields declared here.
+
+Run the read-only synchronization check after every Plan or tracker change:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate-plan-project-sync.ps1
+```
+
+## Project #2 Synchronization Contract
+
+- Coarse `Status`: `Todo`, `In Progress`, or `Done`.
+- Detailed `Phase Status`: `Backlog`, `Ready`, `In Progress`, `Blocked`,
+  `Review`, or `Done`.
+- Every active item has Priority, Risk, Roadmap Phase, Roadmap Slice, Roadmap
+  Gate and milestone.
+- Closed historical issues use `Status=Done` and `Phase Status=Done`.
+- Phase 8 is named **Optional Mechanisms**, not Adaptive Mechanisms.
+- #79 is the only current coarse `In Progress` issue at this freeze; #73 is
+  closed with its retained tiny-fixture and sanitizer evidence.
+- #74, #76, #80-#83 and #103 are `Ready`; dependency-gated #75, #77-#78 and
+  #84-#89 are `Blocked`; later work remains `Backlog` except independently
+  admission-blocked #99/#100.
+- PR #72 remains review-only; its old green checks predate the final safety
+  policy and cannot grant clearance.
+
+The Project README must summarize this plan and link here first. A tracker
+readback is part of every phase audit.
+
+## Reopen Conditions
+
+Reopen the architecture council only when evidence shows one of the following:
+
+- pinned llama.cpp/GGML cannot expose or acknowledge the minimum required
+  controls without a broad fork;
+- the in-process adapter weakens memory/evidence truth versus the secure
+  external baseline;
+- Llama/Ornith artifact, license, converter or operator/state support invalidates
+  the selected cells;
+- the selector cannot approach the feasible oracle or safely abstain;
+- 32 GiB host capacity makes the 30B static cell inadmissible;
+- no optional representation offers random access and bounded reconstruction;
+- the primary hardware target changes the resource hierarchy materially.
+
+Otherwise, implementation follows this dependency matrix without another
+theory expansion.

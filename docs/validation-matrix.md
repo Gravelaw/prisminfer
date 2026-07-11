@@ -5,14 +5,16 @@ VRAM-tier claims.
 
 ## Current Envelope
 
-Current maximum GPU hard cap:
+Current GPU policy ceiling:
 
 ```text
 16 GiB = 17179869184 bytes
 ```
 
-No roadmap item, config, benchmark claim, or GitHub issue should require or
-validate a GPU cap above 16 GiB until the cap policy is explicitly changed.
+No roadmap item, config, benchmark claim, or GitHub issue should request or
+validate a GPU tier above 16 GiB until the cap policy is explicitly changed.
+This is a product/claim ceiling, not an allocation target. The requested tier
+and effective live cap are separate values and may be lower.
 
 VRAM tiers:
 
@@ -34,6 +36,56 @@ Model parameter buckets:
 
 ## Cap Admission Equation
 
+Every GPU cell records three non-interchangeable cap meanings:
+
+```text
+policy_ceiling_bytes = 17179869184
+requested_tier_bytes = selected validation tier
+
+pre_context_live_capacity_bytes = min(
+  physical_or_reportable_local_bytes,
+  dxgi_local_budget_bytes)
+
+pre_context_gpu_reserve_bytes = max(
+  1 GiB, ceil(0.10 * pre_context_live_capacity_bytes))
+
+pre_context_effective_cap_bytes = min(
+  requested_tier_bytes,
+  max(0, min(policy_ceiling_bytes, pre_context_live_capacity_bytes)
+    - pre_context_gpu_reserve_bytes))
+
+post_context_live_capacity_bytes = min(
+  physical_or_reportable_local_bytes,
+  fresh_dxgi_local_budget_bytes,
+  reconciled_owned_gpu_bytes + cuda_free_bytes)
+
+gpu_reserve_bytes = max(
+  pre_context_gpu_reserve_bytes,
+  1 GiB,
+  ceil(0.10 * post_context_live_capacity_bytes))
+
+effective_live_cap_bytes = min(
+  pre_context_effective_cap_bytes,
+  requested_tier_bytes,
+  max(0, min(policy_ceiling_bytes, post_context_live_capacity_bytes)
+    - gpu_reserve_bytes))
+```
+
+The reserve is provisional T-100 from the
+[threshold registry](adaptive-runtime/threshold-registry.md). A cell is
+executable only when its peak fits `effective_live_cap_bytes`. A configuration
+that requests 16 GiB does not prove that 16 GiB exists physically or is
+available under WDDM.
+
+Admission is two-stage. The supervisor performs conservative admission before
+worker CUDA-context initialization. After minimal context creation it
+reconciles actual context/runtime bytes plus CUDA/DXGI observations and repeats
+admission before model load. Model/backend allocation is reconciled before
+warmup and watched throughout the run. Pre-context reject means no CUDA
+context; post-context reject means no model load.
+The watchdog may reduce the admitted effective cap as live conditions worsen;
+it cannot grow the cap during a run.
+
 Each validation cell must account for the resident GPU memory envelope:
 
 ```text
@@ -52,7 +104,7 @@ peak_vram =
 + unknown_gpu_bytes
 + telemetry_safety_margin_bytes
 
-certify only if peak_vram <= hard_vram_cap_bytes
+certify only if peak_vram <= effective_live_cap_bytes
 ```
 
 Device-level memory delta is corroborating evidence only. Certification requires
@@ -92,7 +144,8 @@ Every benchmark or claim should identify a validation cell:
 validation_cell_id =
   model_parameter_bucket
   + model_hash
-  + quantization_format
+  + quant_artifact_sha256
+  + tensor_quantization_inventory_sha256
   + context_tokens
   + vram_tier_gib
   + backend
@@ -107,12 +160,58 @@ model_parameter_bucket
 parameter_count
 model_hash
 quantization_format
+quant_artifact_sha256
+quantization_recipe_id
+mixed_quantization
+tensor_quantization_inventory_sha256
 context_tokens
 vram_tier_gib
-hard_vram_cap_bytes
+policy_ceiling_bytes
+requested_tier_bytes
+pre_context_live_capacity_bytes
+pre_context_effective_cap_bytes
+post_context_live_capacity_bytes
+gpu_reserve_bytes
+effective_live_cap_bytes
+pre_context_admission_status
+post_context_admission_status
+clearance_stage
+supervisor_build_sha256
+worker_build_sha256
 validation_cell_id
 validation_cell_status
 ```
+
+`vram_tier_gib` is a legacy/display alias for `requested_tier_bytes`; it is not
+the executable cap. New manifests use the byte-valued fields as authoritative.
+Promoted GPU/model evidence requires P6-04A/#103 supervisor, Job, lease,
+watchdog, cancellation, and cleanup evidence for the declared clearance stage.
+
+### Mixed-quant GGUF semantics
+
+Labels such as `Q4_K_M` commonly identify an artifact recipe whose tensors may
+use multiple GGML quantization types. Therefore `quantization_format=q4` or a
+nominal average bit width is insufficient identity and insufficient capacity
+evidence. Every GGUF model cell retains:
+
+```text
+gguf_artifact_sha256
+quantization_label
+quantization_recipe_id and tool/source revision
+mixed_quantization = true | false
+tensor_quantization_inventory = sorted tensor name, type, shape, offset, bytes
+tensor_quantization_inventory_sha256
+tensor_type_count_and_byte_histogram
+weight_payload_bytes and weight_metadata_bytes from the exact artifact
+```
+
+Capacity uses exact tensor/artifact bytes, not parameter count multiplied by a
+labelled bit width. A same-cell kernel comparison keeps the model and quant
+artifact hashes plus inventory hash identical. An offline progressive or
+alternative representation is a derived-artifact variant with parent hash,
+recipe, effective bytes, reconstruction workspace, and quality evidence; it is
+not silently the same quant cell. A static mixed-quant artifact identity does
+not authorize runtime precision switching.
 
 Compression-enabled cells add:
 
@@ -190,6 +289,27 @@ model-cell identity fields. The comparator must still reject mismatches in
 model hash, quant artifact, prompt fixture, context, batch, OS, GPU, driver,
 CUDA version, backend class, and cap tier.
 
+## Hardware Execution Clearance
+
+Clearance controls which evidence a cell may collect; it is not a model result
+status. The normative runtime transitions are in the
+[runtime state machine](runtime-state-machine.md), and the entry evidence is in
+the [execution plan](adaptive-runtime/execution-and-testing-plan.md).
+
+| Clearance | Maximum permitted evidence |
+|---|---|
+| C0 | CPU/reference, simulation, schemas, and fault injection without GPU work. |
+| C1 | Tiny attended deterministic CUDA correctness/Compute Sanitizer fixture; no model, calibration, sustained benchmark, or unattended execution. |
+| C2 | Short supervised synthetic CUDA benchmark/calibration only after P6-04A/#103 and T-100 through T-105 pass. |
+| C3 | Short exact-artifact model-backed Phase 6 evidence after C2 plus model/quant/quality prerequisites. |
+| C4 | Sustained conventional 9B calibration/replay after the Phase 6 audit and Phase 7 entry gates; Ornith remains a separate admitted stress cell. |
+| C5 | Longer evidence and separately admitted 30B/70B/90B work. |
+
+An issue closed without retained exit evidence does not grant clearance. A
+guard breach, context-fatal CUDA error, missed cancellation deadline, or
+unreconciled cleanup makes the run `rejected` or quarantined and requires review
+plus fresh preflight before another hardware attempt.
+
 ## Cell Status
 
 Allowed statuses:
@@ -228,10 +348,14 @@ Promoted cells require retained artifacts:
 - telemetry JSONL,
 - benchmark manifest,
 - lifecycle validator result,
+- clearance record and P6-04A/#103 exit evidence where C2+ applies,
+- supervisor/worker hashes, exclusive lease, Job limits/exit, watchdog,
+  cancellation/abort, cleanup, and cooldown evidence,
 - dependency pin record,
-- model hash and quantization artifact hash,
+- model hash, quantization artifact hash, recipe, and tensor inventory hash,
 - backend and OS/hardware profile,
-- cap certification or precise fail-closed reason,
+- policy ceiling, requested tier, live observations, reserve, effective cap,
+  both admission decisions, and cap certification or precise fail-closed reason,
 - quality gate result when the claim mentions useful output,
 - host memory and IO telemetry when CPU/offload participates,
 - transfer metrics when GPU/offload profitability is claimed,
@@ -274,8 +398,9 @@ Required fixed cell assumptions:
 - `context_tokens`: `2048` for the first gate
 - `batch_size`: `1`
 - decode sample: at least `128` generated tokens per retained run
-- quantization: pinned GGUF q4-family artifact, preferably fixed-block
-  `Q4_K_M` or the exact q4 format used by the selected model
+- quantization: pinned GGUF q4-family artifact, preferably `Q4_K_M` or the exact
+  selected recipe, with the complete per-tensor type/shape/byte inventory;
+  `Q4_K_M` is treated as potentially mixed-quant, not uniformly four bits
 - no unproven runtime compression, low-rank reconstruction, sparsity, MoE
   pruning, or full FP16 materialization may be counted as part of this gate
 - `model_hash` and `quant_artifact_sha256` are mandatory
@@ -303,10 +428,17 @@ end-to-end performance.
 | `12 GiB` | Primary validation tier when 8 GiB is too tight. | `quality-gated`, `profitable`, `validated-benchmark`, or `rejected`. |
 | `16 GiB` | Current ceiling/reference tier. | `validated-benchmark` or `rejected`; a pass here does not promote lower tiers. |
 
+Each tier is `requested_tier_bytes`. Its executable bound remains the lower
+T-100 `effective_live_cap_bytes`; the tier label never overrides physical VRAM,
+the WDDM budget, CUDA availability, or the nonzero reserve.
+
 Acceptance thresholds for `validated-benchmark`:
 
-- `peak_vram <= hard_vram_cap_bytes`, with
-  `hard_vram_cap_bytes <= 17179869184`
+- `peak_vram <= effective_live_cap_bytes <= requested_tier_bytes`, with
+  `requested_tier_bytes <= policy_ceiling_bytes = 17179869184`
+- accepted C4 supervisor clearance with pre-context, post-context,
+  model/backend reconciliation, watchdog, cancellation, cleanup, and lease
+  evidence
 - no unreconciled backend, workspace, retained-pool, KV, or unknown allocation
   bytes
 - quality fixture pass rate `>= 95%` against the retained prompt suite
@@ -319,6 +451,8 @@ Acceptance thresholds for `validated-benchmark`:
   `<= 10%`
 - host memory and IO telemetry retained whenever CPU/offload participates
 - no full FP16 weight materialization in VRAM
+- exact mixed-quant tensor inventory and byte histogram reconcile with the GGUF
+  artifact hash and resident weight ledger
 - compression-enabled runs record effective bits, metadata overhead,
   reconstruction workspace, attention error, top-k overlap, and quality deltas
   for the exact cell
@@ -326,7 +460,14 @@ Acceptance thresholds for `validated-benchmark`:
 Reject the 9B cell when any of these occur:
 
 - requested GPU cap exceeds `17179869184` bytes
+- requested tier is substituted for an unavailable or smaller effective live
+  cap, or the nonzero reserve is counted as payload
+- P6-04A/#103 or the required C4 clearance evidence is missing
+- pre-context/post-context admission, watchdog, cancellation, or cleanup
+  evidence is missing, stale, contradictory, or failed
 - exact model or quantization hashes are missing
+- a nominal `q4`/`Q4_K_M` label is used without the exact tensor quantization
+  inventory, recipe identity, payload bytes, and metadata bytes
 - full FP16 weights are materialized in VRAM
 - nominal compression bit width is reported without effective bits, metadata
   overhead, reconstruction cost, and quality evidence

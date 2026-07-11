@@ -28,10 +28,24 @@
 | Synthetic quality fixtures overstate kernel correctness | High | 5 | require retained prompt fixture hashes, CPU reference outputs, and tolerance policy | New roadmap control | Needs real quality fixture contract |
 | Tensor Core or vendor path claim is unproven | High | 5 | require capability detection, dtype/layout/alignment evidence, fallback reason, and profiler artifact hash | New roadmap control | Needs CUDA feature/profiler evidence contract |
 | CLI-only comparator evidence bypasses retained artifact review | High | 6 | require manifest-to-manifest comparison against strict kernel benchmark manifests | New roadmap control | Needs kernel manifest ingestion and required-field validation |
-| Toy q4 block semantics misrepresent GGUF Q4_K_M behavior | High | 6 | add exact selected GGUF/GGML q4 tensor-slice reference fixtures before performance claims | New roadmap control | Needs real q4 block decoder and fixture hashes |
+| Toy q4 block semantics misrepresent a mixed GGUF Q4_K_M recipe | High | 6 | enumerate every actual per-tensor `ggml_type` and add exact reference fixtures before performance claims | Tracked by #74; the existing CUDA block remains synthetic only | Needs per-type decoders, eligible-subset mapping and fixture hashes |
 | CUDA kernel compile smoke mistaken for CUDA correctness | High | 6 | add guarded device launch correctness test with sync, error checks, copy-back, and CPU-reference tolerance | New roadmap control | Needs self-hosted CUDA correctness workflow |
 | 9B artifact or prompt fixture drift invalidates comparisons | High | 6 | pin model hash, quant artifact hash, tokenizer metadata, prompt fixture hash, and baseline manifest hash | New roadmap control | Needs retained artifact store and runbook |
 | Compression result overgeneralized across q4 formats or model families | High | 6 | bind compression result to exact model hash, quant artifact, q4 format, context, prompt fixture, backend, GPU, driver, CUDA version, and cap tier | New roadmap control | Needs comparator support for compression variant fields |
+| Optimizer emits a plan that the pinned runtime cannot execute safely | Critical | 7 | require an actuator inventory, capability acknowledgement, plan validation, and explicit `R0`-`R3` recovery per decision | Proposed adaptive-runtime control | Needs in-process adapter and acknowledged plan bundle |
+| WDDM physical residency is mistaken for PrismInfer-owned allocation | Critical | 7 | keep owned-allocation, process-tree, DXGI budget/usage, backend-ledger, and physical-residency claims separate | Proposed adaptive-runtime control | Needs the Windows evidence protocol and Job-backed process boundary |
+| Shell-based backend launch permits unsafe arguments or escapes accounting | Critical | 7 | replace `std::system` with native argument-vector process creation, controlled environment, inherited-handle policy, and Job Object containment | Proposed adaptive-runtime control | Current process-backed adapter remains unsuitable for adaptive execution |
+| Calibration overfits one prompt or thermal state | High | 7-9 | randomized blocks, nested holdouts, fresh confirmation runs, abstention, and fingerprint-bound invalidation | Proposed adaptive-runtime control | Needs calibration store, threshold registry, and independent request/session samples |
+| Hybrid recurrent state is incorrectly treated as ordinary KV cache | High | 7-8 | use a conventional full-attention 9B foundation cell; model Ornith/DeltaNet state explicitly in a separate stress cell | Proposed adaptive-runtime control | Needs architecture-aware state schema and hybrid fixtures |
+| Post-commit router audit is described as lossless fallback | Critical | 8 | require verification before commit for reversible paths; otherwise classify output as explicitly lossy and stop future use | Proposed adaptive-runtime control | Structured-compute provider remains optional research |
+| Speculative decoding optimizes acceptance rather than useful output | High | 8 | optimize committed target-distributed output tokens/sec and observed external bytes per committed token | Proposed adaptive-runtime control | Needs exact cycle accounting including the target token and rollback/recovery |
+| 70B/90B roadmap work begins despite infeasible host or bandwidth lower bounds | Critical | 7-9 | run exact capacity, storage, transfer, and resource-DAG admission at program entry; keep cells gated when the service envelope cannot be met | Proposed adaptive-runtime control | Needs exact artifacts and measured hardware inputs |
+| Nominal 16 GiB policy exceeds the usable WDDM budget or even physical VRAM | Critical | 0/6-9 | treat 16 GiB as a claim ceiling only; derive each run cap from live budget, safety reserve, and owned-allocation evidence | Hardware audit found 16,303 MiB physical VRAM and a smaller usable budget; `AGENTS.md` now blocks fixed-cap long runs | Needs DXGI budget admission, a configurable reserve, and retained preflight evidence |
+| CUDA context or workload begins before memory admission and continues after rejection | Critical | 0/6-9 | use conservative pre-context admission, context-only reconciliation, then an exact one-shot workload token; stop immediately on rejection | Tracked by #103; existing probe creates a CUDA context before complete admission and some rejection paths remain observational | #103 implementation and fault-suite closure |
+| Size, byte-count, or launch-geometry arithmetic wraps before a safety check | Critical | 0-9 | centralize checked add/multiply/round-up helpers; reject zero, overflow, and out-of-range extents; fuzz boundary values | Several runtime, ledger, backend, and CUDA launch paths require hardening | Needs checked-arithmetic migration plus sanitizer/fuzz evidence |
+| Sustained GPU work runs without a hardware supervisor | Critical | 5-9 | single-owner GPU lease, bounded child process, wall-clock deadline, cancellation, thermal/power/VRAM/host-commit watchdog, and fail-closed artifact state | #103 is Ready; `AGENTS.md` prohibits sustained or full-model CUDA work until it closes | #81/#82 prerequisites, #103 implementation and fault-injection tests |
+| Windows Device Guard blocks newly built unsigned executables | High | 0/5-9 | retain Code Integrity evidence, perform a harmless launch check before GPU access, and use an approved signing/trust path; never weaken Device Guard | Historical Code Integrity events showed blocked PrismInfer test executables; the current probe launches | Needs a repeatable trusted-build/signing procedure for self-hosted validation |
+| Untrusted pull-request code executes on a persistent self-hosted GPU runner | Critical | 0-9 | keep GPU workflows manual-only on trusted refs, disable checkout credential persistence, minimize token permissions, and retain runner provenance | Local workflow changes remove pull-request triggers and persistent checkout credentials | Needs review/push plus an ephemeral or freshly restored runner policy |
 
 ## Original Plan Traceability
 
@@ -47,7 +61,8 @@
 
 | Research document | Purpose |
 |---|---|
-| `docs/research-roadmap-constrained-llm-inference.md` | Phase 1 through Phase 6 constrained-inference roadmap. |
+| `Plan.md` | Canonical final thesis, clearance matrix, dependency order, current Project status and phase outcomes. |
+| `docs/research-roadmap-constrained-llm-inference.md` | Detailed Phase 1-6 research history plus the safety-first static-controller handoff governed by `Plan.md`. |
 | `docs/validation-matrix.md` | Canonical model-bucket and VRAM-tier validation envelope, capped at 16 GiB. |
 | `docs/claim-taxonomy.md` | Canonical claim labels and non-promotion rules. |
 | `docs/host-memory-and-io-telemetry.md` | Host RAM, pagefile, mmap, and IO evidence policy. |
@@ -63,6 +78,7 @@
 | `docs/phase6-compression-architecture.md` | Phase 6 compression workflow, memory ledger, lane order, and claim classification. |
 | `docs/phase6-evidence.md` | Phase 6 evidence status and audit placeholder. |
 | `docs/kernel-benchmark-methodology.md` | Benchmark, comparator, baseline, and profiler evidence policy for kernel work. |
+| `docs/adaptive-runtime/README.md` | Index for the proposed calibrated adaptive-runtime architecture, 9B optimizer experiment, evidence protocols, scope, roadmap, and council record. |
 
 Archived context:
 

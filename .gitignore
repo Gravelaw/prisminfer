@@ -17,6 +17,10 @@ prisminfer-probe.jsonl
 phase4-90b-simulated-plan.json
 phase4-overclaim-rejected.json
 
+# Local-only preservation for superseded working material. Canonical history
+# remains under docs/archive/ and must stay source controlled.
+/.local-archive/
+
 # Local editor and OS noise.
 .vscode/
 .idea/
