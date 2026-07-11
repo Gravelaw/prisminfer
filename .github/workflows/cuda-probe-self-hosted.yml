@@ -2,28 +2,49 @@ name: CUDA Probe Self-Hosted
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - CMakeLists.txt
-      - include/**
-      - src/**
-      - tests/**
-      - tools/**
-      - configs/**
-      - .github/workflows/cuda-probe-self-hosted.yml
+    inputs:
+      reviewed_sha:
+        description: Full 40-character SHA reviewed at the current tip of main
+        required: true
+        type: string
+      preflight_confirmed:
+        description: Confirm the AGENTS.md hardware preflight is complete and the run is attended
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: cuda-probe-${{ github.ref }}
-  cancel-in-progress: true
+  # Repository-wide mutex for PrismInfer GPU workflows. A host-wide lease is a
+  # separate supervisor prerequisite and is not claimed by this workflow.
+  group: prisminfer-self-hosted-gpu-${{ github.repository }}
+  cancel-in-progress: false
 
 jobs:
+  dispatch-guard:
+    name: Validate trusted main dispatch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require reviewed main SHA and operator preflight
+        shell: bash
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          PREFLIGHT_CONFIRMED: ${{ inputs.preflight_confirmed }}
+        run: |
+          set -euo pipefail
+          [[ "$DISPATCH_REF" == "refs/heads/main" ]]
+          [[ "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$REVIEWED_SHA" == "$DISPATCH_SHA" ]]
+          [[ "$PREFLIGHT_CONFIRMED" == "true" ]]
+
   cuda-probe:
     name: Windows NVIDIA CUDA probe
+    needs: dispatch-guard
     runs-on:
       - self-hosted
       - Windows
@@ -36,7 +57,11 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          clean: true
+          persist-credentials: false
+          ref: ${{ inputs.reviewed_sha }}
 
       - name: Show CUDA toolchain
         run: |
@@ -44,10 +69,30 @@ jobs:
           nvcc --version
           nvidia-smi
 
-      - name: Clean generated CUDA build state
+      - name: Require a clean CUDA evidence workspace
         run: |
-          Remove-Item -LiteralPath build-cuda -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item -LiteralPath *.jsonl, *-manifest.json -Force -ErrorAction SilentlyContinue
+          if (Test-Path -LiteralPath build-cuda) {
+            throw "actions/checkout did not provide a clean build workspace"
+          }
+          $staleEvidence = Get-ChildItem -LiteralPath . -File | Where-Object {
+            $_.Name -like '*.jsonl' -or
+            $_.Name -like '*-manifest.json' -or
+            $_.Name -eq 'cuda-probe-promotion-status.json' -or
+            $_.Name -eq 'cuda-probe-blocked.json' -or
+            $_.Name -eq 'prism-probe-preflight.txt'
+          }
+          if ($staleEvidence) {
+            throw "actions/checkout left stale CUDA evidence in the workspace"
+          }
+          [ordered]@{
+            promotable = $false
+            workflow_guard_status = 'incomplete'
+            reason = 'workflow_not_completed'
+            claim_scope = 'legacy_cuda_probe_smoke'
+            repository = $env:GITHUB_REPOSITORY
+            sha = $env:GITHUB_SHA
+            run_id = $env:GITHUB_RUN_ID
+          } | ConvertTo-Json -Compress | Out-File -FilePath cuda-probe-promotion-status.json -Encoding utf8
 
       - name: Configure CUDA probe build
         run: |
@@ -57,19 +102,18 @@ jobs:
       - name: Build
         run: |
           $env:Path = "{0};{1}" -f [Environment]::GetEnvironmentVariable('Path','Machine'), [Environment]::GetEnvironmentVariable('Path','User')
-          cmake --build build-cuda --config Debug --parallel
+          cmake --build build-cuda --config Debug --parallel 8
 
       - name: Unit tests
         run: |
           $env:Path = "{0};{1}" -f [Environment]::GetEnvironmentVariable('Path','Machine'), [Environment]::GetEnvironmentVariable('Path','User')
-          ctest --test-dir build-cuda -C Debug --output-on-failure
-          if ($LASTEXITCODE -ne 0) {
+          ctest --test-dir build-cuda -C Debug --timeout 60 --output-on-failure
+          $firstTestExit = $LASTEXITCODE
+          if ($firstTestExit -ne 0) {
             Write-Host "Retrying failed CTest entries once on the self-hosted Windows CUDA runner."
-            ctest --test-dir build-cuda -C Debug --rerun-failed --output-on-failure
-          }
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Self-hosted CUDA runner could not complete unit-test executable launch. Hosted CMake CI remains the required unit-test gate; continuing to required probe evidence."
-            exit 0
+            ctest --test-dir build-cuda -C Debug --rerun-failed --timeout 60 --output-on-failure
+            $retryExit = $LASTEXITCODE
+            throw "Initial self-hosted CUDA unit-test pass failed with exit code $firstTestExit; diagnostic retry exit code was $retryExit. Evidence is non-promotable."
           }
 
       - name: Probe executable launch preflight
@@ -86,10 +130,9 @@ jobs:
           if ($probeExit -ne 0) {
             $preflight = Get-Content prism-probe-preflight.txt -Raw -ErrorAction SilentlyContinue
             if ($preflight -match "Application Control policy has blocked this file") {
-              Write-Warning "Skipping CUDA probe evidence because Windows Application Control blocked prism-probe.exe before PrismInfer code could run."
               "CUDA_PROBE_BLOCKED=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
               '{"status":"blocked","reason":"windows_application_control_blocked_prism_probe"}' | Out-File -FilePath cuda-probe-blocked.json -Encoding utf8
-              exit 0
+              throw "Windows Application Control blocked prism-probe.exe; evidence is non-promotable and host security must not be weakened."
             }
             throw "prism-probe launch preflight failed with exit code $probeExit"
           }
@@ -98,32 +141,65 @@ jobs:
         if: env.CUDA_PROBE_BLOCKED != 'true'
         run: |
           $env:Path = "{0};{1}" -f [Environment]::GetEnvironmentVariable('Path','Machine'), [Environment]::GetEnvironmentVariable('Path','User')
-          .\build-cuda\Debug\prism-probe.exe --mode 1gb-safe-cpu --run-id ci-cpu-smoke --telemetry ci-cpu-smoke.jsonl --manifest ci-cpu-smoke-manifest.json
+          $summaryJson = .\build-cuda\Debug\prism-probe.exe --mode 1gb-safe-cpu --run-id ci-cpu-smoke --telemetry ci-cpu-smoke.jsonl --manifest ci-cpu-smoke-manifest.json
+          $probeExit = $LASTEXITCODE
+          if ($probeExit -ne 0) { throw "CPU probe smoke failed with exit code $probeExit" }
+          $summary = $summaryJson | ConvertFrom-Json
+          $manifest = Get-Content -LiteralPath ci-cpu-smoke-manifest.json -Raw | ConvertFrom-Json
+          if ($summary.status -ne 'ok' -or $summary.failure_reason -ne '') { throw "CPU probe summary did not report an unqualified success" }
+          if ($manifest.status -ne 'ok' -or $manifest.failure_reason -ne '') { throw "CPU probe manifest did not report an unqualified success" }
           .\build-cuda\Debug\prism-validate-lifecycle.exe ci-cpu-smoke.jsonl
+          if ($LASTEXITCODE -ne 0) { throw "CPU probe lifecycle validation failed" }
 
       - name: GPU probed smoke
         if: env.CUDA_PROBE_BLOCKED != 'true'
         run: |
           $env:Path = "{0};{1}" -f [Environment]::GetEnvironmentVariable('Path','Machine'), [Environment]::GetEnvironmentVariable('Path','User')
-          .\build-cuda\Debug\prism-probe.exe --mode 1gb-safe-gpu-probed --run-id ci-gpu-smoke --telemetry ci-gpu-smoke.jsonl --manifest ci-gpu-smoke-manifest.json
+          $summaryJson = .\build-cuda\Debug\prism-probe.exe --mode 1gb-safe-gpu-probed --run-id ci-gpu-smoke --telemetry ci-gpu-smoke.jsonl --manifest ci-gpu-smoke-manifest.json
+          $probeExit = $LASTEXITCODE
+          if ($probeExit -ne 0) { throw "GPU probe smoke failed with exit code $probeExit" }
+          $summary = $summaryJson | ConvertFrom-Json
+          $manifest = Get-Content -LiteralPath ci-gpu-smoke-manifest.json -Raw | ConvertFrom-Json
+          if ($summary.status -ne 'ok' -or $summary.failure_reason -ne '') { throw "GPU probe summary did not report an unqualified success" }
+          if ($manifest.status -ne 'ok' -or $manifest.failure_reason -ne '') { throw "GPU probe manifest did not report an unqualified success" }
           .\build-cuda\Debug\prism-validate-lifecycle.exe ci-gpu-smoke.jsonl
+          if ($LASTEXITCODE -ne 0) { throw "GPU probe lifecycle validation failed" }
 
       - name: Forced breach smoke
         if: env.CUDA_PROBE_BLOCKED != 'true'
         run: |
           $env:Path = "{0};{1}" -f [Environment]::GetEnvironmentVariable('Path','Machine'), [Environment]::GetEnvironmentVariable('Path','User')
-          .\build-cuda\Debug\prism-probe.exe --mode 1gb-safe-cpu --run-id ci-forced-allocator --telemetry ci-forced-allocator.jsonl --manifest ci-forced-allocator-manifest.json --simulate-allocator-peak-bytes 1073741825
-          if ($LASTEXITCODE -eq 0) { throw "forced allocator breach unexpectedly succeeded" }
+          $summaryJson = .\build-cuda\Debug\prism-probe.exe --mode 1gb-safe-cpu --run-id ci-forced-allocator --telemetry ci-forced-allocator.jsonl --manifest ci-forced-allocator-manifest.json --simulate-allocator-peak-bytes 1073741825
+          $probeExit = $LASTEXITCODE
+          if ($probeExit -eq 0) { throw "forced allocator breach unexpectedly succeeded" }
+          $summary = $summaryJson | ConvertFrom-Json
+          $manifest = Get-Content -LiteralPath ci-forced-allocator-manifest.json -Raw | ConvertFrom-Json
+          if ($summary.status -ne 'failed_closed' -or $summary.failure_reason -ne 'allocator_peak_exceeded_cap') { throw "Forced allocator summary did not report the expected fail-closed reason" }
+          if ($manifest.status -ne 'failed_closed' -or $manifest.failure_reason -ne 'allocator_peak_exceeded_cap') { throw "Forced allocator manifest did not report the expected fail-closed reason" }
           .\build-cuda\Debug\prism-validate-lifecycle.exe ci-forced-allocator.jsonl
+          if ($LASTEXITCODE -ne 0) { throw "Forced allocator lifecycle validation failed" }
+
+      - name: Record completed workflow guards without promoting evidence
+        run: |
+          [ordered]@{
+            promotable = $false
+            workflow_guard_status = 'passed'
+            reason = 'requires_independent_evidence_review'
+            claim_scope = 'legacy_cuda_probe_smoke'
+            repository = $env:GITHUB_REPOSITORY
+            sha = $env:GITHUB_SHA
+            run_id = $env:GITHUB_RUN_ID
+          } | ConvertTo-Json -Compress | Out-File -FilePath cuda-probe-promotion-status.json -Encoding utf8
 
       - name: Upload probe evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: cuda-probe-evidence
           path: |
             *.jsonl
             *-manifest.json
+            cuda-probe-promotion-status.json
             cuda-probe-blocked.json
             prism-probe-preflight.txt
             build-cuda/Testing/Temporary/*.log

@@ -2,28 +2,49 @@ name: Offload Profitability Self-Hosted
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - CMakeLists.txt
-      - include/**
-      - src/**
-      - tests/**
-      - tools/**
-      - configs/benchmark-*.json
-      - .github/workflows/offload-profitability-self-hosted.yml
+    inputs:
+      reviewed_sha:
+        description: Full 40-character SHA reviewed at the current tip of main
+        required: true
+        type: string
+      preflight_confirmed:
+        description: Confirm the AGENTS.md hardware preflight is complete and the run is attended
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: offload-profitability-${{ github.ref }}
-  cancel-in-progress: true
+  # Repository-wide mutex for PrismInfer GPU workflows. A host-wide lease is a
+  # separate supervisor prerequisite and is not claimed by this workflow.
+  group: prisminfer-self-hosted-gpu-${{ github.repository }}
+  cancel-in-progress: false
 
 jobs:
+  dispatch-guard:
+    name: Validate trusted main dispatch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require reviewed main SHA and operator preflight
+        shell: bash
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          PREFLIGHT_CONFIRMED: ${{ inputs.preflight_confirmed }}
+        run: |
+          set -euo pipefail
+          [[ "$DISPATCH_REF" == "refs/heads/main" ]]
+          [[ "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$REVIEWED_SHA" == "$DISPATCH_SHA" ]]
+          [[ "$PREFLIGHT_CONFIRMED" == "true" ]]
+
   profitability:
     name: Windows NVIDIA offload profitability
+    needs: dispatch-guard
     runs-on:
       - self-hosted
       - Windows
@@ -36,41 +57,91 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          clean: true
+          persist-credentials: false
+          ref: ${{ inputs.reviewed_sha }}
 
-      - name: Clean build and evidence state
+      - name: Require a clean profitability evidence workspace
         run: |
-          Remove-Item -LiteralPath build-profitability -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item -LiteralPath phase3-*.jsonl, phase3-*-manifest.json -Force -ErrorAction SilentlyContinue
+          if (Test-Path -LiteralPath build-profitability) {
+            throw "actions/checkout did not provide a clean build workspace"
+          }
+          $staleEvidence = Get-ChildItem -LiteralPath . -File | Where-Object {
+            $_.Name -like 'phase3-*.jsonl' -or
+            $_.Name -like 'phase3-*-manifest.json' -or
+            $_.Name -eq 'phase3-promotion-status.json'
+          }
+          if ($staleEvidence) {
+            throw "actions/checkout left stale profitability evidence in the workspace"
+          }
+          [ordered]@{
+            promotable = $false
+            workflow_guard_status = 'incomplete'
+            reason = 'workflow_not_completed'
+            claim_scope = 'synthetic_fake_backend_profitability_smoke'
+            repository = $env:GITHUB_REPOSITORY
+            sha = $env:GITHUB_SHA
+            run_id = $env:GITHUB_RUN_ID
+          } | ConvertTo-Json -Compress | Out-File -FilePath phase3-promotion-status.json -Encoding utf8
 
       - name: Configure
         run: cmake -S . -B build-profitability -DPRISMINFER_ENABLE_CUDA_PROBE=ON
 
       - name: Build
-        run: cmake --build build-profitability --config Debug --parallel
+        run: cmake --build build-profitability --config Debug --parallel 8
 
       - name: Unit tests
-        run: ctest --test-dir build-profitability -C Debug --output-on-failure
+        run: ctest --test-dir build-profitability -C Debug --timeout 60 --output-on-failure
 
       - name: Accepted profitability smoke
         run: |
-          .\build-profitability\Debug\prism-probe.exe --mode 1gb-safe-cpu --backend fake --run-id phase3-profitability-accepted --validation-cell-id phase3-fake-cell-1gb --validation-cell-status profitable --model-parameter-bucket "<=2B" --parameter-count 15000000 --profitability-policy fail-closed --baseline-manifest phase3-cpu-baseline-manifest.json --offload-policy gpu --min-speedup-ratio 1.1 --staging-buffer-bytes 1048576 --cpu-baseline-ttft-ms 100 --cpu-baseline-decode-tps 10 --cpu-baseline-peak-bytes 67108864 --observed-ttft-ms 80 --observed-decode-tps 12 --token-latency-p50-ms 83 --token-latency-p95-ms 95 --transfer-h2d-bytes 1048576 --transfer-d2h-bytes 262144 --telemetry phase3-profitability-accepted.jsonl --manifest phase3-profitability-accepted-manifest.json
+          $summaryJson = .\build-profitability\Debug\prism-probe.exe --mode 1gb-safe-cpu --backend fake --run-id phase3-profitability-accepted --validation-cell-id phase3-fake-cell-1gb --validation-cell-status profitable --model-parameter-bucket "<=2B" --parameter-count 15000000 --profitability-policy fail-closed --baseline-manifest phase3-cpu-baseline-manifest.json --offload-policy gpu --min-speedup-ratio 1.1 --staging-buffer-bytes 1048576 --cpu-baseline-ttft-ms 100 --cpu-baseline-decode-tps 10 --cpu-baseline-peak-bytes 67108864 --observed-ttft-ms 80 --observed-decode-tps 12 --token-latency-p50-ms 83 --token-latency-p95-ms 95 --transfer-h2d-bytes 1048576 --transfer-d2h-bytes 262144 --telemetry phase3-profitability-accepted.jsonl --manifest phase3-profitability-accepted-manifest.json
+          $probeExit = $LASTEXITCODE
+          if ($probeExit -ne 0) { throw "Accepted profitability smoke failed with exit code $probeExit" }
+          $summary = $summaryJson | ConvertFrom-Json
+          $manifest = Get-Content -LiteralPath phase3-profitability-accepted-manifest.json -Raw | ConvertFrom-Json
+          if ($summary.status -ne 'ok' -or $summary.failure_reason -ne '') { throw "Accepted profitability summary did not report an unqualified success" }
+          if ($manifest.status -ne 'ok' -or $manifest.failure_reason -ne '') { throw "Accepted profitability manifest did not report an unqualified success" }
+          if ($manifest.profitability_status -ne 'accepted' -or -not $manifest.profitability_accepted -or $manifest.profitability_reason -ne '') { throw "Accepted profitability manifest did not report the expected decision" }
           .\build-profitability\Debug\prism-validate-lifecycle.exe phase3-profitability-accepted.jsonl
+          if ($LASTEXITCODE -ne 0) { throw "Accepted profitability lifecycle validation failed" }
 
       - name: Rejected profitability smoke
         run: |
-          .\build-profitability\Debug\prism-probe.exe --mode 1gb-safe-cpu --backend fake --run-id phase3-profitability-rejected --validation-cell-id phase3-fake-cell-1gb --validation-cell-status rejected --model-parameter-bucket "<=2B" --parameter-count 15000000 --profitability-policy fail-closed --baseline-manifest phase3-cpu-baseline-manifest.json --offload-policy gpu --min-speedup-ratio 1.1 --staging-buffer-bytes 1048576 --cpu-baseline-ttft-ms 100 --cpu-baseline-decode-tps 10 --observed-ttft-ms 99 --observed-decode-tps 10.1 --transfer-h2d-bytes 1048576 --telemetry phase3-profitability-rejected.jsonl --manifest phase3-profitability-rejected-manifest.json
-          if ($LASTEXITCODE -eq 0) { throw "slow offload candidate unexpectedly succeeded" }
+          $summaryJson = .\build-profitability\Debug\prism-probe.exe --mode 1gb-safe-cpu --backend fake --run-id phase3-profitability-rejected --validation-cell-id phase3-fake-cell-1gb --validation-cell-status rejected --model-parameter-bucket "<=2B" --parameter-count 15000000 --profitability-policy fail-closed --baseline-manifest phase3-cpu-baseline-manifest.json --offload-policy gpu --min-speedup-ratio 1.1 --staging-buffer-bytes 1048576 --cpu-baseline-ttft-ms 100 --cpu-baseline-decode-tps 10 --observed-ttft-ms 99 --observed-decode-tps 10.1 --transfer-h2d-bytes 1048576 --telemetry phase3-profitability-rejected.jsonl --manifest phase3-profitability-rejected-manifest.json
+          $probeExit = $LASTEXITCODE
+          if ($probeExit -eq 0) { throw "slow offload candidate unexpectedly succeeded" }
+          $summary = $summaryJson | ConvertFrom-Json
+          $manifest = Get-Content -LiteralPath phase3-profitability-rejected-manifest.json -Raw | ConvertFrom-Json
+          if ($summary.status -ne 'failed_closed' -or $summary.failure_reason -ne 'offload_not_profitable') { throw "Rejected profitability summary did not report the expected fail-closed reason" }
+          if ($manifest.status -ne 'failed_closed' -or $manifest.failure_reason -ne 'offload_not_profitable') { throw "Rejected profitability manifest did not report the expected fail-closed reason" }
+          if ($manifest.profitability_status -ne 'rejected' -or $manifest.profitability_accepted -or $manifest.profitability_reason -ne 'offload_not_profitable') { throw "Rejected profitability manifest did not report the expected decision" }
           .\build-profitability\Debug\prism-validate-lifecycle.exe phase3-profitability-rejected.jsonl
+          if ($LASTEXITCODE -ne 0) { throw "Rejected profitability lifecycle validation failed" }
+
+      - name: Record completed workflow guards without promoting evidence
+        run: |
+          [ordered]@{
+            promotable = $false
+            workflow_guard_status = 'passed'
+            reason = 'requires_independent_evidence_review'
+            claim_scope = 'synthetic_fake_backend_profitability_smoke'
+            repository = $env:GITHUB_REPOSITORY
+            sha = $env:GITHUB_SHA
+            run_id = $env:GITHUB_RUN_ID
+          } | ConvertTo-Json -Compress | Out-File -FilePath phase3-promotion-status.json -Encoding utf8
 
       - name: Upload profitability evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: phase3-offload-profitability-${{ github.run_id }}-${{ github.sha }}
           path: |
             phase3-*.jsonl
             phase3-*-manifest.json
+            phase3-promotion-status.json
             build-profitability/Testing/Temporary/*.log
           if-no-files-found: ignore
 
