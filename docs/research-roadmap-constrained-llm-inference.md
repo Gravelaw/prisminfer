@@ -1,25 +1,34 @@
 # Research Roadmap: Constrained LLM Inference
 
+Program authority: repository-root [`Plan.md`](../Plan.md). This document
+retains the detailed Phase 1-6 research history; `Plan.md` controls current
+thesis, dependency order, clearance, status, and Project #2 synchronization.
+
 This roadmap defines how PrismInfer should move from Phase 0 telemetry to real
 low-VRAM inference research.
 
 ## Research Question
 
 Can PrismInfer make large-model inference governed, measurable, fail-closed, and
-useful under constrained GPU memory by combining:
+useful under constrained GPU memory by first building a safe evidence/control
+substrate, then testing optional mechanisms independently?
+
+The active core combines:
 
 - llama.cpp/GGML/GGUF compatibility,
 - hard-cap memory governance,
 - quantized weights,
-- quantized and paged KV cache,
 - CPU/GPU/NVMe offload,
 - strict lifecycle and manifest evidence,
 - task-level quality gates,
-- one gated CUDA kernel prototype after same-cell baselines, 9B validation-cell
-  declaration, and allocation reconciliation,
+- an exclusive lease, contained worker, two-stage admission and watchdog,
+- one conservative static exact-cell plan over implemented actuators,
 - manifest-backed 9B evidence construction before any promoted kernel claim,
-- compression policies that account for effective bits, metadata overhead,
-  reconstruction workspace, and task quality before any constrained-VRAM claim?
+- exact per-tensor GGML quant semantics for the pinned GGUF recipe.
+
+Paged/quantized KV, new kernels, staging, speculation, progressive artifacts,
+and structured compute are independent optional hypotheses. None is required
+for the safety substrate or static-controller result.
 
 ## Non-Question
 
@@ -257,18 +266,18 @@ against same-cell llama.cpp/GGML/vendor baselines, and at least 10% faster on
 end-to-end decode for the declared cell. Otherwise the kernel lane remains
 research-only or is rejected.
 
-## Phase 6: 9B Evidence, Kernel Validation, and Compression Architecture
+## Phase 6: Safety and Exact Evidence Foundation
 
-Goal: convert the Phase 5 CUDA-kernel scaffold into retained, manifest-backed
-evidence for one exact 9B-class validation cell, then test bounded compression
-profiles under the same evidence rules.
+Goal: implement #103 fail-closed supervision/staged admission and convert the
+existing scaffolding into retained, manifest-backed evidence for one exact
+foundation validation cell. Kernel and offline KV results remain optional.
 
 Decision question:
 
-Can PrismInfer validate one exact q4 GGUF 9B cell under the declared <=16 GiB
-cap, with the primary target at 8 GiB, using strict manifests, same-cell
-baselines, CUDA correctness evidence, compression-aware memory accounting,
-quality fixtures, and end-to-end decode measurements?
+Can PrismInfer safely admit and validate one exact q4 GGUF foundation cell
+under an effective live GPU cap, using strict manifests, same-cell baselines,
+per-tensor quant truth, mandatory quality fixtures, truthful memory accounting,
+and end-to-end decode measurements?
 
 Required work:
 
@@ -284,13 +293,14 @@ Required work:
 - self-hosted CUDA kernel workflow,
 - guarded CUDA launch correctness test,
 - exact selected GGUF q4 block-reference semantics,
-- offline KV compression evaluator for KIVI/KVQuant/QServe-style policies and
-  PolarQuant/TurboQuant/QJL reference experiments,
+- optional offline KV compression evaluator for KIVI/KVQuant/QServe-style
+  policies and PolarQuant/TurboQuant/QJL reference experiments,
 - 9B quality fixture runner with deterministic prompts, retrieval/needle, and
   long-context fixtures,
 - kernel benchmark runner that emits strict manifests,
 - retained CPU/no-custom and llama.cpp/GGML CUDA/MMQ baselines,
-- retained PrismInfer candidate kernel evidence,
+- retained PrismInfer candidate kernel evidence only when that optional lane is
+  attempted,
 - result classification as `research-only`, `measured-non-certified`,
   `quality-gated`, `validated-benchmark`, or `rejected`.
 
@@ -323,6 +333,39 @@ Exit claim:
 The 9B representative cell is either `validated-benchmark`, `quality-gated`,
 `measured-non-certified`, `rejected`, or remains `research-only`. A pass does
 not imply deployability and does not generalize to the whole `>5B-10B` bucket.
+
+## Proposed Phase 7-9 Program: Calibrated Adaptive Runtime
+
+The detailed program lives in `docs/adaptive-runtime/`. Phase 6 remains active,
+but its safety prerequisites #81/#82 advance early so #103 can close the
+otherwise circular clearance dependency. No model-backed work may advance
+until the clearance matrix in `Plan.md` permits the exact cell.
+
+The binding sequence is:
+
+1. **Phase 7 - secure static foundation.** Replace the shell execution boundary,
+   establish Windows/WDDM and file-residency evidence, inventory the pinned
+   llama.cpp/GGML actuators, admit scale cells with resource-DAG lower bounds,
+   and run the exact admitted Llama 3.1 8B foundation experiment. A
+   PrismInfer plan is executable only when every decision maps to an
+   acknowledged actuator and an explicit `R0` through `R3` recovery class.
+2. **Phase 8 - optional mechanisms.** Establish a 30B static placement result
+   first. Kernel selection, bounded staging, architecture-state compression,
+   speculative decoding, and structured compute remain independent research
+   providers. Each must beat the static baseline and pass its own quality,
+   memory, security, and tail-latency gates before joint optimization.
+3. **Phase 9 - gated scale and portability.** Activate 70B or 90B experiments
+   only when Phase 7 capacity and bandwidth admission says the exact cell can
+   meet the declared service envelope. Recalibration and invalidation rules are
+   tested across hardware and software fingerprints before a final audit.
+
+The preferred foundation is a self-produced, hash-pinned Llama 3.1 8B Instruct
+text GGUF, subject to accepted license/access. Ornith/Qwen3.5-class models are
+separate hybrid stress cells because their
+DeltaNet/full-attention architecture carries recurrent state that cannot be
+modeled as uniform KV cache. Optimizer throughput is measured in committed,
+target-distributed output tokens per second; speculative acceptance rate is a
+diagnostic rather than the objective.
 
 ## Claim Taxonomy
 
@@ -361,5 +404,8 @@ claims:
    tiers by analogy.
 7. Phase 6 evidence construction: exact 9B cell artifacts and manifests must be
    retained before any kernel performance claim is promoted.
+8. Proposed Phase 7 controller proof: the exact admitted Llama 3.1 8B
+   cell must pass actuator, recovery, memory, quality, and tail-latency gates
+   before dynamic mechanisms or larger-model conclusions are activated.
 
 No cell above 16 GiB is in scope for the current roadmap.

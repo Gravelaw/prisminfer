@@ -4,7 +4,7 @@
 
 - The PrismInfer repository root is `D:\Research\prisminfer`. All PrismInfer code, documentation, configuration, tests, generated planning artifacts, and Git operations must be scoped beneath that root.
 - A session opened at `D:\Research` is one directory above the repository. Enter `D:\Research\prisminfer` before inspecting or changing the project; do not create or edit PrismInfer files in `D:\Research` or a sibling checkout.
-- `Plan.md` is planned to become the canonical program-control document under the final #79 freeze, but it is not established by this prerequisite slice. Until it lands, this file controls safety; existing phase documents, issues, and Project fields provide planning context but may not override these rules.
+- `Plan.md` is the canonical program-control document established by the final #79 freeze. This file remains authoritative for repository-operation and safety invariants; `Plan.md` controls program thesis, scope, dependency order, clearances, and phase exit. Existing phase documents, issues, and Project fields are operational/detail sources and cannot override either authority.
 - PrismInfer is a C++20 CMake project for low-VRAM inference governance, telemetry, and evidence; keep CUDA, llama.cpp, GGML, and GGUF work compatible with that ecosystem rather than inventing a new runtime.
 - Memory-cap evidence is product behavior: missing, contradictory, or incomplete telemetry must fail closed, not warn-and-pass.
 - Do not promote 9B, Tensor Core, deployable-profile, speedup, or bucket-wide claims unless retained manifests/artifacts satisfy the relevant phase docs.
@@ -142,8 +142,8 @@ Run only the lane authorized by the change and hardware ladder:
 # Default CPU verification
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify.ps1
 
-# Optional CUDA probe. The #73 tiny-kernel lane is not yet established by this
-# intermediate policy; do not add or invoke a fixture/workflow for it here.
+# Optional CUDA probe. This remains distinct from the established #73 tiny
+# synthetic-kernel correctness lane; both lanes remain opt-in and bounded.
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify.ps1 -WithCuda
 
 # Non-mutating setup/cleanup helpers
@@ -153,7 +153,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev-clean.ps1 -WhatI
 ```
 
 - Default builds are non-CUDA and use `cmake -S . -B build`, `cmake --build build --config Debug --parallel 8`, then CTest. Focused tests may use `ctest --test-dir build -C Debug -R "test_name" --output-on-failure`.
-- CUDA kernels remain opt-in. The `vs2026-cuda-sm120` preset and #73 synthetic fixture are local, attended, non-promotable lanes only. The self-hosted #73 workflow is manual `workflow_dispatch` from reviewed `main` after the complete hardware preflight; it is never a `pull_request` gate. Later attended CUDA/sanitizer runs must remain serial and bounded.
+- CUDA kernels remain opt-in. PR #105 established the VS 2026 #73 synthetic fixture and its manual reviewed-main workflow, but it remains a serial, attended, non-promotable correctness/sanitizer lane only. Do not treat it as a model, performance, or deployment clearance.
 
 ## Code and Evidence Map
 

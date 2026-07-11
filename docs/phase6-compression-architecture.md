@@ -1,15 +1,16 @@
 # Phase 6 Compression Architecture
 
-Phase 6 uses compression as an evidence-gated inference path, not as a claim by
-itself. A 9B constrained-VRAM result is valid only for one exact validation
-cell until more retained cells pass.
+Phase 6 treats ordinary upstream quantized-weight residency as the core
+foundation path and compression as an optional evidence-gated hypothesis, not
+as a claim by itself. A constrained-VRAM result is valid only for one exact
+validation cell until more retained cells pass.
 
 ## Claim Boundary
 
 The following statements remain true until retained Phase 6 artifacts prove
 otherwise:
 
-- No 9B constrained inference claim.
+- No selected-foundation or 9B-stress constrained-inference claim.
 - No custom-kernel speedup claim.
 - No deployable-profile claim.
 - No Tensor Core claim.
@@ -18,30 +19,36 @@ otherwise:
 
 ## Architecture Goal
 
-Run one exact dense 9B-class GGUF model under the current <=16 GiB project cap,
-with 8 GiB as the primary constrained target, by combining pinned q4 resident
-weights, exact GGUF/GGML q4 tensor semantics, bounded fused dequantization
-workspace, paged KV accounting, optional KV compression, strict memory ledger
-certification, and same-cell quality and performance comparison.
+Run one exact P7-01-selected foundation GGUF under a device-admitted cap, with
+8 GiB as the primary constrained research tier. Meta Llama 3.1 8B is preferred
+pending license/access/pin. The core path uses upstream quantized weights,
+exact artifact and per-tensor `ggml_type` identity, KV accounting, strict memory
+certification, and same-cell quality/performance comparison. Custom fused
+dequantization and KV compression are optional, nonblocking branches.
+
+All model-backed work is blocked until
+[#103](https://github.com/Gravelaw/prisminfer/issues/103) closes its hardware
+supervisor and pre-context admission gate.
 
 ## Workflow
 
 ```mermaid
 flowchart TD
-  A["Pinned 9B GGUF artifact"] --> B["Hash, license, sidecar, tokenizer validation"]
-  B --> C["Exact q4 tensor-slice reference decode"]
+  SAFE["#103 supervisor/admission clearance"] --> A["P7-01 pinned foundation GGUF"]
+  A --> B["Hash, license, sidecar, tokenizer validation"]
+  B --> C["Exact per-tensor GGUF type inventory/reference"]
   C --> D["Baseline evidence"]
   D --> D1["CPU/reference"]
   D --> D2["llama.cpp/GGML same-quant"]
   D --> D3["llama.cpp/GGML CUDA/MMQ"]
-  C --> E["PrismInfer candidate"]
-  E --> F["q4 resident weights"]
+  C --> E["PrismInfer evidence plan"]
+  E --> F["upstream quantized resident weights"]
   E --> G["No full FP16 materialization gate"]
-  E --> H["Bounded fused/tiled dequant workspace"]
+  E -.->|optional| H["custom bounded fused/tiled dequant candidate"]
   E --> I["KV ledger"]
   I --> J["No compression"]
-  I --> K["KIVI/KVQuant/QServe-style KV compression"]
-  I --> L["PolarQuant/TurboQuant/QJL offline evaluator"]
+  I -.->|optional| K["KIVI/KVQuant/QServe-style KV compression"]
+  I -.->|optional| L["PolarQuant/TurboQuant/QJL offline evaluator"]
   F --> M["Decode run"]
   G --> M
   H --> M
@@ -56,7 +63,7 @@ flowchart TD
   D2 --> Q
   D3 --> Q
   Q --> R{"Classification"}
-  R --> S["validated-benchmark"]
+  R --> VB["validated-benchmark"]
   R --> T["quality-gated"]
   R --> U["measured-non-certified"]
   R --> V["rejected"]
@@ -64,21 +71,21 @@ flowchart TD
 ```
 
 ```text
-Pinned 9B GGUF artifact
+P7-01 pinned foundation GGUF artifact after #103 clearance
   -> model sidecar and hash validation
-  -> exact q4 tensor-slice reference decode
+  -> exact recipe plus per-tensor ggml_type inventory/reference
   -> baseline runs
        -> CPU/reference
        -> llama.cpp/GGML same-quant
        -> llama.cpp/GGML CUDA/MMQ
        -> PrismInfer no-custom path
-  -> candidate compression profile
-       -> q4 resident weights
+  -> core upstream profile
+       -> quantized resident weights
        -> no full FP16 materialization
-       -> bounded dequant workspace
+       -> optional custom bounded dequant workspace
        -> KV block ledger
-       -> optional KV compression
-  -> candidate decode run
+       -> optional KV compression/evaluator
+  -> admitted decode run
   -> telemetry JSONL + strict manifest
   -> lifecycle validation
   -> quality gate
@@ -110,6 +117,8 @@ Certification requires:
 
 ```text
 peak_vram <= hard_vram_cap_bytes
+hard_vram_cap_bytes <= min(16 GiB claim ceiling,
+                           admitted live WDDM local budget - required reserve)
 unknown_or_unreconciled_bytes == 0
 full_dequant_materialized == false
 ```
@@ -123,15 +132,19 @@ Phase 6 separates compression lanes so novelty does not hide failures.
 
 | Lane | Purpose | Promotion rule |
 |---|---|---|
-| q4 resident weights | Establish the first practical 9B baseline using pinned GGUF q4 weights. | May promote only with real q4 semantics, same-cell baselines, and no full FP16 materialization. |
+| Quantized resident weights | Establish the practical foundation baseline using the pinned upstream GGUF path. For `Q4_K_M`, retain the mixed recipe and every tensor's actual `ggml_type`; never treat the recipe as a single block type. | May promote with exact artifact/type identity, same-cell baselines, and no full FP16 materialization. |
 | KV accounting-only | Prove KV bytes, metadata, block reuse, and peak KV pressure before changing runtime behavior. | Never promotes to compression success by itself. |
 | KIVI/KVQuant/QServe-style KV compression | First implementation candidate for compressed KV because the algorithms expose concrete quantization axes and quality precedents. | Requires task quality, effective-bit, metadata, and decode-overhead evidence. |
 | PolarQuant/TurboQuant/QJL reference | Research lane for rotated/vector KV compression and residual sketch correction. | Starts offline/reference-only; cannot enter hot path until attention error, reconstruction cost, and quality pass. |
 | Low-rank/sparsity/MoE accounting | Future model-structure lane. | Metadata/accounting only until the exact model and kernels support the representation. |
 
-## Hot Path Shape
+The uncompressed KV ledger is the core baseline. A KV codec may pass, fail, or
+remain unimplemented without blocking the foundation result.
 
-The first candidate hot path remains batch-1 decode:
+## Optional Custom Hot-Path Shape
+
+If the independent custom-kernel hypothesis proceeds, its first candidate hot
+path remains batch-1 decode:
 
 ```text
 token embedding / activation vector
@@ -165,9 +178,11 @@ Perplexity-only evidence is insufficient for promoted Phase 6 claims.
 
 ## Performance Evidence
 
-The first 9B validated-benchmark target requires:
+The first foundation validated-benchmark target requires:
 
-- 8 GiB primary VRAM tier, with 12 GiB and 16 GiB as reference tiers,
+- 8 GiB primary VRAM tier, with 12 GiB and a nominal 16 GiB ceiling as
+  reference tiers only when live admission permits; no tier is an allocation
+  target,
 - context length 2048,
 - batch size 1,
 - at least 128 decode tokens per retained run,
@@ -175,10 +190,11 @@ The first 9B validated-benchmark target requires:
 - p95 inter-token latency `<= 750 ms`,
 - TTFT p95 `<= 30 seconds`,
 - three-run sustained decode coefficient of variation `<= 10%`,
-- end-to-end decode speedup `>= 1.10x` versus same-cell llama.cpp/GGML
-  CUDA/MMQ only when claiming custom-kernel benefit.
+- no mandatory speedup over the strongest same-cell upstream baseline.
 
-Isolated `kernel_ms` improvement is diagnostic only.
+Isolated `kernel_ms` improvement is diagnostic only. If an optional custom-
+kernel speedup is advertised, its separately frozen claim gate may require
+`>=1.10x` end-to-end; failure rejects that claim without blocking Phase 6.
 
 ## Manifest Fields
 
@@ -218,20 +234,26 @@ Unknown or missing required fields fail closed for promoted claims.
 
 ## Implementation Order
 
-1. Preserve the Phase 6 claim boundary in docs and evidence status.
-2. Add strict manifest ingestion for baseline and candidate benchmark files.
-3. Split validation-cell identity from implementation-variant fields.
-4. Validate Phase 6 config and compression profile schemas.
-5. Add CUDA launch correctness tests for the existing q4 kernel scaffold.
-6. Replace toy q4 blocks with exact selected GGUF/GGML q4 tensor-slice decode.
-7. Add compression manifest fields and KV ledger accounting.
-8. Build an offline KV compression evaluator.
-9. Add quality fixture runner and retained fixture hashes.
-10. Build the kernel/compression benchmark runner.
-11. Add self-hosted CUDA kernel workflow artifact upload.
-12. Collect retained 9B baselines.
-13. Run the PrismInfer candidate compression/kernel profile.
-14. Run Phase 6 exit audit and classify the result.
+1. **Implemented:** preserve the claim boundary and `research-only` status.
+2. **Implemented scaffolding:** strict manifest ingestion and same-cell versus
+   implementation-variant comparison.
+3. **Implemented scaffolding:** Phase 6 gate/config schemas and compression
+   manifest/parser fields.
+4. **Synthetic only:** guarded CUDA launch correctness source, verification
+   flag, and manual self-hosted workflow for toy `Q4Block` semantics.
+5. **Blocking prerequisite:** close #103 before model-backed execution.
+6. **Blocking prerequisite:** P7-01 selects and pins the exact foundation
+   artifact and quantization production recipe.
+7. Inventory the selected GGUF's actual per-tensor `ggml_type`, block layout,
+   shape, and bytes; implement exact tensor-slice reference semantics where a
+   custom path consumes them.
+8. Add foundation quality fixtures and retained hashes.
+9. Collect retained CPU/no-custom and llama.cpp/GGML CUDA same-cell baselines.
+10. Audit and classify the core foundation result.
+11. **Optional:** build/run a strict custom-kernel benchmark candidate.
+12. **Optional:** build/run an offline KV compression evaluator.
+13. **Optional:** evaluate progressive, speculative, or router hypotheses only
+    in their later independently gated phases.
 
 ## Classification
 

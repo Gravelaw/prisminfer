@@ -3,6 +3,10 @@
 PrismInfer is a low-VRAM LLM inference governor, telemetry harness, and
 research scaffold for constrained GPU memory claims.
 
+The canonical program order, clearances, dependency matrix and live tracker
+contract are in [`Plan.md`](Plan.md). Detailed phase and adaptive-runtime
+documents are subordinate to that plan.
+
 The v0 direction is intentionally conservative:
 
 - use llama.cpp/GGML/GGUF compatibility rather than a clean-sheet runtime,
@@ -13,30 +17,38 @@ The v0 direction is intentionally conservative:
   schema, runtime evidence, 9B validation-cell, and allocation-reconciliation
   gates pass.
 
+## Development Safety
+
+Read `AGENTS.md` and `docs/codex-environment.md` before building or running the
+project. Start with the dependency-only preflight; CUDA is never an implicit
+setup step. Full-model, sustained CUDA, and 9B evidence runs remain prohibited
+until live resource admission, bounded process containment, checked arithmetic,
+and the hardware watchdog/cancellation path are implemented and verified.
+
 ## Build
 
 ```powershell
 cmake -S . -B build
-cmake --build build
-ctest --test-dir build --output-on-failure
+cmake --build build --config Debug --parallel 8
+ctest --test-dir build -C Debug --timeout 60 --output-on-failure
 ```
 
 CUDA probing is optional and uses a separate build directory:
 
 ```powershell
 cmake -S . -B build-cuda -DPRISMINFER_ENABLE_CUDA_PROBE=ON
-cmake --build build-cuda --config Debug
-ctest --test-dir build-cuda -C Debug --output-on-failure
+cmake --build build-cuda --config Debug --parallel 8
+ctest --test-dir build-cuda -C Debug --timeout 60 --output-on-failure
 ```
 
 CUDA kernel prototype builds are gated separately from probe support. On
 Windows, the checked-in CMake preset targets Visual Studio 2026 and an sm_120
-GPU. It requires CMake 4.2 or newer because that CMake release added the
-`Visual Studio 18 2026` generator:
+GPU:
 
 ```powershell
 cmake --preset vs2026-cuda-sm120
-cmake --build --preset vs2026-cuda-sm120
+cmake --build --preset vs2026-cuda-sm120 --parallel 1
+ctest --test-dir build/vs2026-cuda-sm120 -C Debug -L cuda_kernel --timeout 60 --output-on-failure
 ```
 
 For a different CUDA GPU, copy the preset locally or configure manually with
@@ -86,6 +98,7 @@ Fail-closed cap paths can be tested without large allocations:
 
 Current research direction and post-Phase-0 implementation plans are tracked in:
 
+- `Plan.md`
 - `docs/research-roadmap-constrained-llm-inference.md`
 - `docs/validation-matrix.md`
 - `docs/claim-taxonomy.md`
@@ -102,16 +115,27 @@ Current research direction and post-Phase-0 implementation plans are tracked in:
 - `docs/phase6-compression-architecture.md`
 - `docs/phase6-evidence.md`
 - `docs/kernel-benchmark-methodology.md`
-- `docs/implementation-plan-phase1-to-phase4.md`
+- `docs/adaptive-runtime/README.md`
 
 The current roadmap caps GPU hard-limit validation at 16 GiB. The 90B hybrid
 profile is simulated/offline only until validated benchmark evidence exists.
-The first custom CUDA kernel target is the Phase 5 gated q4 decode-GEMV
-prototype. Broader fused dequantization, Tensor Core paths, IO-aware attention,
-MLA latent KV, low-rank compression, structured sparsity, and MoE runtime support
-remain gated until same-cell benchmark evidence and cap accounting are retained.
-Phase 6 is planned as the manifest-backed 9B evidence construction stage for
-that CUDA kernel lane plus exact-cell compression evidence. It still makes no
-9B constrained-inference, Tensor Core, deployable-profile, or bucket-wide
-`>5B-10B` claim until retained artifacts pass the documented gates.
-Historical council notes live under `docs/archive/`.
+The active program first implements the fail-closed supervisor, staged
+admission, exact per-tensor GGML quant truth, quality fixtures and supervised
+same-cell evidence. The current q4 CUDA path is a tiny synthetic correctness
+fixture. A custom-kernel or KV-compression win is optional and cannot block the
+static controller. No 8B/9B constrained-inference, Tensor Core,
+deployable-profile, or bucket-wide claim is made until the exact retained gates
+pass.
+The detailed adaptive-runtime program is documented under
+`docs/adaptive-runtime/`. Its first proof is deliberately narrower than a
+general dynamic runtime: a secure, actuator-bound static controller must safely
+select and replay an acknowledged plan on the exact admitted Llama 3.1 8B
+foundation cell while preserving memory, semantics, quality, and tail-latency
+gates. Safe selection of the upstream winner proves the controller, but is not
+a speedup claim. Ornith is retained as a separate hybrid-architecture stress
+cell, not used to generalize ordinary KV-cache conclusions. Larger 30B, 70B,
+and 90B work remains gated by explicit
+host-memory, storage, transfer-bandwidth, and latency admission calculations.
+Curated source-controlled history lives under `docs/archive/`. Superseded raw
+working material may be retained locally under the ignored `.local-archive/`,
+but no repository claim or instruction may depend on that local directory.

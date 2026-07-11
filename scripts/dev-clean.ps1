@@ -7,14 +7,11 @@ $ErrorActionPreference = "Stop"
 
 Push-Location (Resolve-Path (Join-Path $PSScriptRoot ".."))
 try {
-    $paths = @(
-        "build",
-        "build-cuda",
-        "build-ninja",
-        ".github-run-artifacts"
-    )
+    $paths = @("build", ".github-run-artifacts")
+    $paths += Get-ChildItem -Path . -Directory -Filter "build-*" -ErrorAction SilentlyContinue |
+        ForEach-Object { $_.FullName }
 
-    foreach ($path in $paths) {
+    foreach ($path in ($paths | Sort-Object -Unique)) {
         if (Test-Path $path) {
             if ($PSCmdlet.ShouldProcess($path, "Remove generated build directory")) {
                 Remove-Item -LiteralPath $path -Recurse -Force
@@ -26,7 +23,9 @@ try {
         "*.jsonl",
         "*-manifest.json",
         "prisminfer-manifest.json",
-        "prisminfer-probe.jsonl"
+        "prisminfer-probe.jsonl",
+        "phase4-90b-simulated-plan.json",
+        "phase4-overclaim-rejected.json"
     )
 
     foreach ($pattern in $generatedPatterns) {
