@@ -209,5 +209,14 @@ int main() {
              "compression metadata bytes parsed")) return 1;
   std::filesystem::remove(compressed_path, remove_error);
 
+  const auto accounting_only_path = write_manifest(
+      "prisminfer-kernel-accounting-only.json",
+      replace_once(valid_manifest(), "\"compression_status\": \"none\"",
+                   "\"compression_status\": \"accounting-only\""));
+  const auto accounting_only =
+      prisminfer::read_kernel_benchmark_manifest(accounting_only_path);
+  if (expect(accounting_only.ok, accounting_only.error.c_str())) return 1;
+  std::filesystem::remove(accounting_only_path, remove_error);
+
   return 0;
 }

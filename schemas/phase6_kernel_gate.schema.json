@@ -29,7 +29,7 @@
     "validation_cell_id": { "type": "string", "minLength": 1 },
     "validation_cell_status": {
       "type": "string",
-      "enum": ["not-started", "metadata-only", "quality-gated", "validated", "rejected"]
+      "enum": ["not-started", "metadata-only", "warmup", "decode-smoke", "quality-gated", "profitable", "validated", "rejected"]
     },
     "backend": { "type": "string", "enum": ["llama", "fake", "null"] },
     "backend_required": { "type": "boolean" },

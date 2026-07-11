@@ -31,7 +31,8 @@ ctest --test-dir build-cuda -C Debug --output-on-failure
 
 CUDA kernel prototype builds are gated separately from probe support. On
 Windows, the checked-in CMake preset targets Visual Studio 2026 and an sm_120
-GPU:
+GPU. It requires CMake 4.2 or newer because that CMake release added the
+`Visual Studio 18 2026` generator:
 
 ```powershell
 cmake --preset vs2026-cuda-sm120

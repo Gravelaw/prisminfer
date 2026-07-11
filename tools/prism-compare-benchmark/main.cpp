@@ -107,6 +107,11 @@ int main(int argc, char** argv) {
       write_result(false, candidate_manifest.error);
       return static_cast<int>(prisminfer::ExitCode::FailedClosed);
     }
+    if (baseline_manifest.manifest.validation_cell_id !=
+        candidate_manifest.manifest.validation_cell_id) {
+      write_result(false, "validation_cell_mismatch");
+      return static_cast<int>(prisminfer::ExitCode::FailedClosed);
+    }
     baseline = baseline_manifest.manifest.cell;
     candidate = candidate_manifest.manifest.cell;
   } else {

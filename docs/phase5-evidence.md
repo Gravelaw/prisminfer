@@ -50,7 +50,8 @@ Verification:
   `src\kernels\cuda\q4_decode_gemv.cu` into `prisminfer_cuda_kernels.lib`.
 - `cmake --preset vs2026-cuda-sm120` and
   `cmake --build --preset vs2026-cuda-sm120` preserve that local CUDA kernel
-  verification path for VS Code and command-line CMake users.
+  verification path for VS Code and command-line CMake users. The preset
+  requires CMake 4.2 or newer for the `Visual Studio 18 2026` generator.
 
 Local CUDA kernel compile note:
 

@@ -136,7 +136,7 @@
       "if": {
         "properties": {
           "compression_status": {
-            "enum": ["accounting-only", "reference", "experimental"]
+            "enum": ["reference", "experimental"]
           }
         }
       },

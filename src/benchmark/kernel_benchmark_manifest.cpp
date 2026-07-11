@@ -324,7 +324,8 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
   if (!kernel_manifest_optional_constraints_ok(manifest)) {
     return fail("manifest_schema_constraint_failed");
   }
-  if (manifest.compression_status != "none" &&
+  if ((manifest.compression_status == "reference" ||
+       manifest.compression_status == "experimental") &&
       (manifest.effective_bits_per_value <= 0.0 ||
        manifest.metadata_bits_per_value <= 0.0 ||
        manifest.kv_payload_bytes == 0 || manifest.kv_metadata_bytes == 0 ||
