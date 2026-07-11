@@ -26,9 +26,21 @@
 - `gpt-5.6-terra` with medium reasoning is an approved default for bounded, issue-scoped documentation, build/schema/CLI work, deterministic CPU references and fixtures, ordinary telemetry, calibration storage, and planner code. It is a productivity preset, never a correctness, evidence, safety, or hardware-clearance class.
 - Terra-medium may draft but cannot solely approve or promote checked admission/allocation arithmetic, untrusted parsers or GGUF decoders, native process/Job containment, supervisor/watchdog/recovery, WDDM/DXGI evidence, CUDA/GGML/provider code, or recovery state machines.
 - Safety-critical changes require an independent diff review by a non-authoring agent run, preferably a higher-assurance reasoning/pro or coding-specialized preset, or a qualified human. The reviewer must inspect the patch and retained executable/fault evidence; the author cannot mark the issue complete, and model opinion alone is insufficient.
-- Work one GitHub issue or explicitly bounded sub-slice at a time. Declare allowed files, prohibited actions, dependencies, tests, and claim boundary; record author/reviewer provenance for critical work. Never instruct a model to implement PrismInfer end to end.
+- A persistent program-level goal may coordinate PrismInfer, but it must keep only one dependency-safe integration packet active at a time. It sequences bounded issue checkpoints and stops at packet review, clearance, and authorization gates; it is never blanket implementation or hardware authorization.
+- Within a packet, work one GitHub issue or explicitly bounded sub-slice at a time. Give every checkpoint its own issue, commit or exact tree receipt, allowed files, prohibited actions, dependencies, tests, and claim boundary. Never ask a model to implement the program as one undifferentiated change.
 - No agent may weaken `AGENTS.md`, applicable phase contracts, thresholds, tests, or evidence to approve its own work. Governing-contract changes must be explicit and independently reviewed; real-hardware promotion still requires the applicable clearance and human authorization.
 - If model names change, preserve these implementation and independent-review roles with the nearest equivalent presets.
+
+## Integration Trains and Review Inheritance
+
+- `Plan.md` defines the permitted integration packets. The default is one branch and one integration PR per packet, with predecessor-safe issue checkpoints committed sequentially. Do not create speculative future or stacked PRs merely to mirror every issue.
+- Use a child PR only for a concurrent author, a separately trusted review boundary, or a diff that becomes too large or heterogeneous to review safely. Its reviewed exact head/tree, tests, risk class, and reviewer become a receipt for the parent packet.
+- At the start of a persistent task, perform one complete repository/GitHub recovery. At an issue checkpoint, re-read only changed governing contracts and inspect the current root, branch, status, base/head, checkpoint diff, dependencies, and targeted tests. Repeat complete recovery when `main`, `AGENTS.md`, `Plan.md`, the packet base, or unexplained external state changes.
+- A review receipt must record the base SHA, reviewed head and tree SHA, covered paths/issues, risk tier, validation commands/results, author/reviewer provenance, and hardware/evidence status. Parent and phase reviews may inherit an exact receipt after verifying ancestry and an unchanged tree.
+- An inheriting review examines only unreviewed commits, integration glue, conflict resolution, changed governing contracts, and evidence/claim deltas. Changing a reviewed path invalidates the affected receipt, not unrelated reviewed history. Squash/rebase requires tree or stable-patch equivalence, not a verbal assertion.
+- Run focused checks at issue checkpoints and the full applicable CPU/hosted lane once at the final packet head. Report routine mechanical checks such as `git diff --check` as concise pass/fail results. A failing focused check, uncertain dependency, or material scope expansion stops the packet.
+- Safety-critical code still receives independent exact-head review before merge. Repository-wide or deep security/evidence review occurs at the declared phase exits #78, #89, #96, and #102, not automatically for unchanged or low-risk checkpoints.
+- A packet goal may update branches, PRs, issues, and Project #2 only when the user's goal explicitly authorizes those GitHub mutations. It never inherits authorization for self-hosted workflows, CUDA/model execution, downloads, calibration, benchmarks, or sustained hardware work.
 
 ## Mandatory Session and Hardware Preflight
 
@@ -53,7 +65,7 @@ nvidia-smi -q -d TEMPERATURE,POWER,PERFORMANCE
 - Record OS, CPU/RAM, free physical RAM and commit headroom, disk free space, GPU/driver/CUDA, WDDM mode and budget, power source, temperature/throttle state, CMake/compiler versions, exact CUDA architecture, dependency hashes, and repository commit in the run manifest.
 - Require AC power, unobstructed cooling, no competing GPU workload, a stable device baseline, sufficient physical-RAM/commit/disk reserve, and no active thermal or hardware power-brake slowdown. If a required sensor is unavailable, long/unattended runs fail closed.
 - Read TDR values only. Keep Windows defaults; Microsoft documents a default two-second TDR timeout. New dispatches must be tiled so measured p99 dispatch time is below the project safety gate of 250 ms before scale-up. This is a PrismInfer engineering margin, not a Microsoft guarantee.
-- Record the device-specific temperature stop threshold below the reported slowdown/target limit in the active risk and validation contracts. The final #79 freeze will establish the adaptive-runtime threshold registry. Until a watchdog enforces the threshold, only short, attended, tiny-fixture CUDA tests are allowed.
+- Record the device-specific temperature stop threshold below the reported slowdown/target limit in the active risk and validation contracts. The #79 freeze established the adaptive-runtime threshold registry. Until #103 implements and verifies its watchdog, only short, attended, tiny-fixture CUDA tests are allowed.
 - Harmlessly launch every newly built executable (`--help` or a tiny CPU fixture) before a hardware run. If Windows Code Integrity blocks it, stop and use an approved signing/trusted-runner path; do not weaken host security.
 - Verify the exact model/tokenizer/quant/config hashes before model work. Absence of a local approved 9B artifact means 9B execution is not ready.
 
@@ -110,6 +122,12 @@ Use the C++ Core Guidelines as the general baseline. Apply the intent of NASA/JP
 
 ## Verification Gates by Change Risk
 
+- **T0 documentation/tracker:** run changed-file Markdown/link/schema checks, Plan/Project synchronization when applicable, and concise whitespace validation. Independent review is required only when a governing safety or claim contract changes.
+- **T1 ordinary CPU code:** run the smallest deterministic build/test slice at each checkpoint and the complete applicable CPU/hosted lane once at the packet head. Packet-level independent review may cover all unchanged T1 checkpoints.
+- **T2 safety-critical code or governance:** admission/allocation arithmetic, untrusted parsers, native worker/supervisor, recovery, WDDM/DXGI evidence, workflows, provider boundaries, CUDA, and safety-contract changes require focused negative tests plus independent exact-head diff/security review before merge.
+- **T3 hardware/model evidence:** use one exact reviewed commit, the applicable clearance, and a separate explicit user authorization describing commands, artifacts, limits, duration, watchdog/abort conditions, and evidence. A code or policy change after approval invalidates only the affected hardware receipt and requires fresh authorization.
+- Risk tiers select the minimum sufficient gate; they never waive a stronger gate imposed by a changed subsystem, issue contract, clearance row, or reviewer finding.
+
 - All first-party targets—not only `prisminfer_core`—must eventually share strict warnings. Changed first-party code must be warning-clean under MSVC `/W4 /permissive-` and the Clang/GCC equivalents; safety-critical promotion additionally requires warnings-as-errors and `/sdl` or an equivalent hardened lane.
 - Run clang-tidy/MSVC analysis for changed safety code with relevant `clang-analyzer`, `bugprone`, `cert`, `cppcoreguidelines`, and `concurrency` checks. Suppressions follow the rule above.
 - Add/maintain a non-CUDA ASan lane for parsers, ledgers, planners, process/artifact code, and bounded fuzz fixtures. Add UBSan on a supported Clang lane. Sanitizer binaries are test artifacts, not production deliverables.
@@ -165,7 +183,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev-clean.ps1 -WhatI
 
 ## Project, Phase, and Claim Tracking
 
-- Use repository issues/PRs and Project #2, `PrismInfer Roadmap`, as the current operational tracker. When `Plan.md` lands under the final #79 freeze, it becomes the program-control source and Project #2 becomes its operational mirror. Tracker status never waives clearance.
+- Use repository issues/PRs and Project #2, `PrismInfer Roadmap`, as the current operational tracker. `Plan.md` is the program-control source established by #79 and Project #2 is its operational mirror. Tracker status never waives clearance.
 - After completing a milestone, task, issue, or PR prep, update the related GitHub Project item status/fields before handoff; do not leave local-only progress as the only record.
 - If no matching issue/project item exists for completed work, create or link one before marking roadmap progress. Keep PRs linked with `Closes #<issue>` or `Refs #<issue>` when an issue exists.
 - Project automation may add new issues/PRs when `PROJECT_TOKEN` is configured, but agents should still verify the project item and set status/phase fields deliberately.
@@ -181,7 +199,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev-clean.ps1 -WhatI
 
 ## Worktree Hygiene
 
-- The final #79 freeze owns archive and local-preservation policy. Do not create or rely on `.local-archive/` until its ignore rule and non-canonical status land together.
+- The #79 freeze established archive and local-preservation policy. `.local-archive/` is ignored, local-only, disposable, and non-canonical; durable historical material belongs under the tracked `docs/archive/` policy.
 - This repo often has local OpenCode/session files. Do not stage `.omo/`, `.clangd`, `compile_flags.txt`, build directories, probe artifacts, or generated manifests unless the user explicitly asks.
 - Before any commit or PR prep, inspect `git status --short --untracked-files=all`, `git diff`, and recent log; stage only files for the scoped slice.
 - Normal work is issue/PR based for `Gravelaw/prisminfer`; link PRs with `Closes #<issue>` or `Refs #<issue>` when an issue exists.

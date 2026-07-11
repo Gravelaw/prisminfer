@@ -65,7 +65,7 @@ changing thresholds after observing a failure.
 | Hardware safety | No exclusive GPU lease, staged admission token, live WDDM/host/thermal watchdog, or atomic abort/cleanup state exists. |
 | Model evidence | No approved foundation/Ornith artifact hashes or complete retained same-cell 8B/9B evidence exist. The checked-in 9B gate hashes are empty. |
 | Adaptive runtime | Actuator, recovery, optimizer and evidence contracts are documented; the in-process adapter, calibration store, selector and plan executor are proposed, not implemented. |
-| Worktree/PR | The #79 final safety and adaptive-runtime controls are being reviewed as the current freeze; historical PR #72 checks are not hardware clearance. PR #105 supplies only the completed tiny synthetic CUDA/sanitizer evidence. |
+| Worktree/PR | PRs #72, #104, #105 and #106 established the current merged baseline; #73 and #79 are closed. Their documentation, workflow hardening and tiny synthetic CUDA/sanitizer evidence do not grant model, calibration, performance or sustained-hardware clearance. |
 
 ## Frozen Scope
 
@@ -179,7 +179,7 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 | #76 | Mandatory quality fixtures; optional offline KV evaluator remains separately classified. | #80 for final artifact; model execution also requires C2 and #84. | Ready |
 | #77 | Supervised same-cell upstream and PrismInfer foundation evidence; no mandatory custom-kernel/KV win. | #73-#76, #80-#82, #84 and #103. | Blocked |
 | #78 | Phase 6 evidence and claim audit. | #77. | Blocked |
-| #79 | Final council, root Plan and tracker freeze. | Current repository/session evidence. | In Progress until linked PR review |
+| #79 | Final council, root Plan and tracker freeze. | Current repository/session evidence. | Done |
 | #80 | Pin foundation, Ornith stress and smoke artifacts. | #79 plus Phase 6 artifact rules. | Ready |
 | #81 | Secure native external worker/Job boundary. | #79 and pinned external executable identity. | Ready |
 | #82 | Minimum live Windows/WDDM/host/file/transfer evidence. | #79; integrates #81. | Ready |
@@ -225,6 +225,53 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 
 Safe parallel work is limited to independent CPU/source/fixture work whose
 predecessors are satisfied. Hardware steps remain serial per device.
+
+## Integration Packets and Review Contract
+
+Issue #107 establishes execution packaging and review inheritance. It changes
+how approved issue work is delivered; it does not change the dependency graph,
+acceptance criteria, clearance matrix, or hardware authorization boundary.
+
+The persistent program goal keeps one packet active at a time. Within that
+packet, issues remain sequential checkpoints with their own acceptance evidence
+and Project status, while one integration PR carries the packet by default.
+
+| Packet | Sequential issue checkpoints | Packet exit |
+|---|---|---|
+| Bootstrap, completed | PR #104 -> PR #72 -> #73/PR #105 -> #79/PR #106 | Merged governance/freeze and C1 tiny-lane baseline; no model clearance. |
+| A, quant and artifacts | #74 -> #75 -> #80 | Exact per-tensor truth, strict runner and immutable artifact cells are reviewable together. |
+| B, hardware boundary | #81 -> #82 -> #103 | Secure worker, minimum live evidence and fail-closed supervisor pass one exact-head safety review. |
+| C, admission and Phase 6 | #84 -> #76 -> #77 -> #78 | Exact admission, quality/evidence and the Phase 6 audit close at #78. |
+| D, adapter and calibration | #83 -> #85 -> #86 | Actuator inventory, actual-path adapter and immutable calibration/sample-plan foundation agree. |
+| E, static controller | #87 -> #88 -> #89 | Selector, acknowledged replay/recovery and the Phase 7 audit close at #89. |
+| F, 30B and optional mechanisms | #90 -> independently checkpointed #91-#95 -> #96 | 30B static truth precedes optional decisions; the Phase 8 audit closes at #96. |
+| G, scale and final audit | #97 -> #98 -> conditional #99/#100 -> #101 -> #102 | Only admitted scale cells execute; portability and the final audit close at #102. |
+
+Packet order is the conservative single-goal order. An issue checkpoint cannot
+use a later checkpoint in the same packet as if it were already merged or
+proven. If a packet becomes too large or crosses an independently reviewable
+trust boundary, split it at that boundary without changing issue dependencies.
+Child PRs are exceptional; they are for concurrent authors or isolated review
+boundaries, not one-PR-per-issue ceremony.
+
+At the initial goal recovery and every packet transition, record the `main`
+base SHA, active packet, governing-contract hashes, repository/GitHub state and
+allowed hardware level. Each checkpoint records its issue, commit/tree SHA,
+paths, risk tier, focused tests and claim boundary. The packet PR records the
+complete issue-to-commit map.
+
+An independent review may be inherited only for an unchanged exact tree whose
+ancestry and receipt are verified. Parent and phase reviews inspect unreviewed
+commits, integration/conflict changes, changed contracts and evidence/claim
+deltas; they do not re-review unchanged covered diffs. A changed reviewed path
+invalidates that receipt. Full applicable CPU/hosted validation runs once at
+the final packet head, while focused deterministic checks run at checkpoints.
+
+Risk-tier minimums are defined in `AGENTS.md`: T0 documentation/tracker, T1
+ordinary CPU, T2 safety-critical code/governance and T3 hardware/model evidence.
+Deep phase security/evidence/claim audits occur at #78, #89, #96 and #102.
+No packet or program-level prompt authorizes a self-hosted workflow, CUDA/model
+execution, download, calibration, benchmark or sustained hardware run.
 
 ## Phase Outcomes
 
@@ -292,13 +339,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate-plan-projec
   Gate and milestone.
 - Closed historical issues use `Status=Done` and `Phase Status=Done`.
 - Phase 8 is named **Optional Mechanisms**, not Adaptive Mechanisms.
-- #79 is the only current coarse `In Progress` issue at this freeze; #73 is
-  closed with its retained tiny-fixture and sanitizer evidence.
+- #73 and #79 are closed with their retained tiny-fixture and final-freeze
+  evidence. Cross-cutting #107 records the integration-train governance change
+  and may be `In Progress` while its PR is open or `Done` after merge.
 - #74, #76, #80-#83 and #103 are `Ready`; dependency-gated #75, #77-#78 and
   #84-#89 are `Blocked`; later work remains `Backlog` except independently
   admission-blocked #99/#100.
-- PR #72 remains review-only; its old green checks predate the final safety
-  policy and cannot grant clearance.
+- PR #72 is merged evidence/documentation history; neither its checks nor the
+  later governance/tiny-lane merges grant hardware or model clearance.
 
 The Project README must summarize this plan and link here first. A tracker
 readback is part of every phase audit.

@@ -64,7 +64,7 @@ $phaseStatus = [ordered]@{
     76 = "Ready"
     77 = "Blocked"
     78 = "Blocked"
-    79 = "In Progress"
+    79 = "Done"
     80 = "Ready"
     81 = "Ready"
     82 = "Ready"
@@ -110,7 +110,7 @@ foreach ($entry in $phaseStatus.GetEnumerator()) {
         continue
     }
 
-    $expectedCoarse = if ($number -eq 79) { "In Progress" } elseif ($number -eq 73) { "Done" } else { "Todo" }
+    $expectedCoarse = if ($number -in @(73, 79)) { "Done" } else { "Todo" }
     Assert-Value $number "Status" $item.status $expectedCoarse
     Assert-Value $number "Phase Status" $item.'phase Status' $entry.Value
 
@@ -174,6 +174,22 @@ if ($null -ne $pr72) {
     Assert-Value 72 "milestone" $pr72.milestone.title "Phase 6: Safety and Exact Evidence Foundation"
 }
 
+$governance107 = Require-Item 107
+if ($null -ne $governance107) {
+    if ($governance107.status -notin @("In Progress", "Done")) {
+        Add-Failure "#107 Status is '$($governance107.status)'; expected 'In Progress' or 'Done'."
+    }
+    $expectedGovernancePhaseStatus = if ($governance107.status -eq "Done") { "Done" } else { "In Progress" }
+    Assert-Value 107 "Phase Status" $governance107.'phase Status' $expectedGovernancePhaseStatus
+    Assert-Value 107 "title" $governance107.title "P7-GOV Adopt risk-tiered integration trains and review inheritance"
+    Assert-Value 107 "Priority" $governance107.priority "P0"
+    Assert-Value 107 "Risk" $governance107.risk "High"
+    Assert-Value 107 "Roadmap Phase" $governance107.'roadmap Phase' "Cross-cutting"
+    Assert-Value 107 "Roadmap Slice" $governance107.'roadmap Slice' "Governance"
+    Assert-Value 107 "Roadmap Gate" $governance107.'roadmap Gate' "Phase 6 Evidence"
+    Assert-Value 107 "milestone" $governance107.milestone.title "Phase 6: Safety and Exact Evidence Foundation"
+}
+
 foreach ($needle in @("Plan.md", "#103", "Llama 3.1 8B", "Phase 8 Optional Mechanisms")) {
     if (-not ([string]$project.readme).Contains($needle)) {
         Add-Failure "Project README is missing '$needle'."
@@ -185,4 +201,4 @@ if ($failures.Count -gt 0) {
     exit 1
 }
 
-Write-Output ("Plan/Project sync PASS: {0} items checked; #73-#103 status, roadmap, milestone, title and README contracts match." -f $items.Count)
+Write-Output ("Plan/Project sync PASS: {0} items checked; #73-#103 and #107 status, roadmap, milestone, title and README contracts match." -f $items.Count)

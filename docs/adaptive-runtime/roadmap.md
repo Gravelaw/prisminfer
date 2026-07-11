@@ -8,11 +8,12 @@ Status: final council/design freeze; synchronized with
 `Gravelaw/prisminfer` and
 [`Gravelaw` Project #2](https://github.com/users/Gravelaw/projects/2).
 
-This roadmap details Phase 6 issue #103 and Phase 7-9 issues #79-#102. The
-issue count is descriptive, never a scope cap: a new safety or evidence issue
-must be created when no existing owner can close a required gate. Development
-cost is not a planning constraint; correctness, security, capacity, dependency
-order, statistical validity, and retained evidence are constraints.
+This roadmap details Phase 6 issue #103, Phase 7-9 issues #79-#102 and the
+cross-cutting integration-train governance in #107. The issue count is
+descriptive, never a scope cap: a new safety or evidence issue must be created
+when no existing owner can close a required gate. Development cost is not a
+planning constraint; correctness, security, capacity, dependency order,
+statistical validity, and retained evidence are constraints.
 
 ## Program Outcome
 
@@ -64,6 +65,35 @@ exotic mechanism must succeed. The program must:
   [`windows-evidence-protocol.md`](windows-evidence-protocol.md).
 - Optional mechanisms do not block Phase 7, 30B static measurement, or a valid
   program conclusion.
+
+## Integration-Train Packaging
+
+Issue dependencies and clearances remain the semantic program graph. Delivery
+uses the packet map in root `Plan.md` so repeated repository recovery, review
+and full validation can be amortized without inheriting unproven work:
+
+1. packet A: #74, #75 and #80;
+2. packet B: #81, #82 and #103;
+3. packet C: #84, #76, #77 and the #78 Phase 6 audit;
+4. packet D: #83, #85 and #86;
+5. packet E: #87, #88 and the #89 Phase 7 audit;
+6. packet F: #90, independent #91-#95 checkpoints and the #96 Phase 8 audit;
+7. packet G: #97, #98, conditionally admitted #99/#100, #101 and the #102
+   final audit.
+
+One persistent coordinator keeps only one packet active. Issues are sequential,
+traceable commit/tree checkpoints inside the packet's integration PR and retain
+their own acceptance evidence and Project fields. Child PRs are used only for
+concurrent authors or a separately trusted review boundary. An exact review
+receipt can be inherited only when its ancestry and tree remain unchanged;
+parent reviews cover the unreviewed integration delta instead of re-reading
+covered child diffs.
+
+Focused deterministic checks run at each checkpoint. Full applicable
+CPU/hosted validation and independent review run at the packet head; deep phase
+audits remain #78, #89, #96 and #102. Any self-hosted, CUDA, model, calibration,
+benchmark or sustained-hardware action still requires its exact clearance and
+separate explicit user authorization.
 
 ## Revised Dependency Graph
 
@@ -199,7 +229,7 @@ Exit gate:
 
 Dependencies: current repository state and Phase 6 claim boundary.
 Priority/Risk/Workstream: P0 / High / Governance.
-Initial status: In Progress.
+Initial status: Done.
 
 ### P7-01 Pin the Llama 3.1 8B foundation cell and an Ornith hybrid stress cell
 
@@ -785,10 +815,12 @@ fields:
 - add `Critical` to the project `Risk` field;
 - set both coarse `Status` and detailed `Phase Status` explicitly.
 
-The project README, `Plan.md`, Phase 6–9 milestones and phase exit issues are
+The project README, `Plan.md`, Phase 6-9 milestones and phase exit issues are
 the program roll-up. Issue #103 is the required Phase 6 safety owner and is not
 an optional research umbrella. Create further optional child issues only when
-their parent entry gates pass.
+their parent entry gates pass. Issue #107 owns the cross-cutting integration
+packet and review-inheritance contract; it grants no runtime or hardware
+clearance.
 
 ## Critical Path
 
