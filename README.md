@@ -24,20 +24,38 @@ project. Start with the dependency-only preflight; CUDA is never an implicit
 setup step. Full-model, sustained CUDA, and 9B evidence runs remain prohibited
 until live resource admission, bounded process containment, checked arithmetic,
 and the hardware watchdog/cancellation path are implemented and verified.
+Host RAM admission is workload-relative: there is no fixed 24 GiB-free gate.
+CPU-safe development may use the non-promotable T-101 development lane, while
+promotable evidence requires a fresh stricter evidence-lane decision.
 
 ## Build
 
+On Windows, use the guarded local verification path:
+
 ```powershell
-cmake -S . -B build
-cmake --build build --config Debug --parallel 8
-ctest --test-dir build -C Debug --timeout 60 --output-on-failure
+.\scripts\verify.ps1
+```
+
+The default conservatively estimates build parallelism from a fresh physical
+and commit snapshot, the T-101 development reserves, and 2 GiB per job. This is
+a non-promotable preflight, not a live process-tree memory cap. `-BuildJobs
+1..8` is an upper cap only; it cannot bypass the memory-derived bound.
+
+On Linux or macOS, `verify.ps1` is not the local entry point. Use a bounded
+CPU-only configure/build/test sequence; this does not create a promotable host
+admission receipt:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --parallel 1
+ctest --test-dir build --timeout 60 --output-on-failure
 ```
 
 CUDA probing is optional and uses a separate build directory:
 
 ```powershell
 cmake -S . -B build-cuda -DPRISMINFER_ENABLE_CUDA_PROBE=ON
-cmake --build build-cuda --config Debug --parallel 8
+cmake --build build-cuda --config Debug --parallel 1
 ctest --test-dir build-cuda -C Debug --timeout 60 --output-on-failure
 ```
 

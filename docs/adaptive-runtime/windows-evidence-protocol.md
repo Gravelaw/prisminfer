@@ -55,7 +55,7 @@ blocks a physical-residency or deployable-profile claim.
 | CUDA free/total | `cudaMemGetInfo` at controlled boundaries | NVML/device delta | Does not establish owner or physical residency alone. |
 | NVML | process/device GPU telemetry where supported | DXGI/CUDA/ledger | WDDM ownership/residency caveats apply. |
 | Child host memory | Native process handle plus Job Object/process-tree accounting | process working set/private/commit samples | Sampling can miss short peaks unless peak counters/events are used. |
-| System host capacity | `GlobalMemoryStatusEx`, commit and pagefile policy | Performance counters/ETW | Available memory is volatile. |
+| System host capacity | `GetPerformanceInfo` / `PERFORMANCE_INFORMATION` physical and commit page counts | `GlobalMemoryStatusEx` physical fields and performance counters/ETW | Available memory is volatile; `MEMORYSTATUSEX` pagefile fields are process-bounded and cannot authorize system commit. |
 | GGUF/derived file IO | Open-handle file identity plus ETW/file events | process IO counters | Aggregate process IO cannot separate file and pagefile. |
 | Pagefile pressure | ETW/hard-fault/pagefile and commit evidence | system counters | A generic hard fault may be executable, mapped file, or pagefile. |
 | H2D/D2H | Instrumented actual copy submission/completion | CUDA events/CUPTI/Nsight | Logical tensor bytes are not transfer events. |
@@ -144,8 +144,14 @@ parent and child/process-tree identities
 working_set_current/peak
 private_commit_current/peak
 job/process-tree commit and memory limits where configured
-system_physical_total/available and OS reserve
-system_commit_total/limit
+host_admission_lane and promotion_requested
+system_physical_total/available and physical_reserve
+system_commit_total/limit/headroom and commit_reserve
+system_commit_source = get_performance_info
+planned_incremental_resident_peak and resident_uncertainty
+planned_incremental_commit_peak and commit_uncertainty
+physical_payload, commit_payload and separate admission decisions
+pinned_host_bytes and pinned_host_cap
 pagefile configuration and observed pagefile IO
 hard faults with source classification or ambiguity
 file identity for source GGUF, mmproj, derived artifacts, and logs
@@ -187,7 +193,10 @@ For each exact 9B/30B/70B/90B artifact:
 2. Calculate safe VRAM payload after context, pools, KV/state, workspace,
    instrumentation, fragmentation, and margin.
 3. Calculate safe host payload after OS reserve, context/state, mapped resident
-   pages, staging, workspaces, and pagefile policy.
+   pages, staging, workspaces, and pagefile policy. There is no fixed free-RAM
+   threshold: calculate the T-101 lane reserves from live physical total,
+   physical available, system commit charge and commit limit, then admit the
+   exact incremental resident and commit peaks independently.
 4. Classify every active byte as durably resident in VRAM, durably resident in
    RAM, transferred across PCIe, read from storage, reconstructed, or unknown.
 5. Measure model-order DRAM/PCIe/NVMe bandwidth under representative contention.
@@ -196,6 +205,14 @@ For each exact 9B/30B/70B/90B artifact:
 7. Normalize external traffic by committed output tokens per target pass.
 8. Reject a candidate if its optimistic bound misses the frozen viability
    threshold.
+
+`MEMORYSTATUSEX.ullTotalPageFile` and `ullAvailPageFile` are process-bounded and
+cannot be the sole source for system commit admission. On Windows, convert
+`GetPerformanceInfo` page counts to bytes with checked arithmetic and retain
+the source identity. Pagefile capacity may contribute to commit headroom but
+never to physical resident payload. A development-lane result is explicitly
+non-promotable and requires a fresh evidence-lane sample and token before
+promotion.
 
 Rough parameter arithmetic is a sanity check only; exact GGUF bytes decide.
 

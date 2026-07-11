@@ -190,7 +190,23 @@ if ($null -ne $governance107) {
     Assert-Value 107 "milestone" $governance107.milestone.title "Phase 6: Safety and Exact Evidence Foundation"
 }
 
-foreach ($needle in @("Plan.md", "#103", "Llama 3.1 8B", "Phase 8 Optional Mechanisms")) {
+$hostAdmission109 = Require-Item 109
+if ($null -ne $hostAdmission109) {
+    if ($hostAdmission109.status -notin @("In Progress", "Done")) {
+        Add-Failure "#109 Status is '$($hostAdmission109.status)'; expected 'In Progress' or 'Done'."
+    }
+    $expectedHostAdmissionPhaseStatus = if ($hostAdmission109.status -eq "Done") { "Done" } else { "In Progress" }
+    Assert-Value 109 "Phase Status" $hostAdmission109.'phase Status' $expectedHostAdmissionPhaseStatus
+    Assert-Value 109 "title" $hostAdmission109.title "P6-GOV Make host RAM admission workload-relative and fix Windows commit telemetry"
+    Assert-Value 109 "Priority" $hostAdmission109.priority "P0"
+    Assert-Value 109 "Risk" $hostAdmission109.risk "Critical"
+    Assert-Value 109 "Roadmap Phase" $hostAdmission109.'roadmap Phase' "Cross-cutting"
+    Assert-Value 109 "Roadmap Slice" $hostAdmission109.'roadmap Slice' "Host/IO Telemetry"
+    Assert-Value 109 "Roadmap Gate" $hostAdmission109.'roadmap Gate' "Phase 6 Evidence"
+    Assert-Value 109 "milestone" $hostAdmission109.milestone.title "Phase 6: Safety and Exact Evidence Foundation"
+}
+
+foreach ($needle in @("Plan.md", "#103", "#109", "workload-relative host admission", "Llama 3.1 8B", "Phase 8 Optional Mechanisms")) {
     if (-not ([string]$project.readme).Contains($needle)) {
         Add-Failure "Project README is missing '$needle'."
     }
@@ -201,4 +217,4 @@ if ($failures.Count -gt 0) {
     exit 1
 }
 
-Write-Output ("Plan/Project sync PASS: {0} items checked; #73-#103 and #107 status, roadmap, milestone, title and README contracts match." -f $items.Count)
+Write-Output ("Plan/Project sync PASS: {0} items checked; #73-#103, #107 and #109 status, roadmap, milestone, title and README contracts match." -f $items.Count)

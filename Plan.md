@@ -63,6 +63,7 @@ changing thresholds after observing a failure.
 | Allocation safety | CUDA context creation precedes reservation; a rejected context reservation can be recorded without immediately ending the run. The 16 GiB value is only a policy ceiling. |
 | Backend boundary | The llama adapter invokes a shell command through `std::system`; there is no native Job-contained worker, bounded cancellation, or child-tree evidence. |
 | Hardware safety | No exclusive GPU lease, staged admission token, live WDDM/host/thermal watchdog, or atomic abort/cleanup state exists. |
+| Host admission | #109 supplies authoritative Windows physical/commit telemetry and a pure workload-relative admission primitive. #103 must still integrate it into staged tokens, the watchdog and cancellation before C2. No fixed free-RAM prerequisite is valid. |
 | Model evidence | No approved foundation/Ornith artifact hashes or complete retained same-cell 8B/9B evidence exist. The checked-in 9B gate hashes are empty. |
 | Adaptive runtime | Actuator, recovery, optimizer and evidence contracts are documented; the in-process adapter, calibration store, selector and plan executor are proposed, not implemented. |
 | Worktree/PR | PRs #72, #104, #105 and #106 established the current merged baseline; #73 and #79 are closed. Their documentation, workflow hardening and tiny synthetic CUDA/sanitizer evidence do not grant model, calibration, performance or sustained-hardware clearance. |
@@ -203,7 +204,7 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 | #100 | Exact admitted 90B result/rejection. | #97 admission of that artifact. | Blocked |
 | #101 | Portability, invalidation and recalibration. | #98 plus each activated/rejected #99/#100 record. | Backlog |
 | #102 | Final security, evidence and claim audit. | #96 and #101. | Backlog |
-| #103 | Fail-closed hardware supervisor and staged admission boundary. | #79, #81 and the safety subset of #82. | Ready |
+| #103 | Fail-closed hardware supervisor and staged admission boundary. | #79, #81, the safety subset of #82 and the #109 host-admission primitive. | Ready |
 
 ## Critical Path
 
@@ -232,13 +233,18 @@ Issue #107 establishes execution packaging and review inheritance. It changes
 how approved issue work is delivered; it does not change the dependency graph,
 acceptance criteria, clearance matrix, or hardware authorization boundary.
 
+Cross-cutting issue #109 is the completed-on-merge pre-packet safety correction
+for workload-relative host admission and authoritative Windows commit telemetry.
+It is consumed by #82/#103/#84, does not reorder Packet A, and grants no C2,
+model, calibration, benchmark or hardware clearance.
+
 The persistent program goal keeps one packet active at a time. Within that
 packet, issues remain sequential checkpoints with their own acceptance evidence
 and Project status, while one integration PR carries the packet by default.
 
 | Packet | Sequential issue checkpoints | Packet exit |
 |---|---|---|
-| Bootstrap, completed | PR #104 -> PR #72 -> #73/PR #105 -> #79/PR #106 | Merged governance/freeze and C1 tiny-lane baseline; no model clearance. |
+| Bootstrap, completed | PR #104 -> PR #72 -> #73/PR #105 -> #79/PR #106 -> #107 integration governance -> #109 host-admission correction | Merged governance/freeze, C1 tiny-lane and host-admission primitive baseline; no model clearance. |
 | A, quant and artifacts | #74 -> #75 -> #80 | Exact per-tensor truth, strict runner and immutable artifact cells are reviewable together. |
 | B, hardware boundary | #81 -> #82 -> #103 | Secure worker, minimum live evidence and fail-closed supervisor pass one exact-head safety review. |
 | C, admission and Phase 6 | #84 -> #76 -> #77 -> #78 | Exact admission, quality/evidence and the Phase 6 audit close at #78. |
@@ -339,9 +345,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate-plan-projec
   Gate and milestone.
 - Closed historical issues use `Status=Done` and `Phase Status=Done`.
 - Phase 8 is named **Optional Mechanisms**, not Adaptive Mechanisms.
-- #73 and #79 are closed with their retained tiny-fixture and final-freeze
-  evidence. Cross-cutting #107 records the integration-train governance change
-  and may be `In Progress` while its PR is open or `Done` after merge.
+- #73, #79 and cross-cutting #107 are closed with their retained tiny-fixture,
+  final-freeze and integration-train evidence. Cross-cutting #109 records the
+  host-admission correction and is `Done` when this contract reaches `main`.
 - #74, #76, #80-#83 and #103 are `Ready`; dependency-gated #75, #77-#78 and
   #84-#89 are `Blocked`; later work remains `Backlog` except independently
   admission-blocked #99/#100.

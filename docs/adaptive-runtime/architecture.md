@@ -335,9 +335,13 @@ The outer supervisor owns both stages:
 1. **Pre-context admission.** Before a worker calls a CUDA Runtime API that may
    initialize a primary context, acquire the exclusive GPU lease; validate
    policy, requested tier, artifact census, predicted context/runtime/backend/
-   model/state/workspace peaks, host commit and storage headroom; and capture
-   read-only DXGI/WDDM plus approved device telemetry. Missing or stale required
-   evidence rejects the run before context creation.
+   model/state/workspace peaks, workload-relative host physical/commit payload,
+   and storage headroom; and capture read-only DXGI/WDDM plus approved device
+   telemetry. Host admission uses T-101's explicit development/evidence lane,
+   authoritative system commit counters, and the exact planned incremental
+   resident and commit peaks. It never requires a fixed amount such as 24 GiB
+   free. Missing or stale required evidence rejects the run before context
+   creation.
 2. **Post-context reconciliation.** After the contained worker creates only the
    context and minimal telemetry channel, it reports actual context/runtime
    bytes and CUDA free/total observations. The supervisor reconciles these with
@@ -349,6 +353,10 @@ The outer supervisor owns both stages:
 Model/backend allocation is subsequently reconciled before warmup and watched
 throughout execution. A budget decrease, stale sensor, unknown byte, reserve
 breach, or disagreement never causes the worker to continue optimistically.
+The `development_nonpromotable` lane may admit a smaller bounded CPU/simulation
+request under ordinary desktop memory pressure, but its receipt cannot be used
+for C2+ or relabeled as evidence. Promotion requires a fresh
+`evidence_promotable` sample, decision, and one-shot token.
 
 ### Level C: in-process adapter
 

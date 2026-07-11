@@ -9,7 +9,8 @@ Status: final council/design freeze; synchronized with
 [`Gravelaw` Project #2](https://github.com/users/Gravelaw/projects/2).
 
 This roadmap details Phase 6 issue #103, Phase 7-9 issues #79-#102 and the
-cross-cutting integration-train governance in #107. The issue count is
+cross-cutting integration-train governance in #107 plus workload-relative host
+admission correction in #109. The issue count is
 descriptive, never a scope cap: a new safety or evidence issue must be created
 when no existing owner can close a required gate. Development cost is not a
 planning constraint; correctness, security, capacity, dependency order,
@@ -63,6 +64,9 @@ exotic mechanism must succeed. The program must:
 - Physical-residency, owned-allocation, host-residency, transfer, and storage
   claims remain separate under
   [`windows-evidence-protocol.md`](windows-evidence-protocol.md).
+- Host admission uses T-101's explicit development/evidence lane and exact
+  incremental resident/commit peaks. There is no fixed free-RAM prerequisite;
+  development-lane receipts are always non-promotable.
 - Optional mechanisms do not block Phase 7, 30B static measurement, or a valid
   program conclusion.
 
@@ -80,6 +84,10 @@ and full validation can be amortized without inheriting unproven work:
 6. packet F: #90, independent #91-#95 checkpoints and the #96 Phase 8 audit;
 7. packet G: #97, #98, conditionally admitted #99/#100, #101 and the #102
    final audit.
+
+Issue #109 is a one-time pre-packet/bootstrap safety correction consumed by
+packets B and C. It is not an additional long-running packet and grants no C2,
+CUDA, model, calibration, benchmark, or sustained-hardware clearance.
 
 One persistent coordinator keeps only one packet active. Issues are sequential,
 traceable commit/tree checkpoints inside the packet's integration PR and retain
@@ -102,6 +110,10 @@ flowchart TD
   P700["#79 P7-00 final Plan and contract freeze"] --> P702["#81 secure native worker"]
   P700 --> P703["#82 minimum live Windows evidence"]
   P700 --> P704["#83 actuator/recovery inventory"]
+  P700 --> P109["#109 workload-relative host admission"]
+  P107["#107 integration-train governance"] --> P109
+  P109 --> P703
+  P109 --> P604A
   P702 --> P604A["#103 P6-04A supervisor and staged admission"]
   P703 --> P604A
 
@@ -111,6 +123,7 @@ flowchart TD
   P74 --> P705["#84 exact artifact/scale admission"]
   P701 --> P705
   P703 --> P705
+  P109 --> P705
   P604A --> P705
 
   P75 --> P77["#77 supervised foundation evidence"]
@@ -185,6 +198,7 @@ The Phase 6 milestone and Project items are repaired as follows:
 | Tracker action or exact issue title | Purpose | Initial state |
 |---|---|---|
 | Link `P6-01/P6-04 Phase 6 manifest foundation` to the existing Phase 6 branch/PR | Retain the implemented manifest ingestion, cell/variant split, config schema, and compression fields without recreating them. | Review |
+| `#109 P6-GOV Make host RAM admission workload-relative and fix Windows commit telemetry` | Supply canonical T-101 lane floors, exact physical/commit payload arithmetic, authoritative Windows commit counters, raw manifest provenance, deterministic boundary tests, and memory-bounded local builds. | In progress until merged; then Done |
 | `#103 P6-04A Implement fail-closed hardware supervisor and staged admission boundary` | Own the exclusive GPU lease, two-stage admission, watchdog, cancellation, abort evidence, checked safety arithmetic, and fault suite required before model-backed work. | Ready |
 | Retain `#73 P6-05/P6-06 Add synthetic CUDA q4 correctness lane` | Completed guarded tiny-fixture launch and sanitizer evidence while preserving the claim that toy `Q4Block` evidence is not GGUF correctness or speed evidence. | Done |
 | `P6-07 Implement exact selected GGUF quant tensor-slice semantics` | Inventory every per-tensor `ggml_type` used by the pinned recipe and replace toy semantics with exact model-relevant reference fixtures. | Ready |
@@ -780,6 +794,7 @@ Initial status: Backlog.
 Safe parallelism during Phase 6 repair:
 
 - CPU/reference work for #74–#76 and source/artifact work for #80/#83;
+- #109 pure CPU admission/counter work before #82/#103/#84 consume it;
 - #81 secure process boundary and #82 evidence protocol before #103;
 - #84 admission once #74, #80, #82 and #103 satisfy their contracts;
 - P8-01 through P8-05 only after P8-00 freezes the 30B static result;
@@ -820,12 +835,15 @@ the program roll-up. Issue #103 is the required Phase 6 safety owner and is not
 an optional research umbrella. Create further optional child issues only when
 their parent entry gates pass. Issue #107 owns the cross-cutting integration
 packet and review-inheritance contract; it grants no runtime or hardware
-clearance.
+clearance. Issue #109 owns the pre-packet host-admission correction consumed by
+#82/#103/#84; #103 still owns admission-token integration, continuous
+supervision, cancellation, and promotable receipt evidence.
 
 ## Critical Path
 
 ```text
 #79 final Plan/tracker freeze
+  -> #107 integration governance and #109 host-admission correction
   -> #81 secure native worker and #82 minimum live evidence
   -> #103 supervisor and staged-admission clearance
   -> per-tensor quant truth, strict runner, quality fixtures and #80 artifacts

@@ -135,8 +135,10 @@ Exit:
 
 ### E0A: P6-04A fail-closed hardware supervisor and admission boundary
 
-Roadmap coverage: P6-04A, GitHub issue #103. This is the blocking safety gate
-before model-backed Phase 6; it is not deferred to Phase 7.
+Roadmap coverage: cross-cutting host-admission primitive #109 plus P6-04A,
+GitHub issue #103. Issue #109 supplies the pure T-101 decision and authoritative
+system counters; #103 remains the blocking integration/watchdog/token gate
+before model-backed Phase 6 and is not deferred to Phase 7.
 
 Execution:
 
@@ -587,11 +589,23 @@ committed output = accepted draft tokens actually committed
 ### Host, mapping, file, and pagefile
 
 - parent versus child/process-tree working set/private commit/IO;
-- system physical available versus commit limit and pagefile traffic;
+- system physical total/available and authoritative system-wide commit
+  total/limit/headroom; on Windows, system commit comes from
+  `GetPerformanceInfo`, not `MEMORYSTATUSEX` pagefile fields;
+- `development_nonpromotable` and `evidence_promotable` T-101 lanes retain
+  their distinct physical and commit reserves, with explicit reserves allowed
+  to raise but never lower the lane floor;
+- exact planned incremental resident and commit peaks, uncertainty, and pinned
+  bytes are charged separately against live payload; pagefile capacity never
+  increases physical payload;
+- deterministic admission fixtures cover 8 GiB, 12 GiB, and 15 GiB available,
+  independent commit pressure, missing/contradictory counters, overflow,
+  pinned-host cap breach, and rejection of development-receipt promotion;
 - mapping size versus actual resident proxy;
 - source GGUF versus derived artifact versus log versus unrelated/pagefile IO;
 - cold versus warm cache identity and rejection of mislabeled state;
-- host reserve breach and pagefile pressure classification.
+- host reserve breach and pagefile pressure classification. No fixed free-RAM
+  prerequisite, including 24 GiB, is a valid admission rule.
 
 ### Transfers
 
@@ -723,6 +737,10 @@ same-cell confirmation under the registry threshold.
 |---|---|
 | GPU lease already held or lease identity changes | Reject boundedly; no worker/context is created. |
 | Pre-context telemetry stale/missing or conservative peak infeasible | Reject with no CUDA context and preserve admission inputs. |
+| Physical RAM is adequate but system commit headroom is below reserve or plan | Reject on the commit-specific reason before allocation; pagefile capacity cannot increase physical payload. |
+| System commit source is process-bounded, unknown, contradictory, or overflowing | Reject as non-authoritative; do not substitute `MEMORYSTATUSEX` pagefile fields. |
+| A fixed 24 GiB-free prerequisite rejects an otherwise fitting exact plan | Policy/conformance test fails; recalculate from T-101 lane reserve and exact workload peaks. |
+| Development-lane receipt is presented as promotable evidence | Reject and require fresh `evidence_promotable` admission. |
 | Context allocation exceeds estimate or CUDA/DXGI disagree | Post-context reject; cancel/terminate before model load. |
 | GPU temperature reaches T-102 stop or sensor age exceeds T-103 | Stop submissions immediately; bounded cancel/Job abort and cooldown evidence. |
 | Worker heartbeat stops or IPC is corrupt/replayed | Treat worker as untrusted/unresponsive; abort Job and reconcile cleanup. |
@@ -761,7 +779,7 @@ same-cell confirmation under the registry threshold.
 | OS | Windows 11/WDDM primary; Linux later for portability, not as a substitute. |
 | GPU | RTX 5080 Laptop primary; additional cell for P9 portability if available. |
 | GPU cap | policy ceiling, requested tier, live capacity, reserve, and effective live cap are separate; 12/16 GiB are request/reference labels where meaningful, never literal allocation targets. |
-| Host | exact physical RAM, safe reserve, commit/pagefile policy, storage volume/device. |
+| Host | exact physical total/available, authoritative commit total/limit/headroom, T-101 lane, lane reserves, exact incremental resident/commit peaks, uncertainty, pinned bytes, storage volume/device; required availability cells include 8/12/15 GiB and independent commit pressure. |
 | Runtime | trusted outer supervisor plus contained Job worker for every model/CUDA path; secure external pinned llama and in-worker pinned adapter; current upstream only as a separate comparison. |
 | CUDA | default non-CUDA CI; optional probe; guarded kernel/provider lane. |
 | Instrumentation | ordinary, telemetry, ETW/CUPTI/Nsight profiler as separate cells when overhead differs. |
@@ -874,6 +892,9 @@ Retain:
 - build and unit tests on Windows and Linux;
 - schema, parser, overflow, plan, fingerprint, recovery and committed-output
   accounting tests;
+- pure host-admission boundary tests for canonical lane floors, 8/12/15 GiB
+  availability cells, independent commit pressure, counter provenance,
+  freshness, overflow, pinned cap, and non-promotable development receipts;
 - fake/null backend lifecycle and forced-failure matrices;
 - Markdown/link/Mermaid/UTF-8 checks where tooling is available;
 - no hardware performance threshold.
@@ -903,7 +924,7 @@ Retain:
 | Execution stage | Roadmap issues |
 |---|---|
 | E0 Phase 6 repair/contracts | Phase 6 repair, P7-00 |
-| E0A hardware safety interlock | P6-04A / #103 |
+| E0A hardware safety interlock | Cross-cutting #109 primitive, then P6-04A / #103 integration |
 | E1 security and Windows evidence | P7-02, P7-03 |
 | E2 artifacts/actuators/scale admission | P7-01, P7-04, P7-05 |
 | E3 in-process trace | P7-06 |

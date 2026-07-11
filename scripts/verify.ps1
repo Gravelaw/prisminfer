@@ -2,11 +2,15 @@ param(
     [switch]$WithCuda,
     [switch]$WithCudaKernels,
     [string]$CudaArchs = "120",
-    [ValidateRange(1, 64)][int]$BuildJobs = 8,
+    [ValidateRange(0, 8)][int]$BuildJobs = 0,
     [switch]$SkipProbeSmoke
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($env:OS -ne "Windows_NT") {
+    throw "scripts/verify.ps1 is the Windows local verification path. Use the README CMake/CTest commands on other platforms."
+}
 
 function Refresh-Path {
     $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
@@ -26,6 +30,158 @@ function Run-Step {
     & $Command
     if ($LASTEXITCODE -ne 0) {
         throw "$Name failed with exit code $LASTEXITCODE"
+    }
+}
+
+function Get-HostMemorySnapshot {
+    try {
+        if ($env:OS -eq "Windows_NT") {
+            $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
+            $performance = Get-CimInstance Win32_PerfFormattedData_PerfOS_Memory -ErrorAction Stop
+            return [pscustomobject]@{
+                TotalBytes = [uint64]$os.TotalVisibleMemorySize * 1KB
+                AvailableBytes = [uint64]$os.FreePhysicalMemory * 1KB
+                CommitTotalBytes = [uint64]$performance.CommittedBytes
+                CommitLimitBytes = [uint64]$performance.CommitLimit
+            }
+        }
+
+    } catch {
+        throw "Host memory telemetry failed; refusing automatic build parallelism: $($_.Exception.Message)"
+    }
+    throw "Host physical/commit telemetry is unavailable; refusing automatic build parallelism."
+}
+
+function Resolve-BuildJobs {
+    param(
+        [ValidateRange(0, 8)][int]$RequestedJobs,
+        [AllowNull()][object]$MemorySnapshot = $null,
+        [ValidateRange(1, 1024)][int]$ProcessorCount = [Environment]::ProcessorCount
+    )
+
+    $memory = if ($null -eq $MemorySnapshot) {
+        Get-HostMemorySnapshot
+    } else {
+        $MemorySnapshot
+    }
+
+    [uint64]$totalBytes = $memory.TotalBytes
+    [uint64]$availableBytes = $memory.AvailableBytes
+    [uint64]$commitTotalBytes = $memory.CommitTotalBytes
+    [uint64]$commitLimitBytes = $memory.CommitLimitBytes
+    if ($totalBytes -eq 0 -or $availableBytes -gt $totalBytes -or
+        $commitLimitBytes -eq 0 -or $commitTotalBytes -gt $commitLimitBytes) {
+        throw "Host physical/commit telemetry is missing or contradictory."
+    }
+
+    [uint64]$physicalReserveBytes = [Math]::Max(
+        [decimal]2GB, [Math]::Ceiling(([decimal]$totalBytes * 8) / 100))
+    [uint64]$commitReserveBytes = [Math]::Max(
+        [decimal]2GB, [Math]::Ceiling(([decimal]$commitLimitBytes * 5) / 100))
+    [uint64]$commitHeadroomBytes = $commitLimitBytes - $commitTotalBytes
+    if ($availableBytes -le $physicalReserveBytes -or
+        $commitHeadroomBytes -le $commitReserveBytes) {
+        throw "No build job fits the conservative T-101 development physical/commit preflight."
+    }
+
+    [uint64]$physicalPayloadBytes = $availableBytes - $physicalReserveBytes
+    [uint64]$commitPayloadBytes = $commitHeadroomBytes - $commitReserveBytes
+    [uint64]$safePayloadBytes = [Math]::Min(
+        [decimal]$physicalPayloadBytes, [decimal]$commitPayloadBytes)
+    # This is a conservative preflight estimate, not a process-tree memory cap
+    # or live watchdog. Promotable resource enforcement remains owned by #103.
+    [uint64]$conservativeBytesPerJob = 2GB
+    [int]$memoryJobs = [Math]::Floor(
+        [decimal]$safePayloadBytes / [decimal]$conservativeBytesPerJob)
+    if ($memoryJobs -lt 1) {
+        throw "No build job fits the conservative 2 GiB per-job envelope after T-101 reserves."
+    }
+
+    [int]$requestedCap = if ($RequestedJobs -gt 0) { $RequestedJobs } else { 8 }
+    return [Math]::Min($requestedCap, [Math]::Min($ProcessorCount, $memoryJobs))
+}
+
+function Test-BuildJobPolicy {
+    $base = [pscustomobject]@{
+        TotalBytes = [uint64](32GB)
+        AvailableBytes = [uint64](8GB)
+        CommitTotalBytes = [uint64](16GB)
+        CommitLimitBytes = [uint64](64GB)
+    }
+    if ((Resolve-BuildJobs -RequestedJobs 0 -MemorySnapshot $base -ProcessorCount 16) -ne 2) {
+        throw "Build-job policy self-test failed for the 8 GiB development cell."
+    }
+    if ((Resolve-BuildJobs -RequestedJobs 8 -MemorySnapshot $base -ProcessorCount 16) -ne 2) {
+        throw "Requested build jobs bypassed the safe memory-derived cap."
+    }
+    if ((Resolve-BuildJobs -RequestedJobs 1 -MemorySnapshot $base -ProcessorCount 16) -ne 1) {
+        throw "A lower requested build-job cap was not preserved."
+    }
+
+    $twelveGiB = $base.PSObject.Copy()
+    $twelveGiB.AvailableBytes = [uint64](12GB)
+    if ((Resolve-BuildJobs -RequestedJobs 0 -MemorySnapshot $twelveGiB -ProcessorCount 16) -ne 4) {
+        throw "Build-job policy self-test failed for the 12 GiB cell."
+    }
+    $fifteenGiB = $base.PSObject.Copy()
+    $fifteenGiB.AvailableBytes = [uint64](15GB)
+    if ((Resolve-BuildJobs -RequestedJobs 0 -MemorySnapshot $fifteenGiB -ProcessorCount 16) -ne 6) {
+        throw "Build-job policy self-test failed for the 15 GiB cell."
+    }
+
+    [uint64]$physicalReserve = [Math]::Ceiling(([decimal](32GB) * 8) / 100)
+    $oneJob = $base.PSObject.Copy()
+    $oneJob.AvailableBytes = $physicalReserve + [uint64](2GB)
+    if ((Resolve-BuildJobs -RequestedJobs 8 -MemorySnapshot $oneJob -ProcessorCount 16) -ne 1) {
+        throw "Build-job policy failed at the exact one-job boundary."
+    }
+
+    $lowPhysical = $base.PSObject.Copy()
+    $lowPhysical.AvailableBytes = [uint64](3GB)
+    $lowPhysicalRejected = $false
+    try {
+        Resolve-BuildJobs -RequestedJobs 0 -MemorySnapshot $lowPhysical -ProcessorCount 16 | Out-Null
+    } catch {
+        $lowPhysicalRejected = $true
+    }
+    if (-not $lowPhysicalRejected) {
+        throw "Build-job policy failed to reject insufficient physical payload."
+    }
+
+    $lowCommit = $base.PSObject.Copy()
+    $lowCommit.CommitTotalBytes = [uint64](63GB)
+    $lowCommitRejected = $false
+    try {
+        Resolve-BuildJobs -RequestedJobs 0 -MemorySnapshot $lowCommit -ProcessorCount 16 | Out-Null
+    } catch {
+        $lowCommitRejected = $true
+    }
+    if (-not $lowCommitRejected) {
+        throw "Build-job policy failed to reject insufficient commit payload."
+    }
+
+    $contradictory = $base.PSObject.Copy()
+    $contradictory.AvailableBytes = [uint64](33GB)
+    $contradictoryRejected = $false
+    try {
+        Resolve-BuildJobs -RequestedJobs 0 -MemorySnapshot $contradictory -ProcessorCount 16 | Out-Null
+    } catch {
+        $contradictoryRejected = $true
+    }
+    if (-not $contradictoryRejected) {
+        throw "Build-job policy failed to reject contradictory physical telemetry."
+    }
+
+    $missingCommit = $base.PSObject.Copy()
+    $missingCommit.CommitLimitBytes = [uint64]0
+    $missingCommitRejected = $false
+    try {
+        Resolve-BuildJobs -RequestedJobs 0 -MemorySnapshot $missingCommit -ProcessorCount 16 | Out-Null
+    } catch {
+        $missingCommitRejected = $true
+    }
+    if (-not $missingCommitRejected) {
+        throw "Build-job policy failed to reject missing commit telemetry."
     }
 }
 
@@ -107,6 +263,8 @@ function Remove-ProbeArtifacts {
     Remove-Item -LiteralPath $Paths -Force -ErrorAction SilentlyContinue
 }
 
+Test-BuildJobPolicy
+
 Push-Location (Resolve-Path (Join-Path $PSScriptRoot ".."))
 try {
     Refresh-Path
@@ -132,7 +290,9 @@ try {
     }
 
     Run-Step "Build default Debug" {
-        cmake --build build --config Debug --parallel $BuildJobs
+        $defaultBuildJobs = Resolve-BuildJobs -RequestedJobs $BuildJobs
+        Write-Host "Default build parallelism: $defaultBuildJobs (requested cap: $BuildJobs; 0 means automatic)"
+        cmake --build build --config Debug --parallel $defaultBuildJobs
     }
 
     Run-Step "CTest default Debug" {
@@ -166,7 +326,9 @@ try {
         }
 
         Run-Step "Build CUDA probe Debug" {
-            cmake --build build-cuda --config Debug --parallel $BuildJobs
+            $cudaBuildJobs = Resolve-BuildJobs -RequestedJobs $BuildJobs
+            Write-Host "CUDA probe build parallelism: $cudaBuildJobs (requested cap: $BuildJobs; 0 means automatic)"
+            cmake --build build-cuda --config Debug --parallel $cudaBuildJobs
         }
 
         Run-Step "CTest CUDA probe Debug" {
@@ -191,7 +353,9 @@ try {
         }
 
         Run-Step "Build CUDA kernel correctness test" {
-            cmake --build --preset vs2026-cuda-sm120 --parallel 1
+            $kernelBuildJobs = Resolve-BuildJobs -RequestedJobs 1
+            Write-Host "CUDA kernel build parallelism: $kernelBuildJobs (hard cap: 1)"
+            cmake --build --preset vs2026-cuda-sm120 --parallel $kernelBuildJobs
         }
 
         Run-Step "CTest CUDA kernel correctness" {

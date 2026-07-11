@@ -90,7 +90,7 @@ jobs:
         run: cmake -S . -B build-profitability -DPRISMINFER_ENABLE_CUDA_PROBE=ON
 
       - name: Build
-        run: cmake --build build-profitability --config Debug --parallel 8
+        run: cmake --build build-profitability --config Debug --parallel 1
 
       - name: Unit tests
         run: ctest --test-dir build-profitability -C Debug --timeout 60 --output-on-failure

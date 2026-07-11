@@ -51,18 +51,41 @@ safe_gpu_payload =
 ### Host
 
 ```text
-safe_host_payload =
-  physical_ram
-- OS/application reserve
-- backend/process/runtime reserve
-- host KV/recurrent state
-- pinned staging
-- CPU workspace
-- non-model working-set reserve
+effective_physical_reserve = max(
+  T-101 lane physical reserve, explicit per-run physical reserve)
+
+effective_commit_reserve = max(
+  T-101 lane commit reserve, explicit per-run commit reserve)
+
+physical_payload = checked_subtract(
+  live_physical_available, effective_physical_reserve)
+
+commit_headroom = checked_subtract(
+  system_commit_limit, system_commit_charge)
+
+commit_payload = checked_subtract(
+  commit_headroom, effective_commit_reserve)
+
+required_resident =
+  planned incremental resident peak
+  + resident uncertainty
+  + pinned staging
+
+required_commit =
+  planned incremental commit peak
+  + commit uncertainty
+  + pinned staging
+
+admit only if
+  required_resident <= physical_payload
+  and required_commit <= commit_payload
 ```
 
 Commit/pagefile does not increase safe physical host payload for a resident-RAM
-claim.
+claim. Normal applications are already reflected in live physical availability
+and commit charge. There is no absolute 24 GiB-free prerequisite: 8-15 GiB
+available may admit a smaller exact plan, while a plan whose incremental peak
+does not fit is downscaled or rejected independently.
 
 ## Byte Residency Classification
 

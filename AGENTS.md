@@ -63,7 +63,7 @@ nvidia-smi -q -d TEMPERATURE,POWER,PERFORMANCE
 
 - `-InstallMissing` changes machine state. Use it only with explicit user authorization; do not silently install or upgrade compilers, drivers, CUDA, analyzers, package managers, or plugins.
 - Record OS, CPU/RAM, free physical RAM and commit headroom, disk free space, GPU/driver/CUDA, WDDM mode and budget, power source, temperature/throttle state, CMake/compiler versions, exact CUDA architecture, dependency hashes, and repository commit in the run manifest.
-- Require AC power, unobstructed cooling, no competing GPU workload, a stable device baseline, sufficient physical-RAM/commit/disk reserve, and no active thermal or hardware power-brake slowdown. If a required sensor is unavailable, long/unattended runs fail closed.
+- Require AC power, unobstructed cooling, no competing GPU workload, a stable device baseline, sufficient physical-RAM/commit/disk reserve, and no active thermal or hardware power-brake slowdown. Host sufficiency is the T-101 lane reserve plus the exact workload's incremental resident and commit peaks; never impose a fixed free-RAM prerequisite such as 24 GiB. If a required sensor is unavailable, long/unattended runs fail closed.
 - Read TDR values only. Keep Windows defaults; Microsoft documents a default two-second TDR timeout. New dispatches must be tiled so measured p99 dispatch time is below the project safety gate of 250 ms before scale-up. This is a PrismInfer engineering margin, not a Microsoft guarantee.
 - Record the device-specific temperature stop threshold below the reported slowdown/target limit in the active risk and validation contracts. The #79 freeze established the adaptive-runtime threshold registry. Until #103 implements and verifies its watchdog, only short, attended, tiny-fixture CUDA tests are allowed.
 - Harmlessly launch every newly built executable (`--help` or a tiny CPU fixture) before a hardware run. If Windows Code Integrity blocks it, stop and use an approved signing/trusted-runner path; do not weaken host security.
@@ -170,7 +170,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev-setup.ps1 -WithC
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev-clean.ps1 -WhatIf
 ```
 
-- Default builds are non-CUDA and use `cmake -S . -B build`, `cmake --build build --config Debug --parallel 8`, then CTest. Focused tests may use `ctest --test-dir build -C Debug -R "test_name" --output-on-failure`.
+- Default Windows local builds are non-CUDA and use `scripts\verify.ps1`, whose `-BuildJobs 0` default estimates bounded parallelism from freshly sampled physical/commit payload, the T-101 development reserves, and a conservative 2 GiB/job envelope. This is a non-promotable preflight, not a process-tree cap or live watchdog. An explicit `-BuildJobs 1..8` is only an upper cap and cannot bypass the memory-derived bound; hosted CI may retain eight jobs only on its known runner class. On Linux/macOS use the README's serial CPU-only CMake/CTest path. Focused tests may use `ctest --test-dir build -C Debug -R "test_name" --output-on-failure`.
 - CUDA kernels remain opt-in. PR #105 established the VS 2026 #73 synthetic fixture and its manual reviewed-main workflow, but it remains a serial, attended, non-promotable correctness/sanitizer lane only. Do not treat it as a model, performance, or deployment clearance.
 
 ## Code and Evidence Map
@@ -188,6 +188,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev-clean.ps1 -WhatI
 - If no matching issue/project item exists for completed work, create or link one before marking roadmap progress. Keep PRs linked with `Closes #<issue>` or `Refs #<issue>` when an issue exists.
 - Project automation may add new issues/PRs when `PROJECT_TOKEN` is configured, but agents should still verify the project item and set status/phase fields deliberately.
 - Current Phase 6 work is safety and evidence construction. #103 supervision/staged admission, exact per-tensor GGML quant semantics, retained foundation manifests, same-cell baselines and quality fixtures are gates. Profiler, custom-kernel and offline-KV evidence is required only for the corresponding optional claim.
+- Cross-cutting #109 defines workload-relative host admission and authoritative Windows system-commit telemetry for #82/#103/#84. Its development lane is always non-promotable, and it grants no CUDA, model, calibration, or C2 clearance.
 - Keep the GPU hard-cap claim ceiling at 16 GiB (`17179869184` bytes) unless a task explicitly changes cap policy across configs, schemas, docs, and tests. Runtime admission is always lower when physical/budget/free-memory evidence minus reserve is lower.
 - Source/tests describe current behavior when docs drift, but can never override `AGENTS.md` safety or an applicable clearance contract. Update conflicting docs within the scoped task.
 
