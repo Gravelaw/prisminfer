@@ -40,7 +40,7 @@
       "configurePreset": "vs2026-cuda-sm120",
       "configuration": "Debug",
       "targets": [
-        "prisminfer_cuda_kernels"
+        "test_q4_decode_gemv_cuda"
       ]
     }
   ],
@@ -49,6 +49,19 @@
       "name": "vs2026-debug",
       "configurePreset": "vs2026-debug",
       "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "vs2026-cuda-sm120",
+      "configurePreset": "vs2026-cuda-sm120",
+      "configuration": "Debug",
+      "filter": {
+        "include": {
+          "label": "cuda_kernel"
+        }
+      },
       "output": {
         "outputOnFailure": true
       }

@@ -108,6 +108,16 @@ if(PRISMINFER_ENABLE_CUDA_KERNELS)
     PUBLIC
       ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_link_libraries(prisminfer_cuda_kernels PUBLIC CUDA::cudart)
+
+  add_executable(test_q4_decode_gemv_cuda
+    tests/cuda/test_q4_decode_gemv_cuda.cu)
+  target_link_libraries(test_q4_decode_gemv_cuda
+    PRIVATE prisminfer_core prisminfer_cuda_kernels CUDA::cudart)
+  add_test(NAME test_q4_decode_gemv_cuda COMMAND test_q4_decode_gemv_cuda)
+  set_tests_properties(test_q4_decode_gemv_cuda PROPERTIES
+    LABELS cuda_kernel
+    RUN_SERIAL TRUE
+    TIMEOUT 60)
 endif()
 
 if(WIN32)
