@@ -74,6 +74,21 @@
         },
         "q4_k_m_partial_bytes": { "type": "integer", "minimum": 0 },
         "q4_k_m_failure_reason": { "type": "string" },
+        "q4_k_m_attempts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["working_set_limit_bytes", "max_working_set_bytes", "partial_sha256", "partial_bytes", "failure_reason"],
+            "properties": {
+              "working_set_limit_bytes": { "type": "integer", "minimum": 1 },
+              "max_working_set_bytes": { "type": "integer", "minimum": 1 },
+              "partial_sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+              "partial_bytes": { "type": "integer", "minimum": 1 },
+              "failure_reason": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
         "license_status": {
           "type": "string",
           "enum": ["not-applicable", "pending", "accepted"]
@@ -113,7 +128,8 @@
               "f16_intermediate_bytes",
               "q4_k_m_partial_sha256",
               "q4_k_m_partial_bytes",
-              "q4_k_m_failure_reason"
+              "q4_k_m_failure_reason",
+              "q4_k_m_attempts"
             ],
             "properties": {
               "artifact_path": { "maxLength": 0 },
@@ -128,6 +144,7 @@
               "q4_k_m_partial_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
               "q4_k_m_partial_bytes": { "minimum": 1 },
               "q4_k_m_failure_reason": { "minLength": 1 },
+              "q4_k_m_attempts": { "minItems": 1 },
               "license_status": { "const": "accepted" }
             }
           }

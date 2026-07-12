@@ -32,10 +32,33 @@
       "q4_k_m_partial_sha256": "4577bdada251901e98184408522fc6bed20ed6a813ca304e13df185cdf688136",
       "q4_k_m_partial_bytes": 438796288,
       "q4_k_m_failure_reason": "run_bound_working_set_exceeded_4_gib",
+      "q4_k_m_attempts": [
+        {
+          "working_set_limit_bytes": 4294967296,
+          "max_working_set_bytes": 5297287168,
+          "partial_sha256": "4577bdada251901e98184408522fc6bed20ed6a813ca304e13df185cdf688136",
+          "partial_bytes": 438796288,
+          "failure_reason": "run_bound_working_set_exceeded_4_gib"
+        },
+        {
+          "working_set_limit_bytes": 6442450944,
+          "max_working_set_bytes": 6549295104,
+          "partial_sha256": "0916b758ec2e09ac8b08ee7a2a063e06fadfb7470da0061f30433b7f3910803c",
+          "partial_bytes": 807157760,
+          "failure_reason": "run_bound_working_set_exceeded_6_gib"
+        },
+        {
+          "working_set_limit_bytes": 8589934592,
+          "max_working_set_bytes": 8730607616,
+          "partial_sha256": "d501c642169d9ecd9aee76c0eceaae7c7fcf437521aa75bc40b5ff303b99e1cf",
+          "partial_bytes": 1469399040,
+          "failure_reason": "run_bound_working_set_exceeded_8_gib"
+        }
+      ],
       "license_status": "accepted",
       "modality": "text-only-main-artifact",
       "architecture_state": "dense GQA transformer; source revision verified, canonical Q4_K_M artifact absent",
-      "notes": "Source and F16 intermediate are retained outside the repository; Q4_K_M quantization was aborted at the declared 4 GiB working-set bound. No model inference executed."
+      "notes": "Source and F16 intermediate are retained outside the repository; Q4_K_M quantization attempts were aborted at declared 4 GiB, 6 GiB, and 8 GiB working-set bounds. No model inference executed."
     },
     {
       "cell_id": "ornith-1.0-9b-stress",

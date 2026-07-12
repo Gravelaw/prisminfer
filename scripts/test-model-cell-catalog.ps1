@@ -63,6 +63,58 @@ try {
         throw "Catalog validator accepted a mismatched foundation source manifest hash."
     }
 
+    $badAttemptHashPath = Join-Path $tempRoot "bad-attempt-hash.json"
+    $badAttemptHashText = $catalogText.Replace(
+        "0916b758ec2e09ac8b08ee7a2a063e06fadfb7470da0061f30433b7f3910803c",
+        "0000000000000000000000000000000000000000000000000000000000000000")
+    Set-Content -LiteralPath $badAttemptHashPath -Value $badAttemptHashText -NoNewline
+    $savedPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $badAttemptHashOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $validator -CatalogPath $badAttemptHashPath 2>&1
+        $badAttemptHashExit = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $savedPreference
+    }
+    if ($badAttemptHashExit -eq 0) {
+        throw "Catalog validator accepted a mismatched Q4_K_M attempt hash."
+    }
+
+    $badAttemptLimitPath = Join-Path $tempRoot "bad-attempt-limit.json"
+    $badAttemptLimitText = $catalogText.Replace("6549295104", "6442450944")
+    Set-Content -LiteralPath $badAttemptLimitPath -Value $badAttemptLimitText -NoNewline
+    $savedPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $badAttemptLimitOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $validator -CatalogPath $badAttemptLimitPath 2>&1
+        $badAttemptLimitExit = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $savedPreference
+    }
+    if ($badAttemptLimitExit -eq 0) {
+        throw "Catalog validator accepted a Q4_K_M attempt that did not exceed its bound."
+    }
+
+    $badLatestAttemptHashPath = Join-Path $tempRoot "bad-latest-attempt-hash.json"
+    $badLatestAttemptHashText = $catalogText.Replace(
+        "d501c642169d9ecd9aee76c0eceaae7c7fcf437521aa75bc40b5ff303b99e1cf",
+        "0000000000000000000000000000000000000000000000000000000000000000")
+    Set-Content -LiteralPath $badLatestAttemptHashPath -Value $badLatestAttemptHashText -NoNewline
+    $savedPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $badLatestAttemptHashOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $validator -CatalogPath $badLatestAttemptHashPath 2>&1
+        $badLatestAttemptHashExit = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $savedPreference
+    }
+    if ($badLatestAttemptHashExit -eq 0) {
+        throw "Catalog validator accepted a mismatched latest Q4_K_M attempt hash."
+    }
+
     $badPath = Join-Path $tempRoot "bad-path.json"
     $badPathText = $catalogText.Replace(
         "tests/fixtures/model-cells/tiny-smoke-artifact.txt",
@@ -109,6 +161,9 @@ try {
 finally {
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-hash.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-source.json") -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $tempRoot "bad-attempt-hash.json") -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $tempRoot "bad-attempt-limit.json") -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $tempRoot "bad-latest-attempt-hash.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-path.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-reparse.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $tempRoot -Force -ErrorAction SilentlyContinue

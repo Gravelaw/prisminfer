@@ -30,6 +30,29 @@ $expectedFoundation = @{
     F16Bytes = [uint64]16068896416
     PartialSha256 = "4577bdada251901e98184408522fc6bed20ed6a813ca304e13df185cdf688136"
     PartialBytes = [uint64]438796288
+    Q4Attempts = @(
+        @{
+            WorkingSetLimitBytes = [uint64]4294967296
+            MaxWorkingSetBytes = [uint64]5297287168
+            PartialSha256 = "4577bdada251901e98184408522fc6bed20ed6a813ca304e13df185cdf688136"
+            PartialBytes = [uint64]438796288
+            FailureReason = "run_bound_working_set_exceeded_4_gib"
+        },
+        @{
+            WorkingSetLimitBytes = [uint64]6442450944
+            MaxWorkingSetBytes = [uint64]6549295104
+            PartialSha256 = "0916b758ec2e09ac8b08ee7a2a063e06fadfb7470da0061f30433b7f3910803c"
+            PartialBytes = [uint64]807157760
+            FailureReason = "run_bound_working_set_exceeded_6_gib"
+        },
+        @{
+            WorkingSetLimitBytes = [uint64]8589934592
+            MaxWorkingSetBytes = [uint64]8730607616
+            PartialSha256 = "d501c642169d9ecd9aee76c0eceaae7c7fcf437521aa75bc40b5ff303b99e1cf"
+            PartialBytes = [uint64]1469399040
+            FailureReason = "run_bound_working_set_exceeded_8_gib"
+        }
+    )
 }
 
 function Resolve-TrustedArtifactPath {
@@ -92,6 +115,22 @@ foreach ($cell in $catalog.cells) {
             $cell.q4_k_m_failure_reason -ne "run_bound_working_set_exceeded_4_gib" -or
             $cell.license_status -ne "accepted") {
             throw "Foundation source-verification record is incomplete or contradictory."
+        }
+        $attempts = @($cell.q4_k_m_attempts)
+        if ($attempts.Count -ne $expectedFoundation.Q4Attempts.Count) {
+            throw "Foundation Q4_K_M attempt receipt count is incomplete or contradictory."
+        }
+        for ($index = 0; $index -lt $attempts.Count; $index++) {
+            $actual = $attempts[$index]
+            $expectedAttempt = $expectedFoundation.Q4Attempts[$index]
+            if ([uint64]$actual.working_set_limit_bytes -ne $expectedAttempt.WorkingSetLimitBytes -or
+                [uint64]$actual.max_working_set_bytes -ne $expectedAttempt.MaxWorkingSetBytes -or
+                $actual.partial_sha256 -ne $expectedAttempt.PartialSha256 -or
+                [uint64]$actual.partial_bytes -ne $expectedAttempt.PartialBytes -or
+                $actual.failure_reason -ne $expectedAttempt.FailureReason -or
+                [uint64]$actual.max_working_set_bytes -le [uint64]$actual.working_set_limit_bytes) {
+                throw "Foundation Q4_K_M attempt receipt is incomplete or contradictory."
+            }
         }
     } elseif ($cell.status -eq "pinned") {
         if ($cell.cell_id -ne "tiny-deterministic-smoke" -or
