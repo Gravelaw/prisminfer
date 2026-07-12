@@ -56,28 +56,38 @@ void decode_scale_and_minimum(const std::array<std::uint8_t, 12>& scales,
 
 }  // namespace
 
-GgmlQ4KDecodeResult decode_ggml_q4_k_reference(
-    std::span<const GgmlQ4KBlock> blocks, std::size_t maximum_decoded_bytes) {
-  if (blocks.size() > std::numeric_limits<std::size_t>::max() /
+GgmlQ4KDecodeLimitsResult validate_ggml_q4_k_decode_limits(
+    std::size_t block_count, std::size_t maximum_decoded_bytes) {
+  if (block_count > std::numeric_limits<std::size_t>::max() /
                           kValuesPerBlock) {
-    return {false, "decoded_value_count_overflow", {}};
+    return {false, "decoded_value_count_overflow", 0U};
   }
-  const std::size_t decoded_values = blocks.size() * kValuesPerBlock;
+  const std::size_t decoded_values = block_count * kValuesPerBlock;
   std::vector<float> values;
   if (decoded_values > values.max_size()) {
-    return {false, "decoded_value_limit_exceeded", {}};
+    return {false, "decoded_value_limit_exceeded", 0U};
   }
   if (decoded_values > std::numeric_limits<std::size_t>::max() /
                            sizeof(float)) {
-    return {false, "decoded_byte_count_overflow", {}};
+    return {false, "decoded_byte_count_overflow", 0U};
   }
   const std::size_t decoded_bytes = decoded_values * sizeof(float);
   if (decoded_bytes > maximum_decoded_bytes) {
-    return {false, "decoded_byte_limit_exceeded", {}};
+    return {false, "decoded_byte_limit_exceeded", 0U};
   }
+  return {true, "", decoded_values};
+}
 
+GgmlQ4KDecodeResult decode_ggml_q4_k_reference(
+    std::span<const GgmlQ4KBlock> blocks, std::size_t maximum_decoded_bytes) {
+  const auto limits =
+      validate_ggml_q4_k_decode_limits(blocks.size(), maximum_decoded_bytes);
+  if (!limits.ok) {
+    return {false, limits.reason, {}};
+  }
   try {
-    values.reserve(decoded_values);
+    std::vector<float> values;
+    values.reserve(limits.decoded_value_count);
     for (const GgmlQ4KBlock& block : blocks) {
       const float delta = fp16_to_float(block.delta_fp16);
       const float minimum = fp16_to_float(block.minimum_fp16);

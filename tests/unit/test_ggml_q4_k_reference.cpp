@@ -1,5 +1,4 @@
 #include <cmath>
-#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <limits>
@@ -64,13 +63,9 @@ int main() {
              "vector limit fixture avoids count overflow")) {
     return 1;
   }
-  const auto impossible_blocks =
-      std::span<const prisminfer::kernels::GgmlQ4KBlock>(
-          reinterpret_cast<const prisminfer::kernels::GgmlQ4KBlock*>(
-              static_cast<std::uintptr_t>(1U)),
-          blocks_above_limit);
-  const auto limit_rejected = prisminfer::kernels::decode_ggml_q4_k_reference(
-      impossible_blocks, std::numeric_limits<std::size_t>::max());
+  const auto limit_rejected =
+      prisminfer::kernels::validate_ggml_q4_k_decode_limits(
+          blocks_above_limit, std::numeric_limits<std::size_t>::max());
   if (expect(!limit_rejected.ok, "decoded value limit rejects before access")) {
     return 1;
   }

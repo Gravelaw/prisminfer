@@ -28,6 +28,17 @@ struct GgmlQ4KDecodeResult {
   std::vector<float> values;
 };
 
+struct GgmlQ4KDecodeLimitsResult {
+  bool ok{false};
+  std::string reason;
+  std::size_t decoded_value_count{0};
+};
+
+// Validates a caller-provided block count before a decoder accepts a range or
+// allocates output. This is also the bounded-input seam for fixture tests.
+GgmlQ4KDecodeLimitsResult validate_ggml_q4_k_decode_limits(
+    std::size_t block_count, std::size_t maximum_decoded_bytes);
+
 // Decodes complete Q4_K blocks only. The returned values are CPU-reference
 // data for fixture comparison and must not be treated as resident model weights.
 // Callers must declare the maximum permitted decoded bytes before allocation.
