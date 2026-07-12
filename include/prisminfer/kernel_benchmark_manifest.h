@@ -30,6 +30,7 @@ struct KernelBenchmarkManifest {
   std::string run_outcome;
   std::string requested_execution_path;
   std::string actual_execution_path;
+  std::string failure_reason;
   std::uint64_t raw_trial_count{0};
   std::string raw_trial_sha256;
   std::string failure_record_sha256;

@@ -139,6 +139,12 @@ std::string serialize(const KernelBenchmarkManifest& manifest) {
       << "  \"run_outcome\": \"" << json_escape(manifest.run_outcome) << "\",\n"
       << "  \"requested_execution_path\": \"" << json_escape(manifest.requested_execution_path) << "\",\n"
       << "  \"actual_execution_path\": \"" << json_escape(manifest.actual_execution_path) << "\",\n"
+      << "  \"failure_reason\": \"" << json_escape(manifest.failure_reason) << "\",\n"
+      << "  \"raw_trial_count\": " << manifest.raw_trial_count << ",\n"
+      << "  \"raw_trial_sha256\": \"" << json_escape(manifest.raw_trial_sha256)
+      << "\",\n"
+      << "  \"failure_record_sha256\": \""
+      << json_escape(manifest.failure_record_sha256) << "\",\n"
       << "  \"claim_status\": \"" << json_escape(manifest.claim_status) << "\"\n"
       << "}\n";
   return out.str();
@@ -372,6 +378,18 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
   if (!valid_optional_sha256(manifest.raw_trial_sha256) ||
       !valid_optional_sha256(manifest.failure_record_sha256)) {
     return fail("invalid_field:raw_evidence_sha256");
+  }
+  if (!read_optional(fields, "failure_reason", &manifest.failure_reason,
+                     parse_string, &error)) {
+    return fail(error);
+  }
+  if (manifest.run_outcome == "completed") {
+    if (manifest.raw_trial_count == 0 || manifest.raw_trial_sha256.empty()) {
+      return fail("completed_raw_evidence_required");
+    }
+  } else if (manifest.failure_reason.empty() ||
+             manifest.failure_record_sha256.empty()) {
+    return fail("failure_evidence_required");
   }
 
   if (!kernel_manifest_identity_constraints_ok(manifest)) {

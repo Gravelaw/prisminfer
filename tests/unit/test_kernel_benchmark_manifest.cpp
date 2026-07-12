@@ -142,6 +142,33 @@ int main() {
   if (expect(!malformed_hash.ok, "malformed raw hash rejected")) return 1;
   std::filesystem::remove(malformed_hash_path, remove_error);
 
+  const auto incomplete_path = write_manifest(
+      "prisminfer-kernel-incomplete-trials.json",
+      replace_once(valid_manifest(), "  \"raw_trial_count\": 3,\n", ""));
+  const auto incomplete =
+      prisminfer::read_kernel_benchmark_manifest(incomplete_path);
+  if (expect(!incomplete.ok, "completed manifest requires raw trials")) return 1;
+  if (expect(incomplete.error == "completed_raw_evidence_required",
+             "missing raw trial reason")) return 1;
+  std::filesystem::remove(incomplete_path, remove_error);
+
+  std::string aborted = valid_manifest();
+  aborted = replace_once(aborted, "\"run_outcome\": \"completed\",",
+                         "\"run_outcome\": \"aborted\",\n"
+                         "  \"failure_reason\": \"watchdog_timeout\",");
+  aborted = replace_once(
+      aborted, "\"failure_record_sha256\": \"\"",
+      "\"failure_record_sha256\": "
+      "\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"");
+  const auto aborted_path =
+      write_manifest("prisminfer-kernel-aborted.json", aborted);
+  const auto aborted_result =
+      prisminfer::read_kernel_benchmark_manifest(aborted_path);
+  if (expect(aborted_result.ok, aborted_result.error.c_str())) return 1;
+  if (expect(aborted_result.manifest.run_outcome == "aborted",
+             "aborted outcome parsed")) return 1;
+  std::filesystem::remove(aborted_path, remove_error);
+
   const auto missing_path = write_manifest(
       "prisminfer-kernel-missing.json",
       replace_once(valid_manifest(), "  \"model_hash\": \"model\",\n", ""));

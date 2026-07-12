@@ -135,6 +135,7 @@
     },
     "requested_execution_path": { "type": "string", "minLength": 1 },
     "actual_execution_path": { "type": "string", "minLength": 1 },
+    "failure_reason": { "type": "string" },
     "raw_trial_count": { "type": "integer", "minimum": 0 },
     "raw_trial_sha256": {
       "type": "string",
@@ -150,6 +151,36 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "run_outcome": { "const": "completed" }
+        }
+      },
+      "then": {
+        "required": ["raw_trial_count", "raw_trial_sha256"],
+        "properties": {
+          "raw_trial_count": { "type": "integer", "minimum": 1 },
+          "raw_trial_sha256": { "pattern": "^[0-9a-fA-F]{64}$" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "run_outcome": {
+            "enum": ["skipped", "unsupported", "rejected", "aborted"]
+          }
+        }
+      },
+      "then": {
+        "required": ["failure_reason", "failure_record_sha256"],
+        "properties": {
+          "failure_reason": { "type": "string", "minLength": 1 },
+          "failure_record_sha256": { "pattern": "^[0-9a-fA-F]{64}$" }
+        }
+      }
+    },
     {
       "if": {
         "properties": {

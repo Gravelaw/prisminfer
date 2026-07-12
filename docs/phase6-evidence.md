@@ -6,6 +6,9 @@ CUDA scaffolding. It has no model-backed evidence and remains `research-only`.
 Current status:
 
 - Strict kernel-manifest file ingestion and same-cell comparator tests exist.
+- The CPU-only `prism-emit-benchmark` path canonicalizes manifests, writes a
+  deterministic SHA-256 sidecar, and fails closed when completed outcomes lack
+  raw-trial evidence or non-completed outcomes lack failure evidence.
 - The Phase 6 gate schema/config and compression-oriented manifest fields exist.
 - The guarded CUDA target, bounded synthetic CUDA correctness test source,
   `-WithCudaKernels` verification flag, and manual self-hosted workflow exist.

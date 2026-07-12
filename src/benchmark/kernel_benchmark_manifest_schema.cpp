@@ -42,7 +42,7 @@ const std::set<std::string>& kernel_manifest_allowed_keys() {
       "attention_topk_overlap", "quality_gate_id", "quality_result_path",
       "cap_certification_status", "run_outcome",
       "requested_execution_path", "actual_execution_path", "raw_trial_count",
-      "raw_trial_sha256", "failure_record_sha256"};
+      "raw_trial_sha256", "failure_record_sha256", "failure_reason"};
   return keys;
 }
 
