@@ -2,13 +2,16 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <map>
 #include <string>
 
 #include "prisminfer/benchmark_comparator.h"
+#include "prisminfer/flat_json.h"
 
 namespace prisminfer {
 
 struct KernelBenchmarkManifest {
+  std::map<std::string, FlatJsonValue> fields;
   BenchmarkCell cell;
   std::string manifest_version;
   std::string validation_cell_id;

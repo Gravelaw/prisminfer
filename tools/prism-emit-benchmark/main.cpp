@@ -41,8 +41,11 @@ int main(int argc, char** argv) {
       return static_cast<int>(prisminfer::ExitCode::FailedClosed);
     }
   }
-  std::cout << "{\"status\":\"completed\",\"claim_status\":\""
+  std::cout << "{\"status\":\"" << input.manifest.run_outcome
+            << "\",\"claim_status\":\""
             << input.manifest.claim_status << "\",\"manifest_sha256\":\""
             << digest << "\"}\n";
-  return static_cast<int>(prisminfer::ExitCode::Ok);
+  return input.manifest.run_outcome == "completed"
+             ? static_cast<int>(prisminfer::ExitCode::Ok)
+             : static_cast<int>(prisminfer::ExitCode::FailedClosed);
 }

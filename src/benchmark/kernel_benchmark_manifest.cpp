@@ -73,6 +73,24 @@ bool parse_non_empty_string(const FlatJsonValue& value, std::string* output) {
 
 std::string serialize(const KernelBenchmarkManifest& manifest) {
   std::ostringstream out;
+  if (!manifest.fields.empty()) {
+    out << "{\n";
+    std::size_t index = 0U;
+    for (const auto& [key, value] : manifest.fields) {
+      out << "  \"" << json_escape(key) << "\": ";
+      if (value.kind == FlatJsonValue::Kind::String) {
+        out << "\"" << json_escape(value.text) << "\"";
+      } else {
+        out << value.text;
+      }
+      if (++index != manifest.fields.size()) {
+        out << ",";
+      }
+      out << "\n";
+    }
+    out << "}\n";
+    return out.str();
+  }
   out << "{\n"
       << "  \"manifest_version\": \"" << json_escape(manifest.manifest_version)
       << "\",\n"
@@ -392,6 +410,7 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
 
   KernelBenchmarkManifestResult result;
   result.ok = true;
+  manifest.fields = fields;
   result.manifest = manifest;
   return result;
 }
