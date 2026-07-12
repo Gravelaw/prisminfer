@@ -40,7 +40,8 @@ const std::set<std::string>& kernel_manifest_allowed_keys() {
       "kv_residual_or_sketch_bytes", "compression_decode_overhead_ms",
       "attention_logit_error_p95", "attention_logit_error_p99",
       "attention_topk_overlap", "quality_gate_id", "quality_result_path",
-      "cap_certification_status"};
+      "cap_certification_status", "run_outcome",
+      "requested_execution_path", "actual_execution_path"};
   return keys;
 }
 
@@ -55,7 +56,8 @@ const std::vector<std::string>& kernel_manifest_required_keys() {
       "baseline_manifest_hash", "correctness_fixture_hash",
       "quality_fixture_hash", "full_dequant_materialized",
       "workspace_peak_bytes", "speedup_ratio", "claim_status",
-      "compression_status", "quality_gate_id", "cap_certification_status"};
+      "compression_status", "quality_gate_id", "cap_certification_status",
+      "run_outcome", "requested_execution_path", "actual_execution_path"};
   return keys;
 }
 
@@ -76,7 +78,12 @@ bool kernel_manifest_identity_constraints_ok(
                 {"none", "accounting-only", "reference", "experimental"}) &&
          one_of(manifest.cap_certification_status,
                 {"research-only", "measured-non-certified", "quality-gated",
-                 "validated-benchmark", "rejected"});
+                 "validated-benchmark", "rejected"}) &&
+         one_of(manifest.run_outcome,
+                {"completed", "skipped", "unsupported", "rejected",
+                 "aborted"}) &&
+         !manifest.requested_execution_path.empty() &&
+         !manifest.actual_execution_path.empty();
 }
 
 bool kernel_manifest_optional_constraints_ok(

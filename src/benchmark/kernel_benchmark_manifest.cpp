@@ -107,6 +107,9 @@ std::string serialize(const KernelBenchmarkManifest& manifest) {
       << "  \"compression_status\": \"" << json_escape(manifest.compression_status) << "\",\n"
       << "  \"quality_gate_id\": \"" << json_escape(manifest.quality_gate_id) << "\",\n"
       << "  \"cap_certification_status\": \"" << json_escape(manifest.cap_certification_status) << "\",\n"
+      << "  \"run_outcome\": \"" << json_escape(manifest.run_outcome) << "\",\n"
+      << "  \"requested_execution_path\": \"" << json_escape(manifest.requested_execution_path) << "\",\n"
+      << "  \"actual_execution_path\": \"" << json_escape(manifest.actual_execution_path) << "\",\n"
       << "  \"claim_status\": \"" << json_escape(manifest.claim_status) << "\"\n"
       << "}\n";
   return out.str();
@@ -316,6 +319,16 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
                      parse_non_empty_string, &error) ||
       !read_required(fields, "cap_certification_status",
                      &manifest.cap_certification_status,
+                     parse_non_empty_string, &error)) {
+    return fail(error);
+  }
+  if (!read_required(fields, "run_outcome", &manifest.run_outcome,
+                     parse_non_empty_string, &error) ||
+      !read_required(fields, "requested_execution_path",
+                     &manifest.requested_execution_path,
+                     parse_non_empty_string, &error) ||
+      !read_required(fields, "actual_execution_path",
+                     &manifest.actual_execution_path,
                      parse_non_empty_string, &error)) {
     return fail(error);
   }

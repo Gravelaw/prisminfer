@@ -24,6 +24,9 @@ struct KernelBenchmarkManifest {
   std::string quality_gate_id;
   std::string quality_result_path;
   std::string cap_certification_status{"research-only"};
+  std::string run_outcome;
+  std::string requested_execution_path;
+  std::string actual_execution_path;
   bool full_dequant_materialized{false};
   std::uint64_t workspace_peak_bytes{0};
   std::uint64_t kv_payload_bytes{0};

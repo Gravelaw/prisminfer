@@ -30,6 +30,9 @@
   "compression_status": "none",
   "quality_gate_id": "phase6-retrieval-gate",
   "cap_certification_status": "research-only",
+  "run_outcome": "completed",
+  "requested_execution_path": "upstream-baseline",
+  "actual_execution_path": "upstream-baseline",
   "claim_status": "research-only",
   "surprise": true
 }

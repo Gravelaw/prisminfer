@@ -46,10 +46,13 @@ std::string valid_manifest() {
   "full_dequant_materialized": false,
   "workspace_peak_bytes": 1024,
   "speedup_ratio": 1.0,
-  "claim_status": "research-only",
   "compression_status": "none",
   "quality_gate_id": "phase6-retrieval-gate",
-  "cap_certification_status": "research-only"
+  "cap_certification_status": "research-only",
+  "run_outcome": "completed",
+  "requested_execution_path": "upstream-baseline",
+  "actual_execution_path": "upstream-baseline",
+  "claim_status": "research-only"
 })json";
 }
 

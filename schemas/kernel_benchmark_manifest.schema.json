@@ -35,6 +35,9 @@
     "compression_status",
     "quality_gate_id",
     "cap_certification_status",
+    "run_outcome",
+    "requested_execution_path",
+    "actual_execution_path",
     "claim_status"
   ],
   "properties": {
@@ -126,6 +129,12 @@
       "type": "string",
       "enum": ["research-only", "measured-non-certified", "quality-gated", "validated-benchmark", "rejected"]
     },
+    "run_outcome": {
+      "type": "string",
+      "enum": ["completed", "skipped", "unsupported", "rejected", "aborted"]
+    },
+    "requested_execution_path": { "type": "string", "minLength": 1 },
+    "actual_execution_path": { "type": "string", "minLength": 1 },
     "claim_status": {
       "type": "string",
       "enum": ["measured", "measured-non-certified", "rejected", "research-only"]
