@@ -7,7 +7,9 @@
   "required": ["catalog_version", "catalog_status", "cells"],
   "properties": {
     "catalog_version": { "const": "0.1" },
-    "catalog_status": { "const": "metadata-only" },
+    "catalog_status": {
+      "enum": ["metadata-only", "source-verified"]
+    },
     "cells": {
       "type": "array",
       "minItems": 4,
@@ -39,7 +41,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["pinned", "metadata-only", "pending-license-access"]
+          "enum": ["pinned", "metadata-only", "pending-license-access", "source-verified"]
         },
         "artifact_kind": {
           "type": "string",
@@ -51,9 +53,30 @@
           "pattern": "^$|^[0-9a-fA-F]{64}$"
         },
         "source_revision": { "type": "string" },
+        "source_manifest_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "source_file_count": { "type": "integer", "minimum": 0 },
+        "source_total_bytes": { "type": "integer", "minimum": 0 },
+        "conversion_status": {
+          "type": "string",
+          "enum": ["not-attempted", "q4-k-m-aborted-run-bound"]
+        },
+        "f16_intermediate_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "f16_intermediate_bytes": { "type": "integer", "minimum": 0 },
+        "q4_k_m_partial_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "q4_k_m_partial_bytes": { "type": "integer", "minimum": 0 },
+        "q4_k_m_failure_reason": { "type": "string" },
         "license_status": {
           "type": "string",
-          "enum": ["not-applicable", "pending"]
+          "enum": ["not-applicable", "pending", "accepted"]
         },
         "modality": {
           "type": "string",
@@ -73,6 +96,39 @@
               "artifact_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
               "source_revision": { "minLength": 1 },
               "license_status": { "const": "not-applicable" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "status": { "const": "source-verified" } }
+          },
+          "then": {
+            "required": [
+              "source_manifest_sha256",
+              "source_file_count",
+              "source_total_bytes",
+              "conversion_status",
+              "f16_intermediate_sha256",
+              "f16_intermediate_bytes",
+              "q4_k_m_partial_sha256",
+              "q4_k_m_partial_bytes",
+              "q4_k_m_failure_reason"
+            ],
+            "properties": {
+              "artifact_path": { "maxLength": 0 },
+              "artifact_sha256": { "maxLength": 0 },
+              "source_revision": { "minLength": 1 },
+              "source_manifest_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "source_file_count": { "minimum": 1 },
+              "source_total_bytes": { "minimum": 1 },
+              "conversion_status": { "const": "q4-k-m-aborted-run-bound" },
+              "f16_intermediate_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "f16_intermediate_bytes": { "minimum": 1 },
+              "q4_k_m_partial_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "q4_k_m_partial_bytes": { "minimum": 1 },
+              "q4_k_m_failure_reason": { "minLength": 1 },
+              "license_status": { "const": "accepted" }
             }
           }
         },

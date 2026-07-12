@@ -45,6 +45,24 @@ try {
         throw "Catalog validator accepted a mismatched smoke hash."
     }
 
+    $badSourcePath = Join-Path $tempRoot "bad-source.json"
+    $badSourceText = $catalogText.Replace(
+        "a5db8ce550b422ec693dbbf9180d554187d587b96407dfa67805349b55c1fe9d",
+        "0000000000000000000000000000000000000000000000000000000000000000")
+    Set-Content -LiteralPath $badSourcePath -Value $badSourceText -NoNewline
+    $savedPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $badSourceOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $validator -CatalogPath $badSourcePath 2>&1
+        $badSourceExit = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $savedPreference
+    }
+    if ($badSourceExit -eq 0) {
+        throw "Catalog validator accepted a mismatched foundation source manifest hash."
+    }
+
     $badPath = Join-Path $tempRoot "bad-path.json"
     $badPathText = $catalogText.Replace(
         "tests/fixtures/model-cells/tiny-smoke-artifact.txt",
@@ -90,6 +108,7 @@ try {
 }
 finally {
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-hash.json") -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $tempRoot "bad-source.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-path.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-reparse.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $tempRoot -Force -ErrorAction SilentlyContinue

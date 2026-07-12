@@ -1,6 +1,6 @@
 {
   "catalog_version": "0.1",
-  "catalog_status": "metadata-only",
+  "catalog_status": "source-verified",
   "cells": [
     {
       "cell_id": "tiny-deterministic-smoke",
@@ -18,15 +18,24 @@
     {
       "cell_id": "llama-3.1-8b-instruct-foundation",
       "role": "foundation",
-      "status": "pending-license-access",
+      "status": "source-verified",
       "artifact_kind": "text-gguf",
       "artifact_path": "",
       "artifact_sha256": "",
-      "source_revision": "",
-      "license_status": "pending",
+      "source_revision": "0e9e39f249a16976918f6564b8830bc894c89659",
+      "source_manifest_sha256": "a5db8ce550b422ec693dbbf9180d554187d587b96407dfa67805349b55c1fe9d",
+      "source_file_count": 13,
+      "source_total_bytes": 16069779031,
+      "conversion_status": "q4-k-m-aborted-run-bound",
+      "f16_intermediate_sha256": "3ff4b731b770599b1111cb141f9b6c0939ba93c920e7fc4ce45793da50431f61",
+      "f16_intermediate_bytes": 16068896416,
+      "q4_k_m_partial_sha256": "4577bdada251901e98184408522fc6bed20ed6a813ca304e13df185cdf688136",
+      "q4_k_m_partial_bytes": 438796288,
+      "q4_k_m_failure_reason": "run_bound_working_set_exceeded_4_gib",
+      "license_status": "accepted",
       "modality": "text-only-main-artifact",
-      "architecture_state": "dense GQA transformer; exact source and recipe pending acceptance",
-      "notes": "No artifact fetched, converted, loaded, or executed in this goal."
+      "architecture_state": "dense GQA transformer; source revision verified, canonical Q4_K_M artifact absent",
+      "notes": "Source and F16 intermediate are retained outside the repository; Q4_K_M quantization was aborted at the declared 4 GiB working-set bound. No model inference executed."
     },
     {
       "cell_id": "ornith-1.0-9b-stress",

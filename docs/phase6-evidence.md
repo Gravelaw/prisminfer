@@ -17,7 +17,10 @@ Current status:
   `-WithCudaKernels` verification flag, and manual self-hosted workflow exist.
 - The CUDA fixture uses toy `Q4Block` semantics; it is not evidence for any
   selected GGUF tensor type or model.
-- No retained real foundation or Ornith GGUF artifact exists in the repository.
+- The preferred foundation source is hash-verified and a self-produced F16
+  intermediate is retained outside the repository; its Q4_K_M attempt was
+  aborted at a run-specific CPU working-set bound, so no canonical foundation
+  quant or Ornith GGUF artifact exists.
 - No same-cell llama.cpp/GGML CUDA/MMQ baseline exists.
 - No manifest-backed PrismInfer candidate kernel benchmark exists.
 - No compression-specific foundation/stress-cell benchmark manifest exists.
