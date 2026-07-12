@@ -2,6 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $validator = Join-Path $PSScriptRoot "validate-model-cell-catalog.ps1"
 $catalogPath = Join-Path $PSScriptRoot "..\configs\model-cell-catalog.json"
+$schemaPath = Join-Path $PSScriptRoot "..\schemas\model_cell_catalog.schema.json"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
 function Remove-TestJunction {
@@ -17,6 +18,36 @@ function Remove-TestJunction {
     }
     [IO.Directory]::Delete($Path, $false)
 }
+
+function Test-Q4AttemptSchema {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $schema = Get-Content -LiteralPath $schemaPath -Raw | ConvertFrom-Json
+    $itemSchema = $schema.'$defs'.cell.properties.q4_k_m_attempts.items
+    $allowed = @($itemSchema.properties.PSObject.Properties.Name)
+    $catalog = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    foreach ($cell in @($catalog.cells)) {
+        foreach ($attempt in @($cell.q4_k_m_attempts)) {
+            if ($null -eq $attempt) { continue }
+            $actual = @($attempt.PSObject.Properties.Name)
+            if (@($actual | Where-Object { $_ -notin $allowed }).Count -ne 0) { return $false }
+            foreach ($required in @($itemSchema.required)) {
+                if ($actual -notcontains $required) { return $false }
+            }
+            if ($attempt.failure_reason -eq "physical_reserve_guard_triggered_unverified") {
+                foreach ($required in @($itemSchema.allOf[0].then.required)) {
+                    if ($actual -notcontains $required) { return $false }
+                }
+            }
+        }
+    }
+    return $true
+}
+
+if (-not (Test-Q4AttemptSchema -Path $catalogPath)) {
+    throw "Valid model-cell catalog was rejected by its Q4_K_M receipt schema."
+}
+
 & powershell -NoProfile -ExecutionPolicy Bypass -File $validator -CatalogPath $catalogPath
 if ($LASTEXITCODE -ne 0) {
     throw "Valid model-cell catalog was rejected."
@@ -26,6 +57,15 @@ $tempRoot = [IO.Path]::GetFullPath((Join-Path $env:TEMP ("prisminfer-model-cell-
 New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
 try {
     $catalogText = Get-Content -LiteralPath $catalogPath -Raw
+
+    $badSchemaPath = Join-Path $tempRoot "bad-schema.json"
+    $badSchemaText = $catalogText.Replace(
+        '"telemetry_status": "missing_sampled_memory_values"',
+        '"telemetry_status": "missing_sampled_memory_values", "unexpected_schema_field": true')
+    Set-Content -LiteralPath $badSchemaPath -Value $badSchemaText -NoNewline
+    if (Test-Q4AttemptSchema -Path $badSchemaPath) {
+        throw "Catalog Q4_K_M receipt schema accepted an unrecognized field."
+    }
 
     $badHashPath = Join-Path $tempRoot "bad-hash.json"
     $badHashText = $catalogText.Replace(
@@ -193,6 +233,7 @@ try {
     }
 }
 finally {
+    Remove-Item -LiteralPath (Join-Path $tempRoot "bad-schema.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-hash.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-source.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-metadata.json") -Force -ErrorAction SilentlyContinue

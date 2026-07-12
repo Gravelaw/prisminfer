@@ -21,9 +21,12 @@ Current status:
 - The CUDA fixture uses toy `Q4Block` semantics; it is not evidence for any
   selected GGUF tensor type or model.
 - The preferred foundation source is hash-verified and a self-produced F16
-  intermediate is retained outside the repository; three Q4_K_M attempts were
-  aborted at run-specific CPU working-set bounds (4 GiB, 6 GiB, and 8 GiB), so
-  no canonical foundation quant or Ornith GGUF artifact exists.
+  intermediate is retained outside the repository; four Q4_K_M attempts were
+  aborted at run-specific CPU working-set bounds (4 GiB, 6 GiB, 8 GiB, and
+  10 GiB). The authorized 15 GiB retry's retained receipt reports that the 4 GiB
+  physical-reserve guard fired, but lacks the sampled physical-memory values
+  needed to independently prove that inequality; it is therefore an explicitly
+  unverified, noncanonical forensic receipt. No canonical foundation quant exists.
 - The source-verified foundation receipt pins source config, tokenizer,
   tokenizer-template, license/use-policy, architecture, converter, recipe,
   and imatrix-not-used metadata. Its retained F16 metadata inventory contains

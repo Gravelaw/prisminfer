@@ -66,6 +66,24 @@ $expectedFoundation = @{
             PartialSha256 = "d501c642169d9ecd9aee76c0eceaae7c7fcf437521aa75bc40b5ff303b99e1cf"
             PartialBytes = [uint64]1469399040
             FailureReason = "run_bound_working_set_exceeded_8_gib"
+        },
+        @{
+            WorkingSetLimitBytes = [uint64]10737418240
+            MaxWorkingSetBytes = [uint64]11028516864
+            PartialSha256 = "108fe36f86d7c4db08dc152270776091a44621b540cf4945d6a8086bf3963acc"
+            PartialBytes = [uint64]2148466688
+            FailureReason = "run_bound_working_set_exceeded_10_gib"
+        },
+        @{
+            WorkingSetLimitBytes = [uint64]16106127360
+            MaxWorkingSetBytes = [uint64]14082899968
+            PartialSha256 = "a36429c67c0f874b8c58cf0c61c4933a3fc41e79ca85b7c0135c95d4db38089a"
+            PartialBytes = [uint64]3039920128
+            FailureReason = "physical_reserve_guard_triggered_unverified"
+            RunReceiptSha256 = "74b0f14a0bc723b96c8d91843d581f26c83f6971b944807bd9e81a97b501ec81"
+            DeclaredPhysicalReserveBytes = [uint64]4294967296
+            DeclaredCommitReserveBytes = [uint64]6442450944
+            TelemetryStatus = "missing_sampled_memory_values"
         }
     )
 }
@@ -158,8 +176,18 @@ foreach ($cell in $catalog.cells) {
                 $actual.partial_sha256 -ne $expectedAttempt.PartialSha256 -or
                 [uint64]$actual.partial_bytes -ne $expectedAttempt.PartialBytes -or
                 $actual.failure_reason -ne $expectedAttempt.FailureReason -or
-                [uint64]$actual.max_working_set_bytes -le [uint64]$actual.working_set_limit_bytes) {
+                (($actual.failure_reason -like "run_bound_working_set_exceeded_*") -and
+                    ([uint64]$actual.max_working_set_bytes -le [uint64]$actual.working_set_limit_bytes)) -or
+                (($actual.failure_reason -eq "physical_reserve_guard_triggered_unverified") -and
+                    ([uint64]$actual.max_working_set_bytes -gt [uint64]$actual.working_set_limit_bytes))) {
                 throw "Foundation Q4_K_M attempt receipt is incomplete or contradictory."
+            }
+            if ($actual.failure_reason -eq "physical_reserve_guard_triggered_unverified" -and
+                ($actual.run_receipt_sha256 -ne $expectedAttempt.RunReceiptSha256 -or
+                 [uint64]$actual.declared_physical_reserve_bytes -ne $expectedAttempt.DeclaredPhysicalReserveBytes -or
+                 [uint64]$actual.declared_commit_reserve_bytes -ne $expectedAttempt.DeclaredCommitReserveBytes -or
+                 $actual.telemetry_status -ne $expectedAttempt.TelemetryStatus)) {
+                throw "Foundation Q4_K_M unverified reserve-guard receipt is incomplete or contradictory."
             }
         }
     } elseif ($cell.status -eq "pinned") {

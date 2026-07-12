@@ -121,8 +121,34 @@
               "max_working_set_bytes": { "type": "integer", "minimum": 1 },
               "partial_sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
               "partial_bytes": { "type": "integer", "minimum": 1 },
-              "failure_reason": { "type": "string", "minLength": 1 }
-            }
+              "failure_reason": { "type": "string", "minLength": 1 },
+              "run_receipt_sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+              "declared_physical_reserve_bytes": { "type": "integer", "minimum": 1 },
+              "declared_commit_reserve_bytes": { "type": "integer", "minimum": 1 },
+              "telemetry_status": {
+                "type": "string",
+                "enum": ["missing_sampled_memory_values"]
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "failure_reason": {
+                      "const": "physical_reserve_guard_triggered_unverified"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "run_receipt_sha256",
+                    "declared_physical_reserve_bytes",
+                    "declared_commit_reserve_bytes",
+                    "telemetry_status"
+                  ]
+                }
+              }
+            ]
           }
         },
         "license_status": {

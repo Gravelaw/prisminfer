@@ -68,12 +68,30 @@
           "partial_sha256": "d501c642169d9ecd9aee76c0eceaae7c7fcf437521aa75bc40b5ff303b99e1cf",
           "partial_bytes": 1469399040,
           "failure_reason": "run_bound_working_set_exceeded_8_gib"
+        },
+        {
+          "working_set_limit_bytes": 10737418240,
+          "max_working_set_bytes": 11028516864,
+          "partial_sha256": "108fe36f86d7c4db08dc152270776091a44621b540cf4945d6a8086bf3963acc",
+          "partial_bytes": 2148466688,
+          "failure_reason": "run_bound_working_set_exceeded_10_gib"
+        },
+        {
+          "working_set_limit_bytes": 16106127360,
+          "max_working_set_bytes": 14082899968,
+          "partial_sha256": "a36429c67c0f874b8c58cf0c61c4933a3fc41e79ca85b7c0135c95d4db38089a",
+          "partial_bytes": 3039920128,
+          "failure_reason": "physical_reserve_guard_triggered_unverified",
+          "run_receipt_sha256": "74b0f14a0bc723b96c8d91843d581f26c83f6971b944807bd9e81a97b501ec81",
+          "declared_physical_reserve_bytes": 4294967296,
+          "declared_commit_reserve_bytes": 6442450944,
+          "telemetry_status": "missing_sampled_memory_values"
         }
       ],
       "license_status": "accepted",
       "modality": "text-only-main-artifact",
       "architecture_state": "dense GQA transformer; source revision verified, canonical Q4_K_M artifact absent",
-      "notes": "Source and F16 intermediate are retained outside the repository; its metadata-only tensor inventory records F16:226 and F32:66. Q4_K_M quantization attempts were aborted at declared 4 GiB, 6 GiB, and 8 GiB working-set bounds. No model inference executed."
+      "notes": "Source and F16 intermediate are retained outside the repository; its metadata-only tensor inventory records F16:226 and F32:66. Q4_K_M attempts were aborted at 4 GiB, 6 GiB, 8 GiB, and 10 GiB working-set bounds. The authorized 15 GiB run reports its 4 GiB physical-reserve guard fired, but its retained receipt lacks sampled physical-memory values; it is explicitly unverified and noncanonical. No model inference executed."
     },
     {
       "cell_id": "ornith-1.0-9b-stress",
