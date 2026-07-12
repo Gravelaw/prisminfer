@@ -4,6 +4,7 @@
 #include <string>
 
 #include "prisminfer/kernel_benchmark_manifest.h"
+#include "prisminfer/sha256.h"
 
 namespace {
 
@@ -74,6 +75,24 @@ std::string replace_once(std::string value,
 
 int main() {
   std::error_code remove_error;
+  const auto sha_path =
+      std::filesystem::temp_directory_path() / "prisminfer-sha256.txt";
+  {
+    std::ofstream sha_input(sha_path, std::ios::out | std::ios::trunc);
+    sha_input << "abc";
+  }
+  std::string digest;
+  std::string digest_error;
+  if (expect(prisminfer::sha256_file(sha_path, &digest, &digest_error),
+             digest_error.c_str())) {
+    return 1;
+  }
+  if (expect(digest ==
+                 "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+             "sha256 known vector")) {
+    return 1;
+  }
+  std::filesystem::remove(sha_path, remove_error);
   const auto valid_path = write_manifest("prisminfer-kernel-valid.json",
                                          valid_manifest());
   const auto parsed = prisminfer::read_kernel_benchmark_manifest(valid_path);

@@ -59,6 +59,7 @@ add_library(prisminfer_core
   src/benchmark/flat_json.cpp
   src/benchmark/kernel_benchmark_manifest_schema.cpp
   src/benchmark/kernel_benchmark_manifest.cpp
+  src/benchmark/sha256.cpp
   src/benchmark/transfer_metrics.cpp
   src/kernels/ggml_q4_k_reference.cpp
   src/kernels/q4_decode_gemv.cpp
