@@ -1,6 +1,8 @@
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
+#include <limits>
 #include <vector>
 
 #include "prisminfer/kernels/ggml_q4_k_reference.h"
@@ -53,6 +55,27 @@ int main() {
   }
   if (expect(rejected.reason == "decoded_byte_limit_exceeded",
              "decoded byte limit reason")) {
+    return 1;
+  }
+  const std::size_t blocks_above_limit =
+      std::vector<float>{}.max_size() / 256U + 1U;
+  if (expect(blocks_above_limit <=
+                 std::numeric_limits<std::size_t>::max() / 256U,
+             "vector limit fixture avoids count overflow")) {
+    return 1;
+  }
+  const auto impossible_blocks =
+      std::span<const prisminfer::kernels::GgmlQ4KBlock>(
+          reinterpret_cast<const prisminfer::kernels::GgmlQ4KBlock*>(
+              static_cast<std::uintptr_t>(1U)),
+          blocks_above_limit);
+  const auto limit_rejected = prisminfer::kernels::decode_ggml_q4_k_reference(
+      impossible_blocks, std::numeric_limits<std::size_t>::max());
+  if (expect(!limit_rejected.ok, "decoded value limit rejects before access")) {
+    return 1;
+  }
+  if (expect(limit_rejected.reason == "decoded_value_limit_exceeded",
+             "decoded value limit reason")) {
     return 1;
   }
   return 0;

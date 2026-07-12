@@ -63,6 +63,10 @@ GgmlQ4KDecodeResult decode_ggml_q4_k_reference(
     return {false, "decoded_value_count_overflow", {}};
   }
   const std::size_t decoded_values = blocks.size() * kValuesPerBlock;
+  std::vector<float> values;
+  if (decoded_values > values.max_size()) {
+    return {false, "decoded_value_limit_exceeded", {}};
+  }
   if (decoded_values > std::numeric_limits<std::size_t>::max() /
                            sizeof(float)) {
     return {false, "decoded_byte_count_overflow", {}};
@@ -73,7 +77,6 @@ GgmlQ4KDecodeResult decode_ggml_q4_k_reference(
   }
 
   try {
-    std::vector<float> values;
     values.reserve(decoded_values);
     for (const GgmlQ4KBlock& block : blocks) {
       const float delta = fp16_to_float(block.delta_fp16);
