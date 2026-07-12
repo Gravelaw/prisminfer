@@ -132,6 +132,16 @@ int main() {
   std::filesystem::remove(emitted_path, remove_error);
   std::filesystem::remove(valid_path, remove_error);
 
+  const auto malformed_hash_path = write_manifest(
+      "prisminfer-kernel-malformed-raw-hash.json",
+      replace_once(valid_manifest(), "\"raw_trial_sha256\": "
+                   "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"",
+                   "\"raw_trial_sha256\": \"not-a-hash\""));
+  const auto malformed_hash =
+      prisminfer::read_kernel_benchmark_manifest(malformed_hash_path);
+  if (expect(!malformed_hash.ok, "malformed raw hash rejected")) return 1;
+  std::filesystem::remove(malformed_hash_path, remove_error);
+
   const auto missing_path = write_manifest(
       "prisminfer-kernel-missing.json",
       replace_once(valid_manifest(), "  \"model_hash\": \"model\",\n", ""));

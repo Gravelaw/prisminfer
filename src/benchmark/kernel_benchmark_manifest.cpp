@@ -71,6 +71,17 @@ bool parse_non_empty_string(const FlatJsonValue& value, std::string* output) {
   return parse_string(value, output) && !output->empty();
 }
 
+bool valid_optional_sha256(const std::string& value) {
+  if (value.empty() || value.size() != 64U) {
+    return value.empty();
+  }
+  return std::all_of(value.begin(), value.end(), [](unsigned char character) {
+    return (character >= '0' && character <= '9') ||
+           (character >= 'a' && character <= 'f') ||
+           (character >= 'A' && character <= 'F');
+  });
+}
+
 std::string serialize(const KernelBenchmarkManifest& manifest) {
   std::ostringstream out;
   if (!manifest.fields.empty()) {
@@ -357,6 +368,10 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
       !read_optional(fields, "failure_record_sha256",
                      &manifest.failure_record_sha256, parse_string, &error)) {
     return fail(error);
+  }
+  if (!valid_optional_sha256(manifest.raw_trial_sha256) ||
+      !valid_optional_sha256(manifest.failure_record_sha256)) {
+    return fail("invalid_field:raw_evidence_sha256");
   }
 
   if (!kernel_manifest_identity_constraints_ok(manifest)) {
