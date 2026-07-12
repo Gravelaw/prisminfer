@@ -156,6 +156,27 @@ target_link_libraries(prism-emit-benchmark PRIVATE prisminfer_core)
 
 enable_testing()
 
+add_test(
+    NAME prism_emit_benchmark_binds_raw_evidence
+    COMMAND prism-emit-benchmark
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/emitter-valid.json
+            $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-valid-output.json
+            --evidence-root
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests
+            --raw-trials
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/raw-trials.jsonl)
+add_test(
+    NAME prism_emit_benchmark_rejects_raw_evidence_mismatch
+    COMMAND prism-emit-benchmark
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/emitter-valid.json
+            $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-mismatch-output.json
+            --evidence-root
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests
+            --raw-trials
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/raw-trials-mismatch.jsonl)
+set_tests_properties(prism_emit_benchmark_rejects_raw_evidence_mismatch
+                     PROPERTIES WILL_FAIL TRUE)
+
 add_executable(test_config tests/unit/test_config.cpp)
 target_link_libraries(test_config PRIVATE prisminfer_core)
 add_test(NAME test_config COMMAND test_config)

@@ -1,11 +1,17 @@
 #include "prisminfer/sha256.h"
 
 #include <array>
+#include <algorithm>
 #include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
 #include <vector>
+
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#endif
 
 namespace prisminfer {
 namespace {
@@ -41,14 +47,8 @@ void process_block(const std::uint8_t* block, std::array<std::uint32_t, 8>* stat
   }
   (*state)[0]+=a;(*state)[1]+=b;(*state)[2]+=c;(*state)[3]+=d;(*state)[4]+=e;(*state)[5]+=f;(*state)[6]+=g;(*state)[7]+=h;
 }
-}  // namespace
 
-bool sha256_file(const std::filesystem::path& path, std::string* digest, std::string* error) {
-  std::ifstream input(path, std::ios::binary);
-  if (!input) { if (error) *error="sha256_input_open_failed"; return false; }
-  const std::vector<std::uint8_t> data((std::istreambuf_iterator<char>(input)),
-                                       std::istreambuf_iterator<char>());
-  if (input.bad()) { if (error) *error="sha256_input_read_failed"; return false; }
+bool sha256_bytes(const std::vector<std::uint8_t>& data, std::string* digest) {
   std::array<std::uint32_t,8> state{0x6a09e667U,0xbb67ae85U,0x3c6ef372U,0xa54ff53aU,0x510e527fU,0x9b05688cU,0x1f83d9abU,0x5be0cd19U};
   std::array<std::uint8_t,64> block{};
   std::size_t position=0;
@@ -63,5 +63,256 @@ bool sha256_file(const std::filesystem::path& path, std::string* digest, std::st
   std::ostringstream out; out<<std::hex<<std::setfill('0');
   for (const auto value:state) out<<std::setw(8)<<value;
   *digest=out.str(); return true;
+}
+
+bool relative_path_is_descendant(const std::filesystem::path& relative) {
+  return !relative.empty() && relative != "." &&
+         std::none_of(relative.begin(), relative.end(),
+                      [](const std::filesystem::path& component) {
+                        return component == "..";
+                      });
+}
+
+bool is_platform_reparse_point(const std::filesystem::path& path) {
+#ifdef _WIN32
+  const auto attributes = GetFileAttributesW(path.c_str());
+  return attributes == INVALID_FILE_ATTRIBUTES ||
+         (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U;
+#else
+  (void)path;
+  return false;
+#endif
+}
+
+bool path_components_are_not_reparse_points(
+    const std::filesystem::path& root,
+    const std::filesystem::path& relative,
+    std::string* error) {
+  std::error_code status_error;
+  const auto root_status = std::filesystem::symlink_status(root, status_error);
+  if (status_error || !std::filesystem::is_directory(root_status) ||
+      std::filesystem::is_symlink(root_status) || is_platform_reparse_point(root)) {
+    if (error) *error = "sha256_trusted_root_rejected";
+    return false;
+  }
+  auto current = root;
+  for (const auto& component : relative) {
+    current /= component;
+    const auto status = std::filesystem::symlink_status(current, status_error);
+    if (status_error || std::filesystem::is_symlink(status) ||
+        is_platform_reparse_point(current)) {
+      if (error) *error = "sha256_input_reparse_point";
+      return false;
+    }
+  }
+  return true;
+}
+
+#ifdef _WIN32
+class ScopedHandle {
+ public:
+  explicit ScopedHandle(HANDLE value) : value_(value) {}
+  ~ScopedHandle() { if (value_ != INVALID_HANDLE_VALUE) CloseHandle(value_); }
+  ScopedHandle(const ScopedHandle&) = delete;
+  ScopedHandle& operator=(const ScopedHandle&) = delete;
+  HANDLE get() const { return value_; }
+
+ private:
+  HANDLE value_{INVALID_HANDLE_VALUE};
+};
+
+bool final_path_from_handle(HANDLE handle, std::wstring* output) {
+  const DWORD required = GetFinalPathNameByHandleW(
+      handle, nullptr, 0U, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+  if (required == 0U) return false;
+  std::vector<wchar_t> buffer(static_cast<std::size_t>(required) + 1U);
+  const DWORD written = GetFinalPathNameByHandleW(
+      handle, buffer.data(), static_cast<DWORD>(buffer.size()),
+      FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+  if (written == 0U || written >= buffer.size()) return false;
+  output->assign(buffer.data(), written);
+  return true;
+}
+
+bool full_input_path(const std::filesystem::path& path, std::wstring* output) {
+  const DWORD required = GetFullPathNameW(path.c_str(), 0U, nullptr, nullptr);
+  if (required == 0U) return false;
+  std::vector<wchar_t> buffer(static_cast<std::size_t>(required) + 1U);
+  const DWORD written = GetFullPathNameW(path.c_str(),
+                                         static_cast<DWORD>(buffer.size()),
+                                         buffer.data(), nullptr);
+  if (written == 0U || written >= buffer.size()) return false;
+  output->assign(buffer.data(), written);
+  return true;
+}
+
+std::wstring with_extended_prefix(const std::wstring& path) {
+  if (path.rfind(L"\\\\?\\", 0U) == 0U) return path;
+  if (path.rfind(L"\\\\", 0U) == 0U) return L"\\\\?\\UNC\\" + path.substr(2U);
+  return L"\\\\?\\" + path;
+}
+
+bool equal_path_ci(const std::wstring& left, const std::wstring& right) {
+  return left.size() == right.size() &&
+         CompareStringOrdinal(left.data(), static_cast<int>(left.size()),
+                              right.data(), static_cast<int>(right.size()),
+                              TRUE) == CSTR_EQUAL;
+}
+
+bool final_path_is_descendant(const std::wstring& root,
+                              const std::wstring& candidate) {
+  if (candidate.size() <= root.size() ||
+      CompareStringOrdinal(root.data(), static_cast<int>(root.size()),
+                           candidate.data(), static_cast<int>(root.size()),
+                           TRUE) != CSTR_EQUAL) {
+    return false;
+  }
+  const wchar_t separator = candidate[root.size()];
+  return separator == L'\\' || separator == L'/';
+}
+
+bool sha256_windows_trusted_handle(const std::filesystem::path& trusted_root,
+                                   const std::filesystem::path& path,
+                                   std::uint64_t maximum_bytes,
+                                   std::string* digest,
+                                   std::string* error) {
+  ScopedHandle root(CreateFileW(trusted_root.c_str(), FILE_READ_ATTRIBUTES,
+                                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                nullptr, OPEN_EXISTING,
+                                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+                                nullptr));
+  if (root.get() == INVALID_HANDLE_VALUE) {
+    if (error) *error = "sha256_trusted_root_rejected";
+    return false;
+  }
+  BY_HANDLE_FILE_INFORMATION root_info{};
+  std::wstring root_final;
+  std::wstring root_input;
+  if (!GetFileInformationByHandle(root.get(), &root_info) ||
+      (root_info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U ||
+      (root_info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0U ||
+      !final_path_from_handle(root.get(), &root_final) ||
+      !full_input_path(trusted_root, &root_input) ||
+      !equal_path_ci(root_final, with_extended_prefix(root_input))) {
+    if (error) *error = "sha256_trusted_root_rejected";
+    return false;
+  }
+
+  ScopedHandle evidence(CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ,
+                                    nullptr, OPEN_EXISTING,
+                                    FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
+  if (evidence.get() == INVALID_HANDLE_VALUE) {
+    if (error) *error = "sha256_input_open_failed";
+    return false;
+  }
+  BY_HANDLE_FILE_INFORMATION evidence_info{};
+  std::wstring evidence_final;
+  if (!GetFileInformationByHandle(evidence.get(), &evidence_info) ||
+      (evidence_info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U ||
+      (evidence_info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0U ||
+      !final_path_from_handle(evidence.get(), &evidence_final) ||
+      !final_path_is_descendant(root_final, evidence_final)) {
+    if (error) *error = "sha256_input_reparse_point";
+    return false;
+  }
+
+  std::vector<std::uint8_t> data;
+  std::array<std::uint8_t, 8192> buffer{};
+  for (;;) {
+    DWORD read = 0U;
+    if (!ReadFile(evidence.get(), buffer.data(), static_cast<DWORD>(buffer.size()),
+                  &read, nullptr)) {
+      if (error) *error = "sha256_input_read_failed";
+      return false;
+    }
+    if (read == 0U) break;
+    const auto count = static_cast<std::uint64_t>(read);
+    if (count > maximum_bytes ||
+        static_cast<std::uint64_t>(data.size()) > maximum_bytes - count) {
+      if (error) *error = "sha256_input_size_exceeds_limit";
+      return false;
+    }
+    data.insert(data.end(), buffer.begin(), buffer.begin() + read);
+  }
+  return sha256_bytes(data, digest);
+}
+#endif
+}  // namespace
+
+bool sha256_file(const std::filesystem::path& path, std::string* digest, std::string* error) {
+  std::ifstream input(path, std::ios::binary);
+  if (!input) { if (error) *error="sha256_input_open_failed"; return false; }
+  const std::vector<std::uint8_t> data((std::istreambuf_iterator<char>(input)),
+                                       std::istreambuf_iterator<char>());
+  if (input.bad()) { if (error) *error="sha256_input_read_failed"; return false; }
+  return sha256_bytes(data, digest);
+}
+
+bool sha256_regular_file_bounded(const std::filesystem::path& path,
+                                 std::uint64_t maximum_bytes,
+                                 std::string* digest,
+                                 std::string* error) {
+  std::error_code status_error;
+  if (!std::filesystem::is_regular_file(path, status_error) || status_error) {
+    if (error) *error = "sha256_input_not_regular_file";
+    return false;
+  }
+  std::ifstream input(path, std::ios::binary);
+  if (!input) { if (error) *error = "sha256_input_open_failed"; return false; }
+  std::vector<std::uint8_t> data;
+  std::array<char, 8192> buffer{};
+  while (input) {
+    input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    const auto count = input.gcount();
+    if (count <= 0) break;
+    const auto read_count = static_cast<std::uint64_t>(count);
+    if (read_count > maximum_bytes ||
+        static_cast<std::uint64_t>(data.size()) > maximum_bytes - read_count) {
+      if (error) *error = "sha256_input_size_exceeds_limit";
+      return false;
+    }
+    data.insert(data.end(), buffer.begin(), buffer.begin() + count);
+  }
+  if (input.bad()) { if (error) *error = "sha256_input_read_failed"; return false; }
+  return sha256_bytes(data, digest);
+}
+
+bool sha256_trusted_regular_file_bounded(
+    const std::filesystem::path& trusted_root,
+    const std::filesystem::path& path,
+    std::uint64_t maximum_bytes,
+    std::string* digest,
+    std::string* error) {
+#ifdef _WIN32
+  return sha256_windows_trusted_handle(trusted_root, path, maximum_bytes,
+                                       digest, error);
+#else
+  std::error_code path_error;
+  const auto root = std::filesystem::absolute(trusted_root, path_error).lexically_normal();
+  if (path_error) { if (error) *error = "sha256_trusted_root_rejected"; return false; }
+  const auto candidate = std::filesystem::absolute(path, path_error).lexically_normal();
+  if (path_error) { if (error) *error = "sha256_input_outside_trusted_root"; return false; }
+  const auto relative = candidate.lexically_relative(root);
+  if (!relative_path_is_descendant(relative) ||
+      !path_components_are_not_reparse_points(root, relative, error)) {
+    if (error && error->empty()) *error = "sha256_input_outside_trusted_root";
+    return false;
+  }
+
+  const auto size_before = std::filesystem::file_size(candidate, path_error);
+  const auto write_before = std::filesystem::last_write_time(candidate, path_error);
+  if (path_error) { if (error) *error = "sha256_input_metadata_failed"; return false; }
+  if (!sha256_regular_file_bounded(candidate, maximum_bytes, digest, error)) {
+    return false;
+  }
+  const auto size_after = std::filesystem::file_size(candidate, path_error);
+  const auto write_after = std::filesystem::last_write_time(candidate, path_error);
+  if (path_error || size_before != size_after || write_before != write_after ||
+      !path_components_are_not_reparse_points(root, relative, error)) {
+    if (error && error->empty()) *error = "sha256_input_changed_during_hash";
+    return false;
+  }
+  return true;
+#endif
 }
 }  // namespace prisminfer

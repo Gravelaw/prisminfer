@@ -307,6 +307,10 @@ try {
         ctest --test-dir build -C Debug --output-on-failure
     }
 
+    Run-Step "Benchmark emitter reparse-point test" {
+        & (Join-Path $PSScriptRoot "test-benchmark-emitter.ps1") -EmitterPath ".\build\Debug\prism-emit-benchmark.exe"
+    }
+
     if (-not $SkipProbeSmoke) {
         Run-Step "CPU probe smoke" {
             Invoke-ProbeExpectSuccess ".\build\Debug\prism-probe.exe" ".\build\Debug\prism-validate-lifecycle.exe" "1gb-safe-cpu" "verify-cpu-smoke" "verify-cpu-smoke.jsonl" "verify-cpu-smoke-manifest.json"
