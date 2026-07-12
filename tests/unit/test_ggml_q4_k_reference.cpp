@@ -27,7 +27,7 @@ int main() {
 
   const std::vector<prisminfer::kernels::GgmlQ4KBlock> blocks = {block};
   const auto decoded =
-      prisminfer::kernels::decode_ggml_q4_k_reference(blocks);
+      prisminfer::kernels::decode_ggml_q4_k_reference(blocks, 1024U);
   if (expect(decoded.ok, "Q4_K block decodes")) return 1;
   if (expect(decoded.values.size() == 256U, "Q4_K has 256 values")) return 1;
   if (expect(std::fabs(decoded.values[0] + 0.5F) < 0.0001F,
@@ -44,6 +44,15 @@ int main() {
   }
   if (expect(std::fabs(decoded.values[255] - 114.5F) < 0.0001F,
              "last packed scale subblock value")) {
+    return 1;
+  }
+  const auto rejected =
+      prisminfer::kernels::decode_ggml_q4_k_reference(blocks, 1023U);
+  if (expect(!rejected.ok, "decoded byte limit rejects oversized output")) {
+    return 1;
+  }
+  if (expect(rejected.reason == "decoded_byte_limit_exceeded",
+             "decoded byte limit reason")) {
     return 1;
   }
   return 0;

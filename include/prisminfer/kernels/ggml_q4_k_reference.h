@@ -30,7 +30,8 @@ struct GgmlQ4KDecodeResult {
 
 // Decodes complete Q4_K blocks only. The returned values are CPU-reference
 // data for fixture comparison and must not be treated as resident model weights.
+// Callers must declare the maximum permitted decoded bytes before allocation.
 GgmlQ4KDecodeResult decode_ggml_q4_k_reference(
-    std::span<const GgmlQ4KBlock> blocks);
+    std::span<const GgmlQ4KBlock> blocks, std::size_t maximum_decoded_bytes);
 
 }  // namespace prisminfer::kernels

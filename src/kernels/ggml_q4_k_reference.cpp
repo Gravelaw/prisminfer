@@ -2,6 +2,7 @@
 
 #include <bit>
 #include <limits>
+#include <new>
 
 namespace prisminfer::kernels {
 
@@ -56,36 +57,50 @@ void decode_scale_and_minimum(const std::array<std::uint8_t, 12>& scales,
 }  // namespace
 
 GgmlQ4KDecodeResult decode_ggml_q4_k_reference(
-    std::span<const GgmlQ4KBlock> blocks) {
+    std::span<const GgmlQ4KBlock> blocks, std::size_t maximum_decoded_bytes) {
   if (blocks.size() > std::numeric_limits<std::size_t>::max() /
                           kValuesPerBlock) {
     return {false, "decoded_value_count_overflow", {}};
   }
+  const std::size_t decoded_values = blocks.size() * kValuesPerBlock;
+  if (decoded_values > std::numeric_limits<std::size_t>::max() /
+                           sizeof(float)) {
+    return {false, "decoded_byte_count_overflow", {}};
+  }
+  const std::size_t decoded_bytes = decoded_values * sizeof(float);
+  if (decoded_bytes > maximum_decoded_bytes) {
+    return {false, "decoded_byte_limit_exceeded", {}};
+  }
 
-  std::vector<float> values;
-  values.reserve(blocks.size() * kValuesPerBlock);
-  for (const GgmlQ4KBlock& block : blocks) {
-    const float delta = fp16_to_float(block.delta_fp16);
-    const float minimum = fp16_to_float(block.minimum_fp16);
-    for (std::size_t subblock = 0U; subblock < kSubblocksPerBlock;
-         ++subblock) {
-      std::uint8_t scale = 0U;
-      std::uint8_t minimum_scale = 0U;
-      decode_scale_and_minimum(block.scales, subblock, &scale, &minimum_scale);
-      const float scaled_delta = delta * static_cast<float>(scale);
-      const float scaled_minimum = minimum * static_cast<float>(minimum_scale);
-      const std::size_t quant_offset = (subblock / 2U) * kValuesPerSubblock;
-      const bool high_nibble = (subblock % 2U) != 0U;
-      for (std::size_t value = 0U; value < kValuesPerSubblock; ++value) {
-        const std::uint8_t packed = block.quants[quant_offset + value];
-        const std::uint8_t quant = high_nibble ? (packed >> 4U)
-                                                : (packed & 0x0FU);
-        values.push_back(scaled_delta * static_cast<float>(quant) -
-                         scaled_minimum);
+  try {
+    std::vector<float> values;
+    values.reserve(decoded_values);
+    for (const GgmlQ4KBlock& block : blocks) {
+      const float delta = fp16_to_float(block.delta_fp16);
+      const float minimum = fp16_to_float(block.minimum_fp16);
+      for (std::size_t subblock = 0U; subblock < kSubblocksPerBlock;
+           ++subblock) {
+        std::uint8_t scale = 0U;
+        std::uint8_t minimum_scale = 0U;
+        decode_scale_and_minimum(block.scales, subblock, &scale, &minimum_scale);
+        const float scaled_delta = delta * static_cast<float>(scale);
+        const float scaled_minimum =
+            minimum * static_cast<float>(minimum_scale);
+        const std::size_t quant_offset = (subblock / 2U) * kValuesPerSubblock;
+        const bool high_nibble = (subblock % 2U) != 0U;
+        for (std::size_t value = 0U; value < kValuesPerSubblock; ++value) {
+          const std::uint8_t packed = block.quants[quant_offset + value];
+          const std::uint8_t quant = high_nibble ? (packed >> 4U)
+                                                  : (packed & 0x0FU);
+          values.push_back(scaled_delta * static_cast<float>(quant) -
+                           scaled_minimum);
+        }
       }
     }
+    return {true, "", std::move(values)};
+  } catch (const std::bad_alloc&) {
+    return {false, "decoded_allocation_failed", {}};
   }
-  return {true, "", std::move(values)};
 }
 
 }  // namespace prisminfer::kernels
