@@ -81,6 +81,22 @@ try {
         throw "Catalog validator accepted a mismatched foundation source metadata hash."
     }
 
+    $badInventoryPath = Join-Path $tempRoot "bad-inventory.json"
+    $badInventoryText = $catalogText.Replace("F16:226;F32:66", "F16:225;F32:67")
+    Set-Content -LiteralPath $badInventoryPath -Value $badInventoryText -NoNewline
+    $savedPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $badInventoryOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $validator -CatalogPath $badInventoryPath 2>&1
+        $badInventoryExit = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $savedPreference
+    }
+    if ($badInventoryExit -eq 0) {
+        throw "Catalog validator accepted a mismatched F16 tensor inventory."
+    }
+
     $badAttemptHashPath = Join-Path $tempRoot "bad-attempt-hash.json"
     $badAttemptHashText = $catalogText.Replace(
         "0916b758ec2e09ac8b08ee7a2a063e06fadfb7470da0061f30433b7f3910803c",
@@ -180,6 +196,7 @@ finally {
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-hash.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-source.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-metadata.json") -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $tempRoot "bad-inventory.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-attempt-hash.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-attempt-limit.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-latest-attempt-hash.json") -Force -ErrorAction SilentlyContinue

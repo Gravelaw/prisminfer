@@ -26,7 +26,9 @@ Current status:
   no canonical foundation quant or Ornith GGUF artifact exists.
 - The source-verified foundation receipt pins source config, tokenizer,
   tokenizer-template, license/use-policy, architecture, converter, recipe,
-  and imatrix-not-used metadata; these records are source evidence only.
+  and imatrix-not-used metadata. Its retained F16 metadata inventory contains
+  292 tensors (226 F16 and 66 F32); these records are source evidence only and
+  are not a Q4_K_M tensor-type inventory.
 - No same-cell llama.cpp/GGML CUDA/MMQ baseline exists.
 - No manifest-backed PrismInfer candidate kernel benchmark exists.
 - No compression-specific foundation/stress-cell benchmark manifest exists.

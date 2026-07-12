@@ -40,6 +40,9 @@ $expectedFoundation = @{
     ImatrixStatus = "not-used"
     F16Sha256 = "3ff4b731b770599b1111cb141f9b6c0939ba93c920e7fc4ce45793da50431f61"
     F16Bytes = [uint64]16068896416
+    F16TensorInventorySha256 = "e9b535961d6df89bcfc5e815699bdbbbdb47a5c5a7a157a8c8f9005104d11c5a"
+    F16TensorCount = 292
+    F16TensorTypeCounts = "F16:226;F32:66"
     PartialSha256 = "4577bdada251901e98184408522fc6bed20ed6a813ca304e13df185cdf688136"
     PartialBytes = [uint64]438796288
     Q4Attempts = @(
@@ -134,6 +137,9 @@ foreach ($cell in $catalog.cells) {
             $cell.conversion_status -ne "q4-k-m-aborted-run-bound" -or
             $cell.f16_intermediate_sha256 -ne $expectedFoundation.F16Sha256 -or
             [uint64]$cell.f16_intermediate_bytes -ne $expectedFoundation.F16Bytes -or
+            $cell.f16_tensor_inventory_sha256 -ne $expectedFoundation.F16TensorInventorySha256 -or
+            [uint64]$cell.f16_tensor_count -ne $expectedFoundation.F16TensorCount -or
+            $cell.f16_tensor_type_counts -ne $expectedFoundation.F16TensorTypeCounts -or
             $cell.q4_k_m_partial_sha256 -ne $expectedFoundation.PartialSha256 -or
             [uint64]$cell.q4_k_m_partial_bytes -ne $expectedFoundation.PartialBytes -or
             $cell.q4_k_m_failure_reason -ne "run_bound_working_set_exceeded_4_gib" -or

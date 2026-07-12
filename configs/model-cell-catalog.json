@@ -41,6 +41,9 @@
       "conversion_status": "q4-k-m-aborted-run-bound",
       "f16_intermediate_sha256": "3ff4b731b770599b1111cb141f9b6c0939ba93c920e7fc4ce45793da50431f61",
       "f16_intermediate_bytes": 16068896416,
+      "f16_tensor_inventory_sha256": "e9b535961d6df89bcfc5e815699bdbbbdb47a5c5a7a157a8c8f9005104d11c5a",
+      "f16_tensor_count": 292,
+      "f16_tensor_type_counts": "F16:226;F32:66",
       "q4_k_m_partial_sha256": "4577bdada251901e98184408522fc6bed20ed6a813ca304e13df185cdf688136",
       "q4_k_m_partial_bytes": 438796288,
       "q4_k_m_failure_reason": "run_bound_working_set_exceeded_4_gib",
@@ -70,7 +73,7 @@
       "license_status": "accepted",
       "modality": "text-only-main-artifact",
       "architecture_state": "dense GQA transformer; source revision verified, canonical Q4_K_M artifact absent",
-      "notes": "Source and F16 intermediate are retained outside the repository; Q4_K_M quantization attempts were aborted at declared 4 GiB, 6 GiB, and 8 GiB working-set bounds. No model inference executed."
+      "notes": "Source and F16 intermediate are retained outside the repository; its metadata-only tensor inventory records F16:226 and F32:66. Q4_K_M quantization attempts were aborted at declared 4 GiB, 6 GiB, and 8 GiB working-set bounds. No model inference executed."
     },
     {
       "cell_id": "ornith-1.0-9b-stress",

@@ -98,6 +98,12 @@
           "pattern": "^$|^[0-9a-fA-F]{64}$"
         },
         "f16_intermediate_bytes": { "type": "integer", "minimum": 0 },
+        "f16_tensor_inventory_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "f16_tensor_count": { "type": "integer", "minimum": 0 },
+        "f16_tensor_type_counts": { "type": "string" },
         "q4_k_m_partial_sha256": {
           "type": "string",
           "pattern": "^$|^[0-9a-fA-F]{64}$"
@@ -168,6 +174,9 @@
               "conversion_status",
               "f16_intermediate_sha256",
               "f16_intermediate_bytes",
+              "f16_tensor_inventory_sha256",
+              "f16_tensor_count",
+              "f16_tensor_type_counts",
               "q4_k_m_partial_sha256",
               "q4_k_m_partial_bytes",
               "q4_k_m_failure_reason",
@@ -195,6 +204,9 @@
               "conversion_status": { "const": "q4-k-m-aborted-run-bound" },
               "f16_intermediate_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
               "f16_intermediate_bytes": { "minimum": 1 },
+              "f16_tensor_inventory_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "f16_tensor_count": { "minimum": 1 },
+              "f16_tensor_type_counts": { "minLength": 1 },
               "q4_k_m_partial_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
               "q4_k_m_partial_bytes": { "minimum": 1 },
               "q4_k_m_failure_reason": { "minLength": 1 },
