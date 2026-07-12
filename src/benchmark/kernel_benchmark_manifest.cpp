@@ -1,5 +1,6 @@
 #include "prisminfer/kernel_benchmark_manifest.h"
 
+#include <algorithm>
 #include <charconv>
 #include <climits>
 #include <cmath>
