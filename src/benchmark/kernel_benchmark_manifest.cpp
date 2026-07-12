@@ -350,6 +350,14 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
                      parse_non_empty_string, &error)) {
     return fail(error);
   }
+  if (!read_optional(fields, "raw_trial_count", &manifest.raw_trial_count,
+                     parse_u64, &error) ||
+      !read_optional(fields, "raw_trial_sha256", &manifest.raw_trial_sha256,
+                     parse_string, &error) ||
+      !read_optional(fields, "failure_record_sha256",
+                     &manifest.failure_record_sha256, parse_string, &error)) {
+    return fail(error);
+  }
 
   if (!kernel_manifest_identity_constraints_ok(manifest)) {
     return fail("manifest_schema_constraint_failed");

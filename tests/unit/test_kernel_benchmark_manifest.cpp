@@ -52,6 +52,9 @@ std::string valid_manifest() {
   "run_outcome": "completed",
   "requested_execution_path": "upstream-baseline",
   "actual_execution_path": "upstream-baseline",
+  "raw_trial_count": 3,
+  "raw_trial_sha256": "raw-trials",
+  "failure_record_sha256": "",
   "claim_status": "research-only"
 })json";
 }
@@ -104,6 +107,10 @@ int main() {
              "model hash parsed")) return 1;
   if (expect(parsed.manifest.cell.hard_cap_bytes == 8589934592ULL,
              "hard cap parsed")) return 1;
+  if (expect(parsed.manifest.raw_trial_count == 3,
+             "raw trial count parsed")) return 1;
+  if (expect(parsed.manifest.raw_trial_sha256 == "raw-trials",
+             "raw trial hash parsed")) return 1;
   if (expect(parsed.manifest.compression_status == "none",
              "compression status parsed")) return 1;
   const auto emitted_path = std::filesystem::temp_directory_path() /
