@@ -60,6 +60,7 @@ add_library(prisminfer_core
   src/benchmark/kernel_benchmark_manifest_schema.cpp
   src/benchmark/kernel_benchmark_manifest.cpp
   src/benchmark/transfer_metrics.cpp
+  src/kernels/ggml_q4_k_reference.cpp
   src/kernels/q4_decode_gemv.cpp
   src/planner/hybrid_plan.cpp
   src/kv/kv_cache_ledger.cpp
@@ -242,6 +243,10 @@ add_test(NAME test_kernel_benchmark_manifest COMMAND test_kernel_benchmark_manif
 add_executable(test_q4_decode_gemv tests/unit/test_q4_decode_gemv.cpp)
 target_link_libraries(test_q4_decode_gemv PRIVATE prisminfer_core)
 add_test(NAME test_q4_decode_gemv COMMAND test_q4_decode_gemv)
+
+add_executable(test_ggml_q4_k_reference tests/unit/test_ggml_q4_k_reference.cpp)
+target_link_libraries(test_ggml_q4_k_reference PRIVATE prisminfer_core)
+add_test(NAME test_ggml_q4_k_reference COMMAND test_ggml_q4_k_reference)
 
 add_test(NAME prism_compare_benchmark_manifest_same
   COMMAND prism-compare-benchmark

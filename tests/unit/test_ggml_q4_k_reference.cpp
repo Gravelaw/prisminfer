@@ -1,0 +1,50 @@
+#include <cmath>
+#include <cstdint>
+#include <iostream>
+#include <vector>
+
+#include "prisminfer/kernels/ggml_q4_k_reference.h"
+
+namespace {
+
+int expect(bool condition, const char* message) {
+  if (condition) {
+    return 0;
+  }
+  std::cerr << "FAIL: " << message << "\n";
+  return 1;
+}
+}  // namespace
+
+int main() {
+  prisminfer::kernels::GgmlQ4KBlock block{};
+  block.delta_fp16 = 0x3C00U;    // 1.0
+  block.minimum_fp16 = 0x3800U;  // 0.5
+  block.scales = {2U, 3U, 4U, 5U, 1U, 2U, 3U, 4U, 0x56U, 0x78U, 0x9AU, 0xBCU};
+  for (std::size_t index = 0U; index < block.quants.size(); ++index) {
+    block.quants[index] = static_cast<std::uint8_t>(0xA0U | (index & 0x0FU));
+  }
+
+  const std::vector<prisminfer::kernels::GgmlQ4KBlock> blocks = {block};
+  const auto decoded =
+      prisminfer::kernels::decode_ggml_q4_k_reference(blocks);
+  if (expect(decoded.ok, "Q4_K block decodes")) return 1;
+  if (expect(decoded.values.size() == 256U, "Q4_K has 256 values")) return 1;
+  if (expect(std::fabs(decoded.values[0] + 0.5F) < 0.0001F,
+             "first low-nibble value")) {
+    return 1;
+  }
+  if (expect(std::fabs(decoded.values[32] - 29.0F) < 0.0001F,
+             "first high-nibble value")) {
+    return 1;
+  }
+  if (expect(std::fabs(decoded.values[128] + 2.5F) < 0.0001F,
+             "packed scale subblock value")) {
+    return 1;
+  }
+  if (expect(std::fabs(decoded.values[255] - 114.5F) < 0.0001F,
+             "last packed scale subblock value")) {
+    return 1;
+  }
+  return 0;
+}
