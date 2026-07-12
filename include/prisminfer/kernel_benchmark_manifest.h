@@ -48,4 +48,9 @@ struct KernelBenchmarkManifestResult {
 KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
     const std::filesystem::path& path);
 
+bool write_kernel_benchmark_manifest(
+    const std::filesystem::path& path,
+    const KernelBenchmarkManifest& manifest,
+    std::string* error);
+
 }  // namespace prisminfer

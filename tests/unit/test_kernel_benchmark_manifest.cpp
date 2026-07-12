@@ -84,6 +84,22 @@ int main() {
              "hard cap parsed")) return 1;
   if (expect(parsed.manifest.compression_status == "none",
              "compression status parsed")) return 1;
+  const auto emitted_path = std::filesystem::temp_directory_path() /
+                            "prisminfer-kernel-emitted.json";
+  std::string write_error;
+  if (expect(prisminfer::write_kernel_benchmark_manifest(
+                 emitted_path, parsed.manifest, &write_error),
+             write_error.c_str())) {
+    return 1;
+  }
+  const auto emitted =
+      prisminfer::read_kernel_benchmark_manifest(emitted_path);
+  if (expect(emitted.ok, emitted.error.c_str())) return 1;
+  if (expect(emitted.manifest.cell.model_hash == "model",
+             "emitted manifest preserves identity")) {
+    return 1;
+  }
+  std::filesystem::remove(emitted_path, remove_error);
   std::filesystem::remove(valid_path, remove_error);
 
   const auto missing_path = write_manifest(

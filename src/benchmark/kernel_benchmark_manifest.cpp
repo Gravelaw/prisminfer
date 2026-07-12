@@ -3,10 +3,12 @@
 #include <charconv>
 #include <climits>
 #include <cmath>
+#include <fstream>
 #include <sstream>
 
 #include "prisminfer/flat_json.h"
 #include "prisminfer/kernel_benchmark_manifest_schema.h"
+#include "prisminfer/telemetry.h"
 
 namespace prisminfer {
 
@@ -67,6 +69,47 @@ bool parse_string(const FlatJsonValue& value, std::string* output) {
 
 bool parse_non_empty_string(const FlatJsonValue& value, std::string* output) {
   return parse_string(value, output) && !output->empty();
+}
+
+std::string serialize(const KernelBenchmarkManifest& manifest) {
+  std::ostringstream out;
+  out << "{\n"
+      << "  \"manifest_version\": \"" << json_escape(manifest.manifest_version)
+      << "\",\n"
+      << "  \"validation_cell_id\": \"" << json_escape(manifest.validation_cell_id)
+      << "\",\n"
+      << "  \"model_hash\": \"" << json_escape(manifest.cell.model_hash) << "\",\n"
+      << "  \"quantization_format\": \"" << json_escape(manifest.cell.quantization_format) << "\",\n"
+      << "  \"quant_artifact_sha256\": \"" << json_escape(manifest.cell.quant_artifact_sha256) << "\",\n"
+      << "  \"context_tokens\": " << manifest.cell.context_tokens << ",\n"
+      << "  \"batch_size\": " << manifest.cell.batch_size << ",\n"
+      << "  \"prompt_fixture_hash\": \"" << json_escape(manifest.cell.prompt_fixture_hash) << "\",\n"
+      << "  \"backend\": \"" << json_escape(manifest.cell.backend) << "\",\n"
+      << "  \"os\": \"" << json_escape(manifest.cell.os) << "\",\n"
+      << "  \"gpu_name\": \"" << json_escape(manifest.cell.gpu_name) << "\",\n"
+      << "  \"driver_mode\": \"" << json_escape(manifest.cell.driver_mode) << "\",\n"
+      << "  \"cuda_driver_version\": " << manifest.cell.cuda_driver_version << ",\n"
+      << "  \"cuda_runtime_version\": " << manifest.cell.cuda_runtime_version << ",\n"
+      << "  \"vram_tier_gib\": " << manifest.cell.vram_tier_gib << ",\n"
+      << "  \"hard_cap_bytes\": " << manifest.cell.hard_cap_bytes << ",\n"
+      << "  \"op_type\": \"" << json_escape(manifest.cell.op_type) << "\",\n"
+      << "  \"sequence_phase\": \"" << json_escape(manifest.cell.sequence_phase) << "\",\n"
+      << "  \"kernel_backend\": \"" << json_escape(manifest.cell.kernel_backend) << "\",\n"
+      << "  \"kernel_name\": \"" << json_escape(manifest.cell.kernel_name) << "\",\n"
+      << "  \"kernel_version\": \"" << json_escape(manifest.cell.kernel_version) << "\",\n"
+      << "  \"baseline_backend\": \"" << json_escape(manifest.baseline_backend) << "\",\n"
+      << "  \"baseline_manifest_hash\": \"" << json_escape(manifest.baseline_manifest_hash) << "\",\n"
+      << "  \"correctness_fixture_hash\": \"" << json_escape(manifest.correctness_fixture_hash) << "\",\n"
+      << "  \"quality_fixture_hash\": \"" << json_escape(manifest.quality_fixture_hash) << "\",\n"
+      << "  \"full_dequant_materialized\": " << (manifest.full_dequant_materialized ? "true" : "false") << ",\n"
+      << "  \"workspace_peak_bytes\": " << manifest.workspace_peak_bytes << ",\n"
+      << "  \"speedup_ratio\": " << manifest.speedup_ratio << ",\n"
+      << "  \"compression_status\": \"" << json_escape(manifest.compression_status) << "\",\n"
+      << "  \"quality_gate_id\": \"" << json_escape(manifest.quality_gate_id) << "\",\n"
+      << "  \"cap_certification_status\": \"" << json_escape(manifest.cap_certification_status) << "\",\n"
+      << "  \"claim_status\": \"" << json_escape(manifest.claim_status) << "\"\n"
+      << "}\n";
+  return out.str();
 }
 
 template <typename T, typename Parser, typename Constraint>
@@ -338,6 +381,45 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
   result.ok = true;
   result.manifest = manifest;
   return result;
+}
+
+bool write_kernel_benchmark_manifest(
+    const std::filesystem::path& path,
+    const KernelBenchmarkManifest& manifest,
+    std::string* error) {
+  const auto temporary = path.string() + ".tmp";
+  {
+    std::ofstream out(temporary, std::ios::out | std::ios::trunc | std::ios::binary);
+    if (!out) {
+      if (error != nullptr) *error = "manifest_output_open_failed";
+      return false;
+    }
+    out << serialize(manifest);
+    out.flush();
+    if (!out) {
+      if (error != nullptr) *error = "manifest_output_write_failed";
+      return false;
+    }
+  }
+  const auto verified = read_kernel_benchmark_manifest(temporary);
+  if (!verified.ok) {
+    std::filesystem::remove(temporary);
+    if (error != nullptr) *error = "manifest_output_invalid:" + verified.error;
+    return false;
+  }
+  std::error_code rename_error;
+  std::filesystem::rename(temporary, path, rename_error);
+  if (rename_error) {
+    std::filesystem::remove(path, rename_error);
+    rename_error.clear();
+    std::filesystem::rename(temporary, path, rename_error);
+  }
+  if (rename_error) {
+    std::filesystem::remove(temporary);
+    if (error != nullptr) *error = "manifest_output_publish_failed";
+    return false;
+  }
+  return true;
 }
 
 }  // namespace prisminfer

@@ -150,6 +150,9 @@ target_link_libraries(prism-validate-claim PRIVATE prisminfer_core)
 add_executable(prism-compare-benchmark tools/prism-compare-benchmark/main.cpp)
 target_link_libraries(prism-compare-benchmark PRIVATE prisminfer_core)
 
+add_executable(prism-emit-benchmark tools/prism-emit-benchmark/main.cpp)
+target_link_libraries(prism-emit-benchmark PRIVATE prisminfer_core)
+
 enable_testing()
 
 add_executable(test_config tests/unit/test_config.cpp)
