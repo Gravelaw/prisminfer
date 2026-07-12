@@ -10,8 +10,9 @@ Current status:
   deterministic SHA-256 sidecar, and fails closed when completed outcomes lack
   raw-trial evidence or non-completed outcomes lack failure evidence.
 - `configs/model-cell-catalog.json` pins only the checked-in deterministic
-  smoke fixture; the preferred foundation, Ornith stress, and Qwen lineage
-  entries remain metadata-only with no fetched artifact identity.
+  smoke fixture and records a source-verified, non-admitted foundation receipt;
+  Ornith stress and Qwen lineage entries remain metadata-only with no fetched
+  artifact identity.
 - The Phase 6 gate schema/config and compression-oriented manifest fields exist.
 - The guarded CUDA target, bounded synthetic CUDA correctness test source,
   `-WithCudaKernels` verification flag, and manual self-hosted workflow exist.
