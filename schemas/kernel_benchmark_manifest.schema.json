@@ -135,6 +135,15 @@
     },
     "requested_execution_path": { "type": "string", "minLength": 1 },
     "actual_execution_path": { "type": "string", "minLength": 1 },
+    "raw_trial_count": { "type": "integer", "minimum": 0 },
+    "raw_trial_sha256": {
+      "type": "string",
+      "pattern": "^$|^[0-9a-fA-F]{64}$"
+    },
+    "failure_record_sha256": {
+      "type": "string",
+      "pattern": "^$|^[0-9a-fA-F]{64}$"
+    },
     "claim_status": {
       "type": "string",
       "enum": ["measured", "measured-non-certified", "rejected", "research-only"]

@@ -53,7 +53,7 @@ std::string valid_manifest() {
   "requested_execution_path": "upstream-baseline",
   "actual_execution_path": "upstream-baseline",
   "raw_trial_count": 3,
-  "raw_trial_sha256": "raw-trials",
+  "raw_trial_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "failure_record_sha256": "",
   "claim_status": "research-only"
 })json";
@@ -109,7 +109,8 @@ int main() {
              "hard cap parsed")) return 1;
   if (expect(parsed.manifest.raw_trial_count == 3,
              "raw trial count parsed")) return 1;
-  if (expect(parsed.manifest.raw_trial_sha256 == "raw-trials",
+  if (expect(parsed.manifest.raw_trial_sha256 ==
+                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
              "raw trial hash parsed")) return 1;
   if (expect(parsed.manifest.compression_status == "none",
              "compression status parsed")) return 1;
