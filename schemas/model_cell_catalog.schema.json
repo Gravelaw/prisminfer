@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prisminfer.local/schemas/model_cell_catalog.schema.json",
+  "title": "PrismInfer model-cell catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["catalog_version", "catalog_status", "cells"],
+  "properties": {
+    "catalog_version": { "const": "0.1" },
+    "catalog_status": { "const": "metadata-only" },
+    "cells": {
+      "type": "array",
+      "minItems": 4,
+      "items": { "$ref": "#/$defs/cell" }
+    }
+  },
+  "$defs": {
+    "cell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cell_id",
+        "role",
+        "status",
+        "artifact_kind",
+        "artifact_path",
+        "artifact_sha256",
+        "source_revision",
+        "license_status",
+        "modality",
+        "architecture_state",
+        "notes"
+      ],
+      "properties": {
+        "cell_id": { "type": "string", "minLength": 1 },
+        "role": {
+          "type": "string",
+          "enum": ["smoke", "foundation", "stress", "lineage-comparator"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pinned", "metadata-only", "pending-license-access"]
+        },
+        "artifact_kind": {
+          "type": "string",
+          "enum": ["synthetic-text", "text-gguf", "metadata-only"]
+        },
+        "artifact_path": { "type": "string" },
+        "artifact_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "source_revision": { "type": "string" },
+        "license_status": {
+          "type": "string",
+          "enum": ["not-applicable", "pending"]
+        },
+        "modality": {
+          "type": "string",
+          "enum": ["text", "text-only-main-artifact", "metadata-only"]
+        },
+        "architecture_state": { "type": "string", "minLength": 1 },
+        "notes": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "pinned" } }
+          },
+          "then": {
+            "properties": {
+              "artifact_path": { "minLength": 1 },
+              "artifact_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "source_revision": { "minLength": 1 },
+              "license_status": { "const": "not-applicable" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": ["metadata-only", "pending-license-access"]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "artifact_path": { "maxLength": 0 },
+              "artifact_sha256": { "maxLength": 0 },
+              "source_revision": { "maxLength": 0 }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

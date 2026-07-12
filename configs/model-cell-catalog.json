@@ -1,0 +1,58 @@
+{
+  "catalog_version": "0.1",
+  "catalog_status": "metadata-only",
+  "cells": [
+    {
+      "cell_id": "tiny-deterministic-smoke",
+      "role": "smoke",
+      "status": "pinned",
+      "artifact_kind": "synthetic-text",
+      "artifact_path": "tests/fixtures/model-cells/tiny-smoke-artifact.txt",
+      "artifact_sha256": "7002dc2bd5b77fb496c00236843472589eb63a8121dfb3a5db474470faddfc34",
+      "source_revision": "checked-in",
+      "license_status": "not-applicable",
+      "modality": "text",
+      "architecture_state": "deterministic scalar fixture; not a GGUF model",
+      "notes": "CPU/parser/failure-path smoke only; no model or performance claim."
+    },
+    {
+      "cell_id": "llama-3.1-8b-instruct-foundation",
+      "role": "foundation",
+      "status": "pending-license-access",
+      "artifact_kind": "text-gguf",
+      "artifact_path": "",
+      "artifact_sha256": "",
+      "source_revision": "",
+      "license_status": "pending",
+      "modality": "text-only-main-artifact",
+      "architecture_state": "dense GQA transformer; exact source and recipe pending acceptance",
+      "notes": "No artifact fetched, converted, loaded, or executed in this goal."
+    },
+    {
+      "cell_id": "ornith-1.0-9b-stress",
+      "role": "stress",
+      "status": "pending-license-access",
+      "artifact_kind": "text-gguf",
+      "artifact_path": "",
+      "artifact_sha256": "",
+      "source_revision": "",
+      "license_status": "pending",
+      "modality": "text-only-main-artifact",
+      "architecture_state": "hybrid Qwen3.5-family state; MTP/mmproj/multimodal cells remain separate",
+      "notes": "Not admitted until foundation clearance, source/operator coverage, and explicit access."
+    },
+    {
+      "cell_id": "qwen3.5-9b-lineage-comparator",
+      "role": "lineage-comparator",
+      "status": "metadata-only",
+      "artifact_kind": "metadata-only",
+      "artifact_path": "",
+      "artifact_sha256": "",
+      "source_revision": "",
+      "license_status": "pending",
+      "modality": "metadata-only",
+      "architecture_state": "Ornith lineage reference; not an independent conventional control",
+      "notes": "Metadata comparison only; no independent model-cell claim."
+    }
+  ]
+}

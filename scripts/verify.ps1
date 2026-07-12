@@ -273,6 +273,14 @@ try {
         git diff --check
     }
 
+    Run-Step "Model-cell catalog validation" {
+        & (Join-Path $PSScriptRoot "validate-model-cell-catalog.ps1")
+    }
+
+    Run-Step "Model-cell catalog negative tests" {
+        & (Join-Path $PSScriptRoot "test-model-cell-catalog.ps1")
+    }
+
     Run-Step "Workflow lint" {
         $actionlint = Get-Command actionlint -ErrorAction SilentlyContinue
         if (-not $actionlint) {
