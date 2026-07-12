@@ -31,6 +31,15 @@
     "quality_fixture_hash",
     "full_dequant_materialized",
     "workspace_peak_bytes",
+    "device_resident_bytes",
+    "host_commit_peak_bytes",
+    "unknown_owned_bytes",
+    "ttft_ms",
+    "prefill_ms",
+    "decode_tokens_per_second",
+    "request_tail_ms",
+    "supervisor_status",
+    "admission_status",
     "speedup_ratio",
     "compression_status",
     "quality_gate_id",
@@ -85,9 +94,16 @@
     "full_dequant_materialized": { "type": "boolean" },
     "workspace_bytes": { "type": "integer", "minimum": 0 },
     "workspace_peak_bytes": { "type": "integer", "minimum": 0 },
+    "device_resident_bytes": { "type": "integer", "minimum": 0 },
+    "host_commit_peak_bytes": { "type": "integer", "minimum": 0 },
+    "unknown_owned_bytes": { "type": "integer", "minimum": 0, "maximum": 0 },
     "kernel_ms": { "type": "number", "minimum": 0 },
     "launch_ms": { "type": "number", "minimum": 0 },
     "sync_ms": { "type": "number", "minimum": 0 },
+    "ttft_ms": { "type": "number", "minimum": 0 },
+    "prefill_ms": { "type": "number", "minimum": 0 },
+    "decode_tokens_per_second": { "type": "number", "minimum": 0 },
+    "request_tail_ms": { "type": "number", "minimum": 0 },
     "transfer_h2d_bytes": { "type": "integer", "minimum": 0 },
     "transfer_d2h_bytes": { "type": "integer", "minimum": 0 },
     "tensor_core_claimed": { "type": "boolean" },
@@ -128,6 +144,14 @@
     "cap_certification_status": {
       "type": "string",
       "enum": ["research-only", "measured-non-certified", "quality-gated", "validated-benchmark", "rejected"]
+    },
+    "supervisor_status": {
+      "type": "string",
+      "enum": ["not-attempted", "unavailable", "active", "rejected", "aborted"]
+    },
+    "admission_status": {
+      "type": "string",
+      "enum": ["not-attempted", "unavailable", "admitted", "rejected", "aborted"]
     },
     "run_outcome": {
       "type": "string",
@@ -198,6 +222,22 @@
           "compression_decode_overhead_ms",
           "quality_result_path"
         ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "cap_certification_status": {
+            "enum": ["quality-gated", "validated-benchmark"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "run_outcome": { "const": "completed" },
+          "supervisor_status": { "const": "active" },
+          "admission_status": { "const": "admitted" }
+        }
       }
     }
   ],

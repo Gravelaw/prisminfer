@@ -8,7 +8,9 @@ Current status:
 - Strict kernel-manifest file ingestion and same-cell comparator tests exist.
 - The CPU-only `prism-emit-benchmark` path canonicalizes manifests, writes a
   deterministic SHA-256 sidecar, and fails closed when completed outcomes lack
-  raw-trial evidence or non-completed outcomes lack failure evidence.
+  raw-trial evidence or non-completed outcomes lack failure evidence. It also
+  requires timing, device-residency, host-commit, supervisor/admission, and
+  zero-unknown-owned-byte fields; this contract is not model-run evidence.
 - `configs/model-cell-catalog.json` pins only the checked-in deterministic
   smoke fixture and records a source-verified, non-admitted foundation receipt;
   Ornith stress and Qwen lineage entries remain metadata-only with no fetched

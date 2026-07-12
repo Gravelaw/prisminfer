@@ -27,6 +27,8 @@ struct KernelBenchmarkManifest {
   std::string quality_gate_id;
   std::string quality_result_path;
   std::string cap_certification_status{"research-only"};
+  std::string supervisor_status;
+  std::string admission_status;
   std::string run_outcome;
   std::string requested_execution_path;
   std::string actual_execution_path;
@@ -36,10 +38,17 @@ struct KernelBenchmarkManifest {
   std::string failure_record_sha256;
   bool full_dequant_materialized{false};
   std::uint64_t workspace_peak_bytes{0};
+  std::uint64_t device_resident_bytes{0};
+  std::uint64_t host_commit_peak_bytes{0};
+  std::uint64_t unknown_owned_bytes{0};
   std::uint64_t kv_payload_bytes{0};
   std::uint64_t kv_metadata_bytes{0};
   std::uint64_t kv_residual_or_sketch_bytes{0};
   double speedup_ratio{0.0};
+  double ttft_ms{0.0};
+  double prefill_ms{0.0};
+  double decode_tokens_per_second{0.0};
+  double request_tail_ms{0.0};
   double effective_bits_per_value{0.0};
   double metadata_bits_per_value{0.0};
   double compression_decode_overhead_ms{0.0};

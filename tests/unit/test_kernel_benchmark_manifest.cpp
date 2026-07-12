@@ -45,11 +45,20 @@ std::string valid_manifest() {
   "quality_fixture_hash": "quality",
   "full_dequant_materialized": false,
   "workspace_peak_bytes": 1024,
+  "device_resident_bytes": 0,
+  "host_commit_peak_bytes": 0,
+  "unknown_owned_bytes": 0,
+  "ttft_ms": 0.0,
+  "prefill_ms": 0.0,
+  "decode_tokens_per_second": 0.0,
+  "request_tail_ms": 0.0,
   "speedup_ratio": 1.0,
   "compression_status": "none",
   "quality_gate_id": "phase6-retrieval-gate",
   "cap_certification_status": "research-only",
   "run_outcome": "completed",
+  "supervisor_status": "not-attempted",
+  "admission_status": "not-attempted",
   "requested_execution_path": "upstream-baseline",
   "actual_execution_path": "upstream-baseline",
   "raw_trial_count": 3,
@@ -114,6 +123,11 @@ int main() {
              "raw trial hash parsed")) return 1;
   if (expect(parsed.manifest.compression_status == "none",
              "compression status parsed")) return 1;
+  if (expect(parsed.manifest.unknown_owned_bytes == 0 &&
+                 parsed.manifest.ttft_ms == 0.0 &&
+                 parsed.manifest.supervisor_status == "not-attempted" &&
+                 parsed.manifest.admission_status == "not-attempted",
+             "required runner evidence parsed")) return 1;
   const auto emitted_path = std::filesystem::temp_directory_path() /
                             "prisminfer-kernel-emitted.json";
   std::string write_error;
@@ -141,6 +155,57 @@ int main() {
       prisminfer::read_kernel_benchmark_manifest(malformed_hash_path);
   if (expect(!malformed_hash.ok, "malformed raw hash rejected")) return 1;
   std::filesystem::remove(malformed_hash_path, remove_error);
+
+  const auto missing_evidence_path = write_manifest(
+      "prisminfer-kernel-missing-evidence.json",
+      replace_once(valid_manifest(), "  \"host_commit_peak_bytes\": 0,\n", ""));
+  const auto missing_evidence =
+      prisminfer::read_kernel_benchmark_manifest(missing_evidence_path);
+  if (expect(!missing_evidence.ok, "missing runner evidence rejected")) return 1;
+  if (expect(missing_evidence.error ==
+                 "missing_required_field:host_commit_peak_bytes",
+             "missing runner evidence reason")) return 1;
+  std::filesystem::remove(missing_evidence_path, remove_error);
+
+  const auto unknown_owned_path = write_manifest(
+      "prisminfer-kernel-unknown-owned.json",
+      replace_once(valid_manifest(), "\"unknown_owned_bytes\": 0",
+                   "\"unknown_owned_bytes\": 1"));
+  const auto unknown_owned =
+      prisminfer::read_kernel_benchmark_manifest(unknown_owned_path);
+  if (expect(!unknown_owned.ok, "nonzero unknown owned bytes rejected")) return 1;
+  if (expect(unknown_owned.error == "manifest_schema_constraint_failed",
+             "unknown owned bytes reason")) return 1;
+  std::filesystem::remove(unknown_owned_path, remove_error);
+
+  const auto promoted_without_supervision_path = write_manifest(
+      "prisminfer-kernel-promoted-without-supervision.json",
+      replace_once(valid_manifest(),
+                   "\"cap_certification_status\": \"research-only\"",
+                   "\"cap_certification_status\": \"validated-benchmark\""));
+  const auto promoted_without_supervision =
+      prisminfer::read_kernel_benchmark_manifest(
+          promoted_without_supervision_path);
+  if (expect(!promoted_without_supervision.ok,
+             "promoted cap state requires active supervision and admission")) {
+    return 1;
+  }
+  if (expect(promoted_without_supervision.error ==
+                 "manifest_schema_constraint_failed",
+             "promoted cap supervision reason")) {
+    return 1;
+  }
+  std::filesystem::remove(promoted_without_supervision_path, remove_error);
+
+  const auto negative_timing_path = write_manifest(
+      "prisminfer-kernel-negative-timing.json",
+      replace_once(valid_manifest(), "\"ttft_ms\": 0.0", "\"ttft_ms\": -1.0"));
+  const auto negative_timing =
+      prisminfer::read_kernel_benchmark_manifest(negative_timing_path);
+  if (expect(!negative_timing.ok, "negative timing rejected")) return 1;
+  if (expect(negative_timing.error == "invalid_field:run_timing",
+             "negative timing reason")) return 1;
+  std::filesystem::remove(negative_timing_path, remove_error);
 
   const auto incomplete_path = write_manifest(
       "prisminfer-kernel-incomplete-trials.json",

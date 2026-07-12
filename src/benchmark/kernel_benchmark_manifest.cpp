@@ -133,11 +133,20 @@ std::string serialize(const KernelBenchmarkManifest& manifest) {
       << "  \"quality_fixture_hash\": \"" << json_escape(manifest.quality_fixture_hash) << "\",\n"
       << "  \"full_dequant_materialized\": " << (manifest.full_dequant_materialized ? "true" : "false") << ",\n"
       << "  \"workspace_peak_bytes\": " << manifest.workspace_peak_bytes << ",\n"
+      << "  \"device_resident_bytes\": " << manifest.device_resident_bytes << ",\n"
+      << "  \"host_commit_peak_bytes\": " << manifest.host_commit_peak_bytes << ",\n"
+      << "  \"unknown_owned_bytes\": " << manifest.unknown_owned_bytes << ",\n"
+      << "  \"ttft_ms\": " << manifest.ttft_ms << ",\n"
+      << "  \"prefill_ms\": " << manifest.prefill_ms << ",\n"
+      << "  \"decode_tokens_per_second\": " << manifest.decode_tokens_per_second << ",\n"
+      << "  \"request_tail_ms\": " << manifest.request_tail_ms << ",\n"
       << "  \"speedup_ratio\": " << manifest.speedup_ratio << ",\n"
       << "  \"compression_status\": \"" << json_escape(manifest.compression_status) << "\",\n"
       << "  \"quality_gate_id\": \"" << json_escape(manifest.quality_gate_id) << "\",\n"
       << "  \"cap_certification_status\": \"" << json_escape(manifest.cap_certification_status) << "\",\n"
       << "  \"run_outcome\": \"" << json_escape(manifest.run_outcome) << "\",\n"
+      << "  \"supervisor_status\": \"" << json_escape(manifest.supervisor_status) << "\",\n"
+      << "  \"admission_status\": \"" << json_escape(manifest.admission_status) << "\",\n"
       << "  \"requested_execution_path\": \"" << json_escape(manifest.requested_execution_path) << "\",\n"
       << "  \"actual_execution_path\": \"" << json_escape(manifest.actual_execution_path) << "\",\n"
       << "  \"failure_reason\": \"" << json_escape(manifest.failure_reason) << "\",\n"
@@ -345,6 +354,21 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
                      &manifest.full_dequant_materialized, parse_bool, &error) ||
       !read_required(fields, "workspace_peak_bytes",
                      &manifest.workspace_peak_bytes, parse_u64, &error) ||
+      !read_required(fields, "device_resident_bytes",
+                     &manifest.device_resident_bytes, parse_u64, &error) ||
+      !read_required(fields, "host_commit_peak_bytes",
+                     &manifest.host_commit_peak_bytes, parse_u64, &error) ||
+      !read_required(fields, "unknown_owned_bytes",
+                     &manifest.unknown_owned_bytes, parse_u64, &error) ||
+      !read_required(fields, "ttft_ms", &manifest.ttft_ms, parse_double,
+                     &error) ||
+      !read_required(fields, "prefill_ms", &manifest.prefill_ms, parse_double,
+                     &error) ||
+      !read_required(fields, "decode_tokens_per_second",
+                     &manifest.decode_tokens_per_second, parse_double,
+                     &error) ||
+      !read_required(fields, "request_tail_ms", &manifest.request_tail_ms,
+                     parse_double, &error) ||
       !read_required(fields, "speedup_ratio", &manifest.speedup_ratio,
                      parse_double, &error) ||
       !read_required(fields, "claim_status", &manifest.claim_status,
@@ -360,6 +384,10 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
   }
   if (!read_required(fields, "run_outcome", &manifest.run_outcome,
                      parse_non_empty_string, &error) ||
+      !read_required(fields, "supervisor_status", &manifest.supervisor_status,
+                     parse_non_empty_string, &error) ||
+      !read_required(fields, "admission_status", &manifest.admission_status,
+                     parse_non_empty_string, &error) ||
       !read_required(fields, "requested_execution_path",
                      &manifest.requested_execution_path,
                      parse_non_empty_string, &error) ||
@@ -367,6 +395,10 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
                      &manifest.actual_execution_path,
                      parse_non_empty_string, &error)) {
     return fail(error);
+  }
+  if (manifest.ttft_ms < 0.0 || manifest.prefill_ms < 0.0 ||
+      manifest.decode_tokens_per_second < 0.0 || manifest.request_tail_ms < 0.0) {
+    return fail("invalid_field:run_timing");
   }
   if (!read_optional(fields, "raw_trial_count", &manifest.raw_trial_count,
                      parse_u64, &error) ||

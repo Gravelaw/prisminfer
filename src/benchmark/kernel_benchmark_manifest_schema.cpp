@@ -40,9 +40,12 @@ const std::set<std::string>& kernel_manifest_allowed_keys() {
       "kv_residual_or_sketch_bytes", "compression_decode_overhead_ms",
       "attention_logit_error_p95", "attention_logit_error_p99",
       "attention_topk_overlap", "quality_gate_id", "quality_result_path",
-      "cap_certification_status", "run_outcome",
-      "requested_execution_path", "actual_execution_path", "raw_trial_count",
-      "raw_trial_sha256", "failure_record_sha256", "failure_reason"};
+      "cap_certification_status", "run_outcome", "supervisor_status",
+      "admission_status", "requested_execution_path", "actual_execution_path",
+      "raw_trial_count", "raw_trial_sha256", "failure_record_sha256",
+      "failure_reason", "device_resident_bytes", "host_commit_peak_bytes",
+      "unknown_owned_bytes", "ttft_ms", "prefill_ms",
+      "decode_tokens_per_second", "request_tail_ms"};
   return keys;
 }
 
@@ -56,14 +59,20 @@ const std::vector<std::string>& kernel_manifest_required_keys() {
       "kernel_backend", "kernel_name", "kernel_version", "baseline_backend",
       "baseline_manifest_hash", "correctness_fixture_hash",
       "quality_fixture_hash", "full_dequant_materialized",
-      "workspace_peak_bytes", "speedup_ratio", "claim_status",
-      "compression_status", "quality_gate_id", "cap_certification_status",
-      "run_outcome", "requested_execution_path", "actual_execution_path"};
+      "workspace_peak_bytes", "device_resident_bytes", "host_commit_peak_bytes",
+      "unknown_owned_bytes", "ttft_ms", "prefill_ms",
+      "decode_tokens_per_second", "request_tail_ms", "speedup_ratio",
+      "claim_status", "compression_status", "quality_gate_id",
+      "cap_certification_status", "run_outcome", "supervisor_status",
+      "admission_status", "requested_execution_path", "actual_execution_path"};
   return keys;
 }
 
 bool kernel_manifest_identity_constraints_ok(
     const KernelBenchmarkManifest& manifest) {
+  const bool promoted_cap_status =
+      manifest.cap_certification_status == "quality-gated" ||
+      manifest.cap_certification_status == "validated-benchmark";
   return manifest.cell.context_tokens != 0 && manifest.cell.batch_size != 0 &&
          valid_vram_tier(manifest.cell.vram_tier_gib) &&
          manifest.cell.hard_cap_bytes != 0 &&
@@ -80,9 +89,18 @@ bool kernel_manifest_identity_constraints_ok(
          one_of(manifest.cap_certification_status,
                 {"research-only", "measured-non-certified", "quality-gated",
                  "validated-benchmark", "rejected"}) &&
+         one_of(manifest.supervisor_status,
+                {"not-attempted", "unavailable", "active", "rejected", "aborted"}) &&
+         one_of(manifest.admission_status,
+                {"not-attempted", "unavailable", "admitted", "rejected", "aborted"}) &&
          one_of(manifest.run_outcome,
                 {"completed", "skipped", "unsupported", "rejected",
                  "aborted"}) &&
+         manifest.unknown_owned_bytes == 0 &&
+         (!promoted_cap_status ||
+          (manifest.run_outcome == "completed" &&
+           manifest.supervisor_status == "active" &&
+           manifest.admission_status == "admitted")) &&
          !manifest.requested_execution_path.empty() &&
          !manifest.actual_execution_path.empty();
 }
