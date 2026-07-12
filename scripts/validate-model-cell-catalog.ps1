@@ -26,6 +26,18 @@ $expectedFoundation = @{
     SourceManifestSha256 = "a5db8ce550b422ec693dbbf9180d554187d587b96407dfa67805349b55c1fe9d"
     SourceFileCount = 13
     SourceTotalBytes = [uint64]16069779031
+    SourceConfigSha256 = "29e4c210b0d6ac178b16b2a255a568bdb23b581e50ca1ef6a6d071dd85704e6e"
+    TokenizerSha256 = "79e3e522635f3171300913bb421464a87de6222182a0570b9b2ccba2a964b2b4"
+    TokenizerConfigSha256 = "177c7b61e616fecb84c17ce0591acb92c6c4d60e9ac5ababfb940ff23bbcd424"
+    ChatTemplateSha256 = "e10ca381b1ccc5cf9db52e371f3b6651576caee0a630b452e2816b2d404d4b65"
+    LicenseSha256 = "64e1b2889b7892e6bbe7a7ed5bfe6ff793c61f9d584345f8f41cf9f5cb30a369"
+    UsePolicySha256 = "a568f2e8c73cec3fd74ba2afd992d4e945a8c7a9d851f9b66163aac834b7b859"
+    ArchitectureFingerprint = "llama:LlamaForCausalLM;layers=32;hidden=4096;heads=32;kv_heads=8;intermediate=14336;vocab=128256;context=131072;rope=llama3"
+    TokenizerClass = "PreTrainedTokenizerFast"
+    ConverterRevision = "llama.cpp-13f2b28b098623391b1aacfd27995e1c8b7de9a9"
+    ConversionCommand = "convert_hf_to_gguf.py --outtype f16 --use-temp-file"
+    QuantizationRecipe = "Q4_K_M via llama-quantize with 2 CPU threads; all attempts non-promotable"
+    ImatrixStatus = "not-used"
     F16Sha256 = "3ff4b731b770599b1111cb141f9b6c0939ba93c920e7fc4ce45793da50431f61"
     F16Bytes = [uint64]16068896416
     PartialSha256 = "4577bdada251901e98184408522fc6bed20ed6a813ca304e13df185cdf688136"
@@ -107,6 +119,18 @@ foreach ($cell in $catalog.cells) {
             $cell.source_manifest_sha256 -ne $expectedFoundation.SourceManifestSha256 -or
             [uint64]$cell.source_file_count -ne $expectedFoundation.SourceFileCount -or
             [uint64]$cell.source_total_bytes -ne $expectedFoundation.SourceTotalBytes -or
+            $cell.source_config_sha256 -ne $expectedFoundation.SourceConfigSha256 -or
+            $cell.tokenizer_sha256 -ne $expectedFoundation.TokenizerSha256 -or
+            $cell.tokenizer_config_sha256 -ne $expectedFoundation.TokenizerConfigSha256 -or
+            $cell.chat_template_sha256 -ne $expectedFoundation.ChatTemplateSha256 -or
+            $cell.license_sha256 -ne $expectedFoundation.LicenseSha256 -or
+            $cell.use_policy_sha256 -ne $expectedFoundation.UsePolicySha256 -or
+            $cell.architecture_fingerprint -ne $expectedFoundation.ArchitectureFingerprint -or
+            $cell.tokenizer_class -ne $expectedFoundation.TokenizerClass -or
+            $cell.converter_revision -ne $expectedFoundation.ConverterRevision -or
+            $cell.conversion_command -ne $expectedFoundation.ConversionCommand -or
+            $cell.quantization_recipe -ne $expectedFoundation.QuantizationRecipe -or
+            $cell.imatrix_status -ne $expectedFoundation.ImatrixStatus -or
             $cell.conversion_status -ne "q4-k-m-aborted-run-bound" -or
             $cell.f16_intermediate_sha256 -ne $expectedFoundation.F16Sha256 -or
             [uint64]$cell.f16_intermediate_bytes -ne $expectedFoundation.F16Bytes -or

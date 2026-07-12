@@ -24,6 +24,9 @@ Current status:
   intermediate is retained outside the repository; three Q4_K_M attempts were
   aborted at run-specific CPU working-set bounds (4 GiB, 6 GiB, and 8 GiB), so
   no canonical foundation quant or Ornith GGUF artifact exists.
+- The source-verified foundation receipt pins source config, tokenizer,
+  tokenizer-template, license/use-policy, architecture, converter, recipe,
+  and imatrix-not-used metadata; these records are source evidence only.
 - No same-cell llama.cpp/GGML CUDA/MMQ baseline exists.
 - No manifest-backed PrismInfer candidate kernel benchmark exists.
 - No compression-specific foundation/stress-cell benchmark manifest exists.

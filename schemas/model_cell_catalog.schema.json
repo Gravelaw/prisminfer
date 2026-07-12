@@ -59,6 +59,36 @@
         },
         "source_file_count": { "type": "integer", "minimum": 0 },
         "source_total_bytes": { "type": "integer", "minimum": 0 },
+        "source_config_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "tokenizer_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "tokenizer_config_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "chat_template_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "license_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "use_policy_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "architecture_fingerprint": { "type": "string" },
+        "tokenizer_class": { "type": "string" },
+        "converter_revision": { "type": "string" },
+        "conversion_command": { "type": "string" },
+        "quantization_recipe": { "type": "string" },
+        "imatrix_status": { "type": "string", "enum": ["not-used", "used"] },
         "conversion_status": {
           "type": "string",
           "enum": ["not-attempted", "q4-k-m-aborted-run-bound"]
@@ -123,6 +153,18 @@
               "source_manifest_sha256",
               "source_file_count",
               "source_total_bytes",
+              "source_config_sha256",
+              "tokenizer_sha256",
+              "tokenizer_config_sha256",
+              "chat_template_sha256",
+              "license_sha256",
+              "use_policy_sha256",
+              "architecture_fingerprint",
+              "tokenizer_class",
+              "converter_revision",
+              "conversion_command",
+              "quantization_recipe",
+              "imatrix_status",
               "conversion_status",
               "f16_intermediate_sha256",
               "f16_intermediate_bytes",
@@ -138,6 +180,18 @@
               "source_manifest_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
               "source_file_count": { "minimum": 1 },
               "source_total_bytes": { "minimum": 1 },
+              "source_config_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "tokenizer_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "tokenizer_config_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "chat_template_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "license_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "use_policy_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "architecture_fingerprint": { "minLength": 1 },
+              "tokenizer_class": { "minLength": 1 },
+              "converter_revision": { "minLength": 1 },
+              "conversion_command": { "minLength": 1 },
+              "quantization_recipe": { "minLength": 1 },
+              "imatrix_status": { "const": "not-used" },
               "conversion_status": { "const": "q4-k-m-aborted-run-bound" },
               "f16_intermediate_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
               "f16_intermediate_bytes": { "minimum": 1 },

@@ -63,6 +63,24 @@ try {
         throw "Catalog validator accepted a mismatched foundation source manifest hash."
     }
 
+    $badMetadataPath = Join-Path $tempRoot "bad-metadata.json"
+    $badMetadataText = $catalogText.Replace(
+        "29e4c210b0d6ac178b16b2a255a568bdb23b581e50ca1ef6a6d071dd85704e6e",
+        "0000000000000000000000000000000000000000000000000000000000000000")
+    Set-Content -LiteralPath $badMetadataPath -Value $badMetadataText -NoNewline
+    $savedPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $badMetadataOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $validator -CatalogPath $badMetadataPath 2>&1
+        $badMetadataExit = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $savedPreference
+    }
+    if ($badMetadataExit -eq 0) {
+        throw "Catalog validator accepted a mismatched foundation source metadata hash."
+    }
+
     $badAttemptHashPath = Join-Path $tempRoot "bad-attempt-hash.json"
     $badAttemptHashText = $catalogText.Replace(
         "0916b758ec2e09ac8b08ee7a2a063e06fadfb7470da0061f30433b7f3910803c",
@@ -161,6 +179,7 @@ try {
 finally {
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-hash.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-source.json") -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $tempRoot "bad-metadata.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-attempt-hash.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-attempt-limit.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-latest-attempt-hash.json") -Force -ErrorAction SilentlyContinue
