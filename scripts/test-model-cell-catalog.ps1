@@ -2,6 +2,21 @@ $ErrorActionPreference = "Stop"
 
 $validator = Join-Path $PSScriptRoot "validate-model-cell-catalog.ps1"
 $catalogPath = Join-Path $PSScriptRoot "..\configs\model-cell-catalog.json"
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+
+function Remove-TestJunction {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+    $item = Get-Item -LiteralPath $Path -Force
+    $rootPrefix = $repoRoot.TrimEnd('\') + '\'
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0 -or
+        -not $item.FullName.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to remove an unexpected test path: $Path"
+    }
+    [IO.Directory]::Delete($Path, $false)
+}
 & powershell -NoProfile -ExecutionPolicy Bypass -File $validator -CatalogPath $catalogPath
 if ($LASTEXITCODE -ne 0) {
     throw "Valid model-cell catalog was rejected."
@@ -47,10 +62,36 @@ try {
     if ($badPathExit -eq 0) {
         throw "Catalog validator accepted an artifact path outside the repository."
     }
+
+    $reparseLink = Join-Path $repoRoot "tests\fixtures\model-cells\.catalog-reparse-test"
+    New-Item -ItemType Junction -Path $reparseLink -Target $env:TEMP -Force | Out-Null
+    try {
+        $reparsePath = Join-Path $tempRoot "bad-reparse.json"
+        $reparseText = $catalogText.Replace(
+            "tests/fixtures/model-cells/tiny-smoke-artifact.txt",
+            "tests/fixtures/model-cells/.catalog-reparse-test/outside.txt")
+        Set-Content -LiteralPath $reparsePath -Value $reparseText -NoNewline
+        $savedPreference = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+        try {
+            $reparseOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $validator -CatalogPath $reparsePath 2>&1
+            $reparseExit = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $savedPreference
+        }
+        if ($reparseExit -eq 0) {
+            throw "Catalog validator accepted an artifact path through a reparse point."
+        }
+    }
+    finally {
+        Remove-TestJunction -Path $reparseLink
+    }
 }
 finally {
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-hash.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-path.json") -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $tempRoot "bad-reparse.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $tempRoot -Force -ErrorAction SilentlyContinue
 }
 

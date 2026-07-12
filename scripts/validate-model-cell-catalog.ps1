@@ -21,6 +21,38 @@ $expected = @{
 }
 $seen = @{}
 $shaPattern = '^[0-9a-fA-F]{64}$'
+
+function Resolve-TrustedArtifactPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$RelativePath
+    )
+
+    $rootItem = Get-Item -LiteralPath $Root -Force
+    if (($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Repository root is a reparse point."
+    }
+    $resolved = [IO.Path]::GetFullPath((Join-Path $Root $RelativePath))
+    $rootPrefix = $Root.TrimEnd('\') + '\'
+    if (-not $resolved.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Artifact path escapes the repository: $RelativePath"
+    }
+
+    $relative = $resolved.Substring($Root.TrimEnd('\').Length).TrimStart('\')
+    $currentPath = $Root.TrimEnd('\')
+    foreach ($component in ($relative -split '[\\/]')) {
+        if ($component -eq "") {
+            continue
+        }
+        $currentPath = Join-Path $currentPath $component
+        $item = Get-Item -LiteralPath $currentPath -Force
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Artifact path contains a reparse point: $RelativePath"
+        }
+    }
+    return $resolved
+}
+
 foreach ($cell in $catalog.cells) {
     if ($seen.ContainsKey($cell.cell_id)) {
         throw "Duplicate model-cell id: $($cell.cell_id)"
@@ -43,11 +75,7 @@ foreach ($cell in $catalog.cells) {
             $cell.artifact_sha256 -notmatch $shaPattern) {
             throw "Only the checked-in deterministic smoke fixture may be pinned."
         }
-        $resolved = [IO.Path]::GetFullPath((Join-Path $repoRoot $cell.artifact_path))
-        $rootPrefix = $repoRoot.TrimEnd('\') + '\'
-        if (-not $resolved.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
-            throw "Pinned artifact path escapes the repository: $($cell.cell_id)"
-        }
+        $resolved = Resolve-TrustedArtifactPath -Root $repoRoot -RelativePath $cell.artifact_path
         if (-not (Test-Path -LiteralPath $resolved -PathType Leaf)) {
             throw "Pinned artifact is missing: $resolved"
         }
