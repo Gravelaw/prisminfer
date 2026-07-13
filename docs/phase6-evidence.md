@@ -12,9 +12,9 @@ Current status:
   requires timing, device-residency, host-commit, supervisor/admission, and
   zero-unknown-owned-byte fields; this contract is not model-run evidence.
 - `configs/model-cell-catalog.json` pins only the checked-in deterministic
-  smoke fixture and records a source-verified, non-admitted foundation receipt;
-  Ornith stress and Qwen lineage entries remain metadata-only with no fetched
-  artifact identity.
+  smoke fixture and records source-verified, non-admitted foundation and
+  Ornith receipts. Ornith's retained source identity is not a GGUF or a model
+  execution admission; the Qwen lineage entry remains metadata-only.
 - The Phase 6 gate schema/config and compression-oriented manifest fields exist.
 - The guarded CUDA target, bounded synthetic CUDA correctness test source,
   `-WithCudaKernels` verification flag, and manual self-hosted workflow exist.
@@ -32,6 +32,10 @@ Current status:
   and imatrix-not-used metadata. Its retained F16 metadata inventory contains
   292 tensors (226 F16 and 66 F32); these records are source evidence only and
   are not a Q4_K_M tensor-type inventory.
+- The source-verified Ornith receipt pins the 18-file BF16 source manifest,
+  config, tokenizer, tokenizer template, architecture, and MIT license
+  evidence. It remains noncanonical pending converter/operator coverage and
+  the separately required supervised stress-cell clearance.
 - No same-cell llama.cpp/GGML CUDA/MMQ baseline exists.
 - No manifest-backed PrismInfer candidate kernel benchmark exists.
 - No compression-specific foundation/stress-cell benchmark manifest exists.

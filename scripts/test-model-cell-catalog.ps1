@@ -103,6 +103,24 @@ try {
         throw "Catalog validator accepted a mismatched foundation source manifest hash."
     }
 
+    $badOrnithSourcePath = Join-Path $tempRoot "bad-ornith-source.json"
+    $badOrnithSourceText = $catalogText.Replace(
+        "d316380853635b07a3affde5698e96a2c3ffb1fd0ea20109cca3a9c4b1a54b89",
+        "0000000000000000000000000000000000000000000000000000000000000000")
+    Set-Content -LiteralPath $badOrnithSourcePath -Value $badOrnithSourceText -NoNewline
+    $savedPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $badOrnithSourceOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $validator -CatalogPath $badOrnithSourcePath 2>&1
+        $badOrnithSourceExit = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $savedPreference
+    }
+    if ($badOrnithSourceExit -eq 0) {
+        throw "Catalog validator accepted a mismatched Ornith source manifest hash."
+    }
+
     $badMetadataPath = Join-Path $tempRoot "bad-metadata.json"
     $badMetadataText = $catalogText.Replace(
         "29e4c210b0d6ac178b16b2a255a568bdb23b581e50ca1ef6a6d071dd85704e6e",
@@ -236,6 +254,7 @@ finally {
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-schema.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-hash.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-source.json") -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $tempRoot "bad-ornith-source.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-metadata.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-inventory.json") -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $tempRoot "bad-attempt-hash.json") -Force -ErrorAction SilentlyContinue

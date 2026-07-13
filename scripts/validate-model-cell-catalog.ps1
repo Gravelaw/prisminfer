@@ -87,6 +87,20 @@ $expectedFoundation = @{
         }
     )
 }
+$expectedOrnith = @{
+    Revision = "83dc1f5e24ef8527af019a6b3bf66ac0f1c2c999"
+    SourceManifestSha256 = "d316380853635b07a3affde5698e96a2c3ffb1fd0ea20109cca3a9c4b1a54b89"
+    SourceFileCount = 18
+    SourceTotalBytes = [uint64]18848108671
+    SourceConfigSha256 = "350e12e79ef582bdf6a2ff093930433b182e8736412ff227a4318826921565a5"
+    TokenizerSha256 = "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523"
+    TokenizerConfigSha256 = "792fa3f0cb88b111e54ef3134c873531008c4df471d108da17903426e308aa7b"
+    ChatTemplateSha256 = "8b4d21a1e70ccbc8849e5e5e6dd32f3acfb2e2060739475909edc6e9b27c7165"
+    LicenseEvidencePath = "README.md front matter and model-card license statement"
+    LicenseEvidenceSha256 = "fc6164ad80e63c2ea7e4f75d0694a3ebc095ef42537efe23ff3f4bddb6940b8a"
+    ArchitectureFingerprint = "qwen3_5:Qwen3_5ForConditionalGeneration;text=qwen3_5_text;layers=32;hidden=4096;heads=16;kv_heads=4;vocab=248320"
+    TokenizerClass = "Qwen2Tokenizer"
+}
 
 function Resolve-TrustedArtifactPath {
     param(
@@ -134,8 +148,8 @@ foreach ($cell in $catalog.cells) {
     }
 
     if ($cell.status -eq "source-verified") {
-        if ($cell.cell_id -ne "llama-3.1-8b-instruct-foundation" -or
-            $cell.artifact_path -ne "" -or $cell.artifact_sha256 -ne "" -or
+        if ($cell.cell_id -eq "llama-3.1-8b-instruct-foundation") {
+        if ($cell.artifact_path -ne "" -or $cell.artifact_sha256 -ne "" -or
             $cell.source_revision -ne $expectedFoundation.Revision -or
             $cell.source_manifest_sha256 -ne $expectedFoundation.SourceManifestSha256 -or
             [uint64]$cell.source_file_count -ne $expectedFoundation.SourceFileCount -or
@@ -190,6 +204,26 @@ foreach ($cell in $catalog.cells) {
                 throw "Foundation Q4_K_M unverified reserve-guard receipt is incomplete or contradictory."
             }
         }
+        } elseif ($cell.cell_id -eq "ornith-1.0-9b-stress") {
+            if ($cell.artifact_path -ne "" -or $cell.artifact_sha256 -ne "" -or
+                $cell.source_revision -ne $expectedOrnith.Revision -or
+                $cell.source_manifest_sha256 -ne $expectedOrnith.SourceManifestSha256 -or
+                [uint64]$cell.source_file_count -ne $expectedOrnith.SourceFileCount -or
+                [uint64]$cell.source_total_bytes -ne $expectedOrnith.SourceTotalBytes -or
+                $cell.source_config_sha256 -ne $expectedOrnith.SourceConfigSha256 -or
+                $cell.tokenizer_sha256 -ne $expectedOrnith.TokenizerSha256 -or
+                $cell.tokenizer_config_sha256 -ne $expectedOrnith.TokenizerConfigSha256 -or
+                $cell.chat_template_sha256 -ne $expectedOrnith.ChatTemplateSha256 -or
+                $cell.license_evidence_path -ne $expectedOrnith.LicenseEvidencePath -or
+                $cell.license_evidence_sha256 -ne $expectedOrnith.LicenseEvidenceSha256 -or
+                $cell.architecture_fingerprint -ne $expectedOrnith.ArchitectureFingerprint -or
+                $cell.tokenizer_class -ne $expectedOrnith.TokenizerClass -or
+                $cell.license_status -ne "accepted") {
+                throw "Ornith source-verification record is incomplete or contradictory."
+            }
+        } else {
+            throw "Unexpected source-verified model cell: $($cell.cell_id)"
+        }
     } elseif ($cell.status -eq "pinned") {
         if ($cell.cell_id -ne "tiny-deterministic-smoke" -or
             $cell.artifact_kind -ne "synthetic-text" -or
@@ -218,4 +252,4 @@ if ($seen.Count -ne $expected.Count) {
     throw "Model-cell catalog is missing one or more required metadata cells."
 }
 
-Write-Output "Model-cell catalog PASS: smoke fixture pinned; foundation source verified with aborted Q4_K_M record; stress and lineage remain unadmitted."
+Write-Output "Model-cell catalog PASS: smoke fixture pinned; foundation and Ornith source verified; no canonical stress artifact admitted."

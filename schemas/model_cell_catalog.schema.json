@@ -83,6 +83,11 @@
           "type": "string",
           "pattern": "^$|^[0-9a-fA-F]{64}$"
         },
+        "license_evidence_path": { "type": "string" },
+        "license_evidence_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
         "architecture_fingerprint": { "type": "string" },
         "tokenizer_class": { "type": "string" },
         "converter_revision": { "type": "string" },
@@ -178,7 +183,10 @@
         },
         {
           "if": {
-            "properties": { "status": { "const": "source-verified" } }
+            "properties": {
+              "cell_id": { "const": "llama-3.1-8b-instruct-foundation" },
+              "status": { "const": "source-verified" }
+            }
           },
           "then": {
             "required": [
@@ -237,6 +245,39 @@
               "q4_k_m_partial_bytes": { "minimum": 1 },
               "q4_k_m_failure_reason": { "minLength": 1 },
               "q4_k_m_attempts": { "minItems": 1 },
+              "license_status": { "const": "accepted" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cell_id": { "const": "ornith-1.0-9b-stress" },
+              "status": { "const": "source-verified" }
+            }
+          },
+          "then": {
+            "required": [
+              "source_manifest_sha256", "source_file_count", "source_total_bytes",
+              "source_config_sha256", "tokenizer_sha256", "tokenizer_config_sha256",
+              "chat_template_sha256", "license_evidence_path", "license_evidence_sha256",
+              "architecture_fingerprint", "tokenizer_class"
+            ],
+            "properties": {
+              "artifact_path": { "maxLength": 0 },
+              "artifact_sha256": { "maxLength": 0 },
+              "source_revision": { "minLength": 1 },
+              "source_manifest_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "source_file_count": { "minimum": 1 },
+              "source_total_bytes": { "minimum": 1 },
+              "source_config_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "tokenizer_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "tokenizer_config_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "chat_template_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "license_evidence_path": { "minLength": 1 },
+              "license_evidence_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "architecture_fingerprint": { "minLength": 1 },
+              "tokenizer_class": { "minLength": 1 },
               "license_status": { "const": "accepted" }
             }
           }
