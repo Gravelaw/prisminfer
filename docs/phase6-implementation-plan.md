@@ -16,8 +16,9 @@ kept in `docs/phase6-compression-architecture.md`.
 ## Goal
 
 Build a manifest-backed evidence path for one exact `>5B-10B` foundation GGUF
-under an admitted device-specific GPU cap, with 8 GiB as the primary
-constrained research tier. P7-01 owns the exact model selection; Meta Llama 3.1
+under an admitted device-specific GPU cap, with requested 10 GiB and 12 GiB as
+the primary constrained research tiers and 8 GiB as stress-only. P7-01 owns
+the exact model selection; Meta Llama 3.1
 8B is preferred pending license acceptance, access, exact pin, converter
 support, and reproducible hashes. Ornith-1.0-9B remains a separate hybrid stress
 cell.
@@ -230,7 +231,11 @@ result can be retained only as `measured-non-certified` or `rejected`.
 
 ## Stage Plan
 
-| Stage | Current state | Work and exit gate |
+This table records merged-main implementation maturity. Root `Plan.md` and
+Project #2 own live issue/PR status; draft work does not become an implemented
+baseline until it merges.
+
+| Stage | Merged-main maturity | Work and exit gate |
 |---|---|---|
 | P6-00 | Implemented | Preserve `research-only`; make no 9B, Tensor Core, deployable, or bucket-wide claim. |
 | P6-01 | Implemented scaffolding | Strict reader and comparator accept `--baseline-manifest` and `--candidate-manifest`; malformed/unknown evidence fails closed. |
@@ -239,8 +244,8 @@ result can be retained only as `measured-non-certified` or `rejected`.
 | P6-04 | Partially implemented | Schema/parser carry compression evidence fields and tests. No manifest-emitting benchmark runner or retained model evidence exists. |
 | P6-05 | Implemented, unproven on retained runner evidence | Manual self-hosted workflow and `-WithCudaKernels` verification lane exist; a workflow definition is not a hardware result. |
 | P6-06 | Synthetic implementation only | Guarded CUDA launch/sync/error/reference test source exists for toy `Q4Block`; it is not model-relevant GGUF evidence. |
-| P6-07 | Pending | Decode real selected-artifact tensor slices by actual per-tensor `ggml_type`; mixed recipe names such as `Q4_K_M` are metadata, not block semantics. |
-| P6-08 | Pending, optional-mechanism support | Add a strict manifest-emitting kernel runner if the optional custom-kernel hypothesis proceeds. |
+| P6-07 | Not merged; #74 is In Progress | Decode real selected-artifact tensor slices by actual per-tensor `ggml_type`; mixed recipe names such as `Q4_K_M` are metadata, not block semantics. Draft PR #111 has only a bounded CPU Q4_K checkpoint under review. |
+| P6-08 | Not merged; #75 is In Progress and required | Add the strict manifest-emitting evidence runner for upstream baselines, PrismInfer candidates, optional mechanisms, and explicit rejection/failure evidence. It is required whether or not a custom-kernel hypothesis proceeds. |
 | P6-09 | Pending, optional | Add an offline KV evaluator; its pass, failure, or rejection does not block Phase 6. |
 | P6-10 | Pending | Add deterministic foundation quality fixtures; KV-specific fixtures are required only for a KV claim. |
 | P6-11 | Blocked by P7-01 and #103 | Retain exact source/model/recipe/per-tensor-type hashes plus CPU, no-custom, and llama.cpp CUDA same-cell baselines. |
@@ -261,7 +266,8 @@ batch_size: 1
 decode_sample_tokens: 128
 quantization_recipe: reproducibly produced q4 recipe, preferably Q4_K_M if selected
 tensor_types: exact per-tensor ggml_type manifest
-primary_vram_tier_gib: 8
+primary_requested_vram_tiers_gib: [10, 12]
+stress_vram_tier_gib: 8
 hard_cap_bytes: admitted device-specific value, never a nominal allocation target
 ```
 

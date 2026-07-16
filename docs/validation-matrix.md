@@ -16,10 +16,10 @@ validate a GPU tier above 16 GiB until the cap policy is explicitly changed.
 This is a product/claim ceiling, not an allocation target. The requested tier
 and effective live cap are separate values and may be lower.
 
-VRAM tiers:
+Validation tiers, including the V2 primary constrained tiers:
 
 ```text
-1 GiB, 2 GiB, 4 GiB, 6 GiB, 8 GiB, 12 GiB, 16 GiB
+1 GiB, 2 GiB, 4 GiB, 6 GiB, 8 GiB, 10 GiB, 12 GiB, 16 GiB
 ```
 
 Model parameter buckets:
@@ -71,8 +71,8 @@ effective_live_cap_bytes = min(
     - gpu_reserve_bytes))
 ```
 
-The reserve is provisional T-100 from the
-[threshold registry](adaptive-runtime/threshold-registry.md). A cell is
+The reserve is T-100 from the
+[V2 evidence and threshold contract](adaptive-runtime-v2/evidence-thresholds-and-security.md#t-100-gpu-effective-cap). A cell is
 executable only when its peak fits `effective_live_cap_bytes`. A configuration
 that requests 16 GiB does not prove that 16 GiB exists physically or is
 available under WDDM.
@@ -90,7 +90,7 @@ it cannot grow the cap during a run.
 
 Host admission is workload-relative and independent from the requested GPU
 tier. The canonical T-101 formulas are maintained in the
-[threshold registry](adaptive-runtime/threshold-registry.md); this matrix never
+[V2 evidence and threshold contract](adaptive-runtime-v2/evidence-thresholds-and-security.md#t-101-host-physical-commit-and-pinned-reserve); this matrix never
 uses a fixed free-RAM prerequisite such as 24 GiB.
 
 For each decision, calculate separate live payloads:
@@ -346,18 +346,11 @@ CUDA version, backend class, and cap tier.
 ## Hardware Execution Clearance
 
 Clearance controls which evidence a cell may collect; it is not a model result
-status. The normative runtime transitions are in the
-[runtime state machine](runtime-state-machine.md), and the entry evidence is in
-the [execution plan](adaptive-runtime/execution-and-testing-plan.md).
-
-| Clearance | Maximum permitted evidence |
-|---|---|
-| C0 | CPU/reference, simulation, schemas, and fault injection without GPU work. |
-| C1 | Tiny attended deterministic CUDA correctness/Compute Sanitizer fixture; no model, calibration, sustained benchmark, or unattended execution. |
-| C2 | Short supervised synthetic CUDA benchmark/calibration only after P6-04A/#103 and T-100 through T-105 pass. |
-| C3 | Short exact-artifact model-backed Phase 6 evidence after C2 plus model/quant/quality prerequisites. |
-| C4 | Sustained conventional 9B calibration/replay after the Phase 6 audit and Phase 7 entry gates; Ornith remains a separate admitted stress cell. |
-| C5 | Longer evidence and separately admitted 30B/70B/90B work. |
+status. The sole clearance matrix is in [`../Plan.md`](../Plan.md). The
+normative runtime transitions are in the
+[runtime state machine](runtime-state-machine.md), and milestone acceptance is
+in [Adaptive Runtime V2](adaptive-runtime-v2/major-milestones.md). This matrix
+does not reproduce or renumber the Plan clearances.
 
 An issue closed without retained exit evidence does not grant clearance. A
 guard breach, context-fatal CUDA error, missed cancellation deadline, or
@@ -433,24 +426,27 @@ Kernel claims additionally require:
 |---|---|---|
 | `<=2B` | `warmup`, then `decode-smoke` | First real backend and schema migration target. |
 | `>2B-5B` | `warmup`, then `decode-smoke` | Required before larger claims. |
-| `>5B-10B` | `quality-gated` | First practical constrained-inference quality lane. Phase 5 must include a 9B-class constrained-VRAM kernel cell; exact-model only unless multiple representatives pass. |
+| `>5B-10B` | `quality-gated` | First practical constrained-inference quality lane. Adaptive Runtime V2 uses Llama 3.1 8B first and Ornith 9B only as a separate hybrid-state stress cell; every result remains exact-model. |
 | `>10B-15B` | `quality-gated` or `rejected` | 12B/13B class, likely CPU-heavy under low caps. |
 | `>20B-30B` | `measured-offload` or `rejected` | 26B class; offload and host pressure become central. |
 | `>65B-70B` | `simulated` or `measured-offload` | Never promote without full evidence. |
 | `>85B-90B` | `simulated`, `measured-offload`, or `rejected` | Terminal scale bucket under the current <=16 GiB envelope. |
 
-## Representative 9B Gate
+## Foundation 8B and Hybrid 9B Gates
 
-The first concrete `>5B-10B` gate is a pinned 9B-class dense GGUF model.
+The first current `>5B-10B` gate is a pinned Llama 3.1 8B Instruct
+text GGUF. Ornith 9B follows only as a separately admitted hybrid
+attention/DeltaNet/convolution/MTP stress cell.
 
-This gate does not create a new model bucket. It is a representative cell inside
-`>5B-10B`, and a pass does not generalize to every 9B model family,
+These gates do not create a new model bucket. They are exact cells inside
+`>5B-10B`, and a pass does not generalize to another 8B/9B model family,
 quantization format, context length, GPU, driver mode, or VRAM tier.
 
 Required fixed cell assumptions:
 
 - `model_parameter_bucket`: `>5B-10B`
-- `parameter_count`: exact model metadata value, approximately 9B
+- `parameter_count`: exact model metadata value for the Llama 8B
+  foundation or Ornith 9B stress artifact
 - `context_tokens`: `2048` for the first gate
 - `batch_size`: `1`
 - decode sample: at least `128` generated tokens per retained run
@@ -461,9 +457,10 @@ Required fixed cell assumptions:
   pruning, or full FP16 materialization may be counted as part of this gate
 - `model_hash` and `quant_artifact_sha256` are mandatory
 
-The first 9B compression gate is separate from the first 9B q4 residency gate.
-Q4 weight residency proves that weights can stay compressed. KV compression
-then tests whether context-growth memory can be reduced without quality loss.
+For each model, the first compression gate is separate from the first q4
+residency gate. Q4 weight residency proves only that weights can remain in that
+representation. KV/state compression separately tests whether context-growth
+or hybrid architecture-state memory can be reduced without quality loss.
 TurboQuant, PolarQuant, QJL, KIVI, KVQuant, and QServe-style policies must
 start as exact-cell `reference` or `experimental` evidence until retained
 quality, overhead, and cap manifests exist.
@@ -474,25 +471,26 @@ compression-specific evidence for effective bits, metadata overhead,
 reconstruction workspace, attention error, top-k overlap, quality deltas, and
 end-to-end performance.
 
-9B VRAM-tier targets:
+Foundation/stress requested-tier targets:
 
 | Tier | Gate role | Allowed outcome |
 |---:|---|---|
 | `4 GiB` | Impossible-math and fail-closed/offload discovery tier. | `rejected` or `measured-offload`; no resident or deployable claim. |
 | `6 GiB` | Stretch constrained tier. | `decode-smoke`, `quality-gated`, `measured-offload`, or `rejected`. |
-| `8 GiB` | Primary constrained 9B target. | `quality-gated`, `profitable`, `validated-benchmark`, or `rejected`. |
-| `12 GiB` | Primary validation tier when 8 GiB is too tight. | `quality-gated`, `profitable`, `validated-benchmark`, or `rejected`. |
-| `16 GiB` | Current ceiling/reference tier. | `validated-benchmark` or `rejected`; a pass here does not promote lower tiers. |
+| `8 GiB` | Stress-only diagnostic tier for V2. | `quality-gated`, `measured-offload`, or `rejected`; no primary-tier claim. |
+| `10 GiB` | Primary constrained V2 tier. | `quality-gated`, `profitable`, `validated-benchmark`, or `rejected`. |
+| `12 GiB` | Primary constrained V2 tier. | `quality-gated`, `profitable`, `validated-benchmark`, or `rejected`. |
+| Device reference | Physical/live device reference under the policy ceiling. | `validated-benchmark` or `rejected`; a pass here does not promote lower tiers. |
 
 Each tier is `requested_tier_bytes`. Its executable bound remains the lower
 T-100 `effective_live_cap_bytes`; the tier label never overrides physical VRAM,
 the WDDM budget, CUDA availability, or the nonzero reserve.
 
-Acceptance thresholds for `validated-benchmark`:
+Acceptance thresholds for either exact `validated-benchmark` cell:
 
 - `peak_vram <= effective_live_cap_bytes <= requested_tier_bytes`, with
   `requested_tier_bytes <= policy_ceiling_bytes = 17179869184`
-- accepted C4 supervisor clearance with pre-context, post-context,
+- the exact applicable Plan clearance with pre-context, post-context,
   model/backend reconciliation, watchdog, cancellation, cleanup, and lease
   evidence
 - no unreconciled backend, workspace, retained-pool, KV, or unknown allocation
@@ -513,12 +511,12 @@ Acceptance thresholds for `validated-benchmark`:
   reconstruction workspace, attention error, top-k overlap, and quality deltas
   for the exact cell
 
-Reject the 9B cell when any of these occur:
+Reject the exact foundation or stress cell when any of these occur:
 
 - requested GPU cap exceeds `17179869184` bytes
 - requested tier is substituted for an unavailable or smaller effective live
   cap, or the nonzero reserve is counted as payload
-- P6-04A/#103 or the required C4 clearance evidence is missing
+- #103 or the required current Plan clearance evidence is missing
 - pre-context/post-context admission, watchdog, cancellation, or cleanup
   evidence is missing, stale, contradictory, or failed
 - exact model or quantization hashes are missing

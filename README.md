@@ -270,19 +270,21 @@ paths can be exercised without a large allocation:
 | [`configs/`](configs/) | Safe modes and offline/simulated policy fixtures |
 | [`scripts/`](scripts/) | Dependency preflight, bounded verification, cleanup, and plan/tracker checks |
 | [`third_party/`](third_party/) | Provenance pins only; no llama.cpp source or model artifact is vendored |
-| [`docs/adaptive-runtime/`](docs/adaptive-runtime/) | Target architecture, optimizer, scope, roadmap, safety, and test contracts |
+| [`docs/adaptive-runtime-v2/`](docs/adaptive-runtime-v2/) | Active adaptive-runtime V2 research hypothesis, architecture, mathematics, safety, evidence, and milestones within root Plan scope |
 | [`docs/archive/`](docs/archive/) | Curated source-controlled history; no active instruction depends on the ignored local archive |
 
 ## Canonical design documents
 
-- [`Plan.md`](Plan.md) — binding program order, gates, and tracker contract
-- [`docs/adaptive-runtime/README.md`](docs/adaptive-runtime/README.md) — document map and design status
-- [`architecture.md`](docs/adaptive-runtime/architecture.md) — component boundaries and lifecycle
-- [`optimizer-and-calibration.md`](docs/adaptive-runtime/optimizer-and-calibration.md) — objectives, constraints, calibration, and selection
-- [`scope-and-requirements.md`](docs/adaptive-runtime/scope-and-requirements.md) — functional scope and non-goals
-- [`execution-and-testing-plan.md`](docs/adaptive-runtime/execution-and-testing-plan.md) — execution ladder and evidence gates
-- [`roadmap.md`](docs/adaptive-runtime/roadmap.md) — implementation sequence
-- [`references.md`](docs/adaptive-runtime/references.md) — primary literature and runtime references
+- [`Plan.md`](Plan.md) — binding thesis, scope, cells, claim classes, program order, clearances, packets, and tracker contract
+- [`Adaptive Runtime V2 index`](docs/adaptive-runtime-v2/README.md) — authority map and reading order
+- [`program-charter.md`](docs/adaptive-runtime-v2/program-charter.md) — research questions and falsifiable working hypothesis within Plan scope
+- [`architecture.md`](docs/adaptive-runtime-v2/architecture.md) — provisional GGML seam, providers, and runtime reopen gates
+- [`optimizer-mathematics.md`](docs/adaptive-runtime-v2/optimizer-mathematics.md) — corrected objectives, constraints, and statistical definitions
+- [`safety-actuation-and-admission.md`](docs/adaptive-runtime-v2/safety-actuation-and-admission.md) — supervisor, admission, acknowledgements, and recovery
+- [`evidence-thresholds-and-security.md`](docs/adaptive-runtime-v2/evidence-thresholds-and-security.md) — evidence schema, thresholds, sampling, and provider trust
+- [`research-hypotheses-and-references.md`](docs/adaptive-runtime-v2/research-hypotheses-and-references.md) — current theory, novelty boundary, and primary literature
+- [`major-milestones.md`](docs/adaptive-runtime-v2/major-milestones.md) — M0 and Plan packets A through G
+- [`decisions-and-red-team.md`](docs/adaptive-runtime-v2/decisions-and-red-team.md) — non-normative council and red-team rationale
 
 Detailed historical phase evidence remains under [`docs/`](docs/) and curated
 superseded material under [`docs/archive/`](docs/archive/). The ignored

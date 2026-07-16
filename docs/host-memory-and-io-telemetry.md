@@ -29,7 +29,7 @@ increases the physical-resident payload.
 ## T-101 Admission Lanes
 
 The canonical formulas and change-control owner are in
-[`adaptive-runtime/threshold-registry.md`](adaptive-runtime/threshold-registry.md).
+[`Adaptive Runtime V2 evidence and thresholds`](adaptive-runtime-v2/evidence-thresholds-and-security.md#t-101-host-physical-commit-and-pinned-reserve).
 
 - `development_nonpromotable` preserves a lower but nonzero physical and commit
   reserve so ordinary CPU-safe development can proceed under normal desktop

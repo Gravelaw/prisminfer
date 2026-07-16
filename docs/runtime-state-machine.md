@@ -214,8 +214,8 @@ The watchdog can shrink the accepted cap but cannot grow it during the run.
 
 ## Watchdog, Cancellation, Abort, and Cleanup
 
-The provisional safety thresholds are T-100 through T-105 in the
-[threshold registry](adaptive-runtime/threshold-registry.md). The state-machine
+The safety thresholds are T-100 through T-105 in the
+[V2 evidence and threshold contract](adaptive-runtime-v2/evidence-thresholds-and-security.md#hardware-safety-and-admission-thresholds). The state-machine
 requirements are:
 
 1. Stop admitting and submitting new work immediately on a guard breach.
@@ -235,16 +235,9 @@ record is never by itself terminal evidence.
 
 ## Clearance Binding
 
-The runtime accepts only the clearance needed by the requested work:
-
-| Stage | Runtime permission |
-|---|---|
-| C0 | CPU/simulation only; GPU states are unreachable. |
-| C1 | Tiny attended CUDA correctness/Compute Sanitizer fixture only. |
-| C2 | Supervised short synthetic CUDA benchmark/calibration after #103. |
-| C3 | Short exact-artifact model-backed Phase 6 work. |
-| C4 | Sustained conventional 9B calibration/replay, then separately admitted Ornith stress. |
-| C5 | Longer evidence and separately admitted 30B/70B/90B cells. |
+The runtime accepts only the exact clearance and workload scope permitted by
+the sole clearance matrix in [`../Plan.md`](../Plan.md). This state-machine
+contract intentionally does not reproduce or renumber that matrix.
 
 Clearance is a signed/hashed evidence reference in the run contract, not a
 boolean command-line flag. The supervisor rejects a workload kind, model

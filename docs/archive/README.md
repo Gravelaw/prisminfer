@@ -10,8 +10,8 @@ Current authority lives in:
 - [`../phase6-implementation-plan.md`](../phase6-implementation-plan.md),
   [`../phase6-compression-architecture.md`](../phase6-compression-architecture.md),
   and [`../phase6-evidence.md`](../phase6-evidence.md) for active Phase 6 work;
-- [`../adaptive-runtime/README.md`](../adaptive-runtime/README.md) for the
-  proposed Phase 7-9 calibrated-runtime program; and
+- [`../adaptive-runtime-v2/README.md`](../adaptive-runtime-v2/README.md) for
+  the active adaptive-runtime V2 program; and
 - [`../risk-register.md`](../risk-register.md),
   [`../validation-matrix.md`](../validation-matrix.md), and
   [`../claim-taxonomy.md`](../claim-taxonomy.md) for cross-phase governance.
@@ -20,11 +20,12 @@ Current authority lives in:
 
 | Archived material | Previous location | Current authority |
 |---|---|---|
+| [`adaptive-runtime-v1-2026-07-11/`](adaptive-runtime-v1-2026-07-11/) | `docs/adaptive-runtime/` | [Adaptive Runtime V2](../adaptive-runtime-v2/README.md); V1 is preserved unchanged as the superseded council packet. |
 | [`council-constrained-vram-consensus.md`](council-constrained-vram-consensus.md) | Early council consensus | Active validation, risk, phase, and adaptive-runtime contracts. |
 | [`ci-and-project-workflows.md`](ci-and-project-workflows.md) | Early CI and Project workflow note | Root `Plan.md`, Project #2, and `scripts/validate-plan-project-sync.ps1`. |
-| [`implementation-plan-phase1-to-phase4.md`](implementation-plan-phase1-to-phase4.md) | Superseded Phase 1-4 composite plan | Root `Plan.md` and current Phase 6/adaptive-runtime contracts. |
+| [`implementation-plan-phase1-to-phase4.md`](implementation-plan-phase1-to-phase4.md) | Superseded Phase 1-4 composite plan | Root `Plan.md` and current Phase 6/adaptive-runtime V2 contracts. |
 | [`phase4-measured-offload-runbook.md`](phase4-measured-offload-runbook.md) | Superseded Phase 4 offload runbook | Root `Plan.md`, Phase 6 evidence rules, and the clearance matrix. |
-| [`prisminfer-production-architecture.svg`](prisminfer-production-architecture.svg) | Historical production architecture diagram | `docs/adaptive-runtime/architecture.md` and root `Plan.md`. |
+| [`prisminfer-production-architecture.svg`](prisminfer-production-architecture.svg) | Historical production architecture diagram | `docs/adaptive-runtime-v2/architecture.md` and root `Plan.md`. |
 
 Paths and status statements inside an archived file may intentionally describe
 the repository at the time the file was written.

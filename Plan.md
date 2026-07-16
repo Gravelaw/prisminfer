@@ -1,8 +1,8 @@
 # PrismInfer Final Plan
 
-Status: final theory and implementation freeze; safety foundation and Phase 6
-evidence repair are the active program.
-Last reconciled: 2026-07-11
+Status: Adaptive Runtime V2 governance active; M0 complete. Packet A
+exact-truth closeout is the next implementation packet.
+Last reconciled: 2026-07-16 (M0)
 Operational tracker: [GitHub Project #2](https://github.com/users/Gravelaw/projects/2)
 
 ## Authority and Change Control
@@ -13,7 +13,7 @@ order, clearances, current status, and phase exit. The authority order is:
 1. `AGENTS.md` for safety and repository-operation invariants;
 2. this `Plan.md` for program order and clearance;
 3. GitHub Project #2 and linked issues for live execution status;
-4. `docs/adaptive-runtime/` and phase documents for detailed contracts;
+4. `docs/adaptive-runtime-v2/` and phase documents for detailed contracts;
 5. source, schemas, tests, and retained evidence for what is actually
    implemented or proven.
 
@@ -50,6 +50,20 @@ failed static-controller thesis.
 | Optimization benefit | Fresh held-out same-cell evidence beats the strongest upstream sweep under cap, quality and tail-latency gates. | Safe selection/replay is retained without a speedup claim. |
 | Large-model feasibility | An exact artifact passes optimistic capacity, bandwidth and service-envelope admission before execution. | That exact 30B/70B/90B cell is rejected or classified slow/offline without being loaded. |
 
+### Evidence and claim classes
+
+- **Observed:** directly measured under one declared exact cell.
+- **Inferred:** derived from observed values with a named method and uncertainty.
+- **Simulated:** produced without the target runtime or hardware path.
+- **Capacity-only:** reduces admitted peak bytes but does not meet the
+  end-to-end performance gate.
+- **Performance:** passes the frozen same-cell end-to-end continuation rule.
+- **Quality-preserving:** passes the frozen paired fixtures and statistical
+  rule.
+- **Rejected/not admitted:** stopped by a predeclared resource, safety,
+  evidence, quality, or performance bound.
+- **Unsupported:** required evidence is missing or contradictory.
+
 Negative, rejected, research-only, measured-non-certified, slow/offline and
 validated results are first-class outcomes. The program must stop instead of
 changing thresholds after observing a failure.
@@ -66,7 +80,7 @@ changing thresholds after observing a failure.
 | Host admission | #109 supplies authoritative Windows physical/commit telemetry and a pure workload-relative admission primitive. #103 must still integrate it into staged tokens, the watchdog and cancellation before C2. No fixed free-RAM prerequisite is valid. |
 | Model evidence | No approved foundation/Ornith artifact hashes or complete retained same-cell 8B/9B evidence exist. The checked-in 9B gate hashes are empty. |
 | Adaptive runtime | Actuator, recovery, optimizer and evidence contracts are documented; the in-process adapter, calibration store, selector and plan executor are proposed, not implemented. |
-| Worktree/PR | PRs #72, #104, #105 and #106 established the current merged baseline; #73 and #79 are closed. Their documentation, workflow hardening and tiny synthetic CUDA/sanitizer evidence do not grant model, calibration, performance or sustained-hardware clearance. |
+| Worktree/PR | PRs #72, #104, #105, #106, #108, #110 and #113 establish the current merged baseline. Draft PR #111 carries a reviewed CPU Q4_K checkpoint inside still-in-progress #74, provisional #75 work and non-credit #80 source/catalog receipts; draft PR #112 carries reviewable #81/#82 work and provisional #103 supervisor/admission work. Neither draft is merged evidence or a model, calibration, performance, C2 or sustained-hardware clearance. |
 
 ## Frozen Scope
 
@@ -120,6 +134,11 @@ changing thresholds after observing a failure.
 | Exact 30B | First heterogeneous static-placement truth cell. | #84 admission, then #90. |
 | Exact 70B/90B | Capacity/resource-DAG lower bounds first. | #97 refreshed admission; #99/#100 activate independently only if admitted. |
 
+Primary requested constrained tiers are 10 GiB and 12 GiB. The 8 GiB tier is
+stress-diagnostic only. Requested tier, policy ceiling, pre-context cap,
+post-context cap, and observed peak are separate fields; a live effective cap
+may be lower than the requested tier.
+
 `Q4_K_M` is a quantization recipe/file-type label that can contain multiple
 per-tensor `ggml_type` values. #74 must inventory every type in the pinned
 artifact, provide exact reference fixtures for every type used by a claimed
@@ -161,9 +180,9 @@ reservation ends the transition immediately.
 | C4 calibration readiness | #78 Phase 6 audit, #83 actuator inventory, #85 actual-path adapter, #86 frozen sample plans and drift rules. | Designed supervised foundation calibration. |
 | C5 calibrated static replay | #87 selector/oracle gates and #88 immutable acknowledged replay/recovery tests. | First safe calibrated static foundation replay. |
 | C6 Phase 7 exact-cell clearance | #89 fresh confirmation and security/evidence/claim audit. | Exact foundation result; Ornith only as its separately admitted stress cell. |
-| C7 30B static | #84 exact 30B admission and #90. | One exact 30B static result or rejection. |
-| C8 optional mechanisms | #90 plus each mechanism's own #91–#95 entry and evidence gate; #96 audit. | Only independently passing optional providers. |
-| C9 large-model/portability | #97 refreshed admission, conditional #98–#100, #101 and #102. | Only admitted exact scale cells and final classifications. |
+| C7 30B static truth | #84 exact 30B admission and accepted #90 result or rejection. | Independent issue-specific #91–#95 optional-mechanism entries; no joint work. |
+| C8 optional-mechanism decisions | #90 plus each mechanism's own #91–#95 entry and evidence gate; #96 audit. | Packet G refreshed admission and only separately admitted dynamic, joint, or scale cells. |
+| C9 final program classification | #97 refreshed admission, conditional #98–#100, #101 and #102. | Publication of the retained final classifications; no new hardware/model clearance. |
 
 No issue, milestone or Project status may skip a clearance row.
 
@@ -175,15 +194,15 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 | Issue | Responsibility | Required predecessors | Planned state at freeze |
 |---|---|---|---|
 | #73 | Tiny synthetic CUDA correctness only. | C0 and attended hardware preflight. | Done |
-| #74 | Exact per-tensor GGML quant semantics/fixtures. | #73 for CUDA reuse; CPU reference work may start now. | Ready |
-| #75 | Strict manifest-emitting evidence runner. | #74. | Blocked |
+| #74 | Exact per-tensor GGML quant semantics/fixtures. | #73 for CUDA reuse; CPU reference work may start now. | In Progress; one CPU Q4_K checkpoint is under review in draft PR #111 |
+| #75 | Strict manifest-emitting evidence runner. | Provisional on #74's reviewed CPU checkpoint; final acceptance remains packet-gated. | In Progress |
 | #76 | Mandatory quality fixtures; optional offline KV evaluator remains separately classified. | #80 for final artifact; model execution also requires C2 and #84. | Ready |
 | #77 | Supervised same-cell upstream and PrismInfer foundation evidence; no mandatory custom-kernel/KV win. | #73-#76, #80-#82, #84 and #103. | Blocked |
 | #78 | Phase 6 evidence and claim audit. | #77. | Blocked |
 | #79 | Final council, root Plan and tracker freeze. | Current repository/session evidence. | Done |
 | #80 | Pin foundation, Ornith stress and smoke artifacts. | #79 plus Phase 6 artifact rules. | Ready |
-| #81 | Secure native external worker/Job boundary. | #79 and pinned external executable identity. | Ready |
-| #82 | Minimum live Windows/WDDM/host/file/transfer evidence. | #79; integrates #81. | Ready |
+| #81 | Secure native external worker/Job boundary. | #79 and pinned external executable identity. | Review in draft PR #112 |
+| #82 | Minimum live Windows/WDDM/host/file/transfer evidence. | #79; integrates #81. | Review in draft PR #112 |
 | #83 | Pinned actuator/acknowledgement/recovery inventory. | #79 and pinned runtime source/build. | Ready |
 | #84 | Exact 8B/9B/30B/70B/90B capacity and bandwidth admission. | #74, #80, #82 and #103. | Blocked |
 | #85 | Worker-contained in-process adapter and actual-path trace. | #78, #80-#83 and #103. | Blocked |
@@ -204,28 +223,27 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 | #100 | Exact admitted 90B result/rejection. | #97 admission of that artifact. | Blocked |
 | #101 | Portability, invalidation and recalibration. | #98 plus each activated/rejected #99/#100 record. | Backlog |
 | #102 | Final security, evidence and claim audit. | #96 and #101. | Backlog |
-| #103 | Fail-closed hardware supervisor and staged admission boundary. | #79, #81, the safety subset of #82 and the #109 host-admission primitive. | Ready |
+| #103 | Fail-closed hardware supervisor and staged admission boundary. | #79, #81, the safety subset of #82 and the #109 host-admission primitive. | In Progress provisionally in draft PR #112 |
 
 ## Critical Path
 
 ```text
-#79 final Plan/tracker freeze
-  -> #81 secure worker + #82 minimum live evidence
-  -> #103 supervisor and staged-admission clearance
-  -> #74/#75/#76 truth fixtures and evidence tooling
-  -> #80 exact artifact cells
-  -> #84 exact admission
-  -> #77 supervised foundation evidence -> #78 Phase 6 audit
-  -> #83 actuator inventory -> #85 actual-path adapter
-  -> #86 calibration -> #87 selector -> #88 replay -> #89 Phase 7 audit
-  -> #90 30B static truth
-  -> #91-#95 independent optional hypotheses -> #96 audit
-  -> #97 refreshed scale admission -> conditional #98/#99/#100
-  -> #101 portability -> #102 final audit
+M0 Adaptive Runtime V2 governance migration
+  -> M1 / Packet A: #74 -> #75 -> #80 exact offline truth and cells
+  -> M2 / Packet B: #81 -> #82 -> #103 secure hardware boundary
+  -> M3 / Packet C: #84 -> #76 -> #77 -> #78 foundation evidence/audit
+  -> M4 / Packet D: #83 -> #85 -> #86 actual-path and calibration substrate
+  -> M5 / Packet E: #87 -> #88 -> #89 static controller and two-stage pilot
+  -> M6 / Packet F: #90 -> independent #91-#95 -> #96 optional audit
+  -> M7 / Packet G: #97 -> #98 -> conditional #99/#100
+                    -> #101 portability -> #102 final audit
 ```
 
-Safe parallel work is limited to independent CPU/source/fixture work whose
-predecessors are satisfied. Hardware steps remain serial per device.
+Packet A is CPU/offline only. Packet B must close before Packet C performs any
+model-backed execution, and Packet C consumes accepted evidence from both.
+Safe parallel review is limited to already retained work and independent
+CPU/source/fixture analysis whose predecessors are satisfied; it cannot grant a
+later packet exit. Hardware steps remain serial per device.
 
 ## Integration Packets and Review Contract
 
@@ -237,6 +255,14 @@ Cross-cutting issue #109 is the completed-on-merge pre-packet safety correction
 for workload-relative host admission and authoritative Windows commit telemetry.
 It is consumed by #82/#103/#84, does not reorder Packet A, and grants no C2,
 model, calibration, benchmark or hardware clearance.
+
+Adaptive Runtime V2 M0 is the documentation/governance migration that precedes
+resumption of the packet branches. It changes no issue dependency or clearance.
+After M0 reaches `main`, draft PRs #111 and #112 must rebase on that exact head
+and port any still-applicable V1 document changes into the sole V2 owner
+document. They must not recreate the former V1 active directory. Under the
+conservative packet order, Packet A closes before Packet B may merge; review of
+already retained Packet B work may continue without granting its exit.
 
 The persistent program goal keeps one packet active at a time. Within that
 packet, issues remain sequential checkpoints with their own acceptance evidence
@@ -348,9 +374,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate-plan-projec
 - #73, #79 and cross-cutting #107 are closed with their retained tiny-fixture,
   final-freeze and integration-train evidence. Cross-cutting #109 records the
   host-admission correction and is `Done` when this contract reaches `main`.
-- #74, #76, #80-#83 and #103 are `Ready`; dependency-gated #75, #77-#78 and
-  #84-#89 are `Blocked`; later work remains `Backlog` except independently
-  admission-blocked #99/#100.
+- #74 and #75 are `In Progress`; only #74's bounded CPU Q4_K checkpoint has a
+  review receipt. #81/#82 are in `Review` and #103 is provisionally
+  `In Progress` in draft PR #112. #76, #80 and #83 are `Ready`;
+  dependency-gated #77-#78 and #84-#89 are `Blocked`; later work remains
+  `Backlog` except independently admission-blocked #99/#100.
+- Draft PR #111 is the Packet A integration PR. Draft PR #112 is retained
+  Packet B review work and remains merge-gated by the conservative packet order.
+  Both must rebase after M0, must not restore the former V1 active directory,
+  and require new independent exact-head review because the prior tree and
+  documentation paths will have changed.
 - PR #72 is merged evidence/documentation history; neither its checks nor the
   later governance/tiny-lane merges grant hardware or model clearance.
 

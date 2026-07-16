@@ -336,10 +336,10 @@ not imply deployability and does not generalize to the whole `>5B-10B` bucket.
 
 ## Proposed Phase 7-9 Program: Calibrated Adaptive Runtime
 
-The detailed program lives in `docs/adaptive-runtime/`. Phase 6 remains active,
-but its safety prerequisites #81/#82 advance early so #103 can close the
-otherwise circular clearance dependency. No model-backed work may advance
-until the clearance matrix in `Plan.md` permits the exact cell.
+The detailed program lives in `docs/adaptive-runtime-v2/`. The root
+`Plan.md` packet table is the only execution order: Packet A remains
+CPU/offline, Packet B closes the hardware boundary, and Packet C requires both
+before model-backed work. No prose in this roadmap grants clearance.
 
 The binding sequence is:
 
@@ -387,15 +387,12 @@ claims:
 1. `<=2B` under 1 GiB and 2 GiB caps: real backend warmup and decode smoke.
 2. `>2B-5B` under 1 GiB, 2 GiB, and 4 GiB caps: real backend warmup and decode
    smoke.
-3. `>5B-10B`: first run a named 9B representative gate at
-   `context_tokens=2048`, `batch_size=1`, q4 GGUF quantization, and retained
-   model/quant hashes. The primary constrained target is `8 GiB`; `12 GiB` and
-   `16 GiB` are validation/reference tiers; `4 GiB` and `6 GiB` are
-   fail-closed or offload discovery tiers. Acceptance requires cap
-   certification, quality fixture pass rate `>=95%`, no quality regression
-   greater than `5%` versus same-cell llama.cpp/GGML reference, warm-cache
-   decode `p50 >=3 tokens/sec`, p95 inter-token latency `<=750 ms`, TTFT p95
-   `<=30 seconds`, and three-run repeatability CV `<=10%`.
+3. `>5B-10B`: run the exact Llama 3.1 8B foundation first, then Ornith
+   9B only as a separately admitted hybrid-state stress cell. Requested 10 GiB
+   and 12 GiB are the primary constrained tiers, 8 GiB is stress-only, and the
+   physical/live device reference is separate. Context, batch, artifact,
+   quality, and statistical gates are frozen by Adaptive Runtime V2 rather than
+   duplicated here.
 4. `>10B-15B`: quality-gated constrained inference by exact validation cell.
 5. Larger buckets through `>85B-90B`: simulated, measured-offload, validated, or
    rejected according to retained evidence.
