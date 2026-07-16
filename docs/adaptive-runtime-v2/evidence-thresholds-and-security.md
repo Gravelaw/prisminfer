@@ -4,7 +4,7 @@ This document is the sole V2 owner of evidence entities, numeric thresholds,
 sample-plan rules, artifact/provider trust, and reproducibility requirements.
 Thresholds are PrismInfer continuation or stop policies. They are not constants
 derived from the cited literature and must not be tuned after observing a
-failed candidate.
+failed candidate. A threshold pass never grants Plan clearance.
 
 ## Evidence data model
 
@@ -199,7 +199,9 @@ Interpretation:
 - persistent full-tensor reconstruction invalidates a hot representation claim;
 - capacity-only success is classified separately from speed;
 - staging stops when exposed transfer wait remains or CPU execution is faster;
-- the first joint trial requires at least two independent passes.
+- this document does not authorize a joint trial; after C8 and refreshed #97
+  admission, Packet G may run a joint candidate only when at least two
+  mechanisms have independent full-pass receipts.
 
 ## Large-model viability thresholds
 

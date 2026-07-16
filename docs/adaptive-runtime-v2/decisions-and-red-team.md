@@ -168,7 +168,8 @@ physical-device reference is separately measured and never rounded upward.
 
 Kernel/staging, KV/state, speculation, representation, and structured compute
 receive independent decisions. At least two full passes are required before a
-joint candidate is admitted.
+joint candidate becomes eligible. Plan keeps any joint admission, trial, and
+manifest in Packet G after C8 and refreshed #97 admission.
 
 ### ADR-008: nine single-owner documents
 
