@@ -1,4 +1,4 @@
-# Program Charter
+# V2 Research Charter
 
 ## Objective
 
@@ -17,9 +17,18 @@ The program must distinguish four outcomes:
 All four are valid research outcomes. Merely loading a model is not success, and
 an aggregate-throughput result is not an interactive-latency result.
 
-## Frozen scope
+## Binding authority
 
-The core program owns:
+The root [`Plan.md`](../../Plan.md) owns the binding program thesis, frozen
+scope, model/cap cells, claim classes, dependency order, and clearances. This
+charter owns only V2 research questions and the falsifiable working hypothesis
+inside that scope. Its explanatory lists cannot add a cell, claim, or activity
+that the Plan does not admit.
+
+## Research framing within Plan scope
+
+Within the Plan's binding [`Frozen Scope`](../../Plan.md#frozen-scope), the V2
+research framing examines:
 
 - immutable hardware, software, model, artifact, and workload identity;
 - a CPU-only trusted outer supervisor and a contained native worker;
@@ -90,7 +99,11 @@ The proposed composition has five independently testable parts:
 Failure of one hypothesis does not invalidate the others. A joint experiment
 cannot hide an independently failed component.
 
-## Model and cap cells
+## Research questions by Plan-owned cell
+
+The binding cell and cap definitions are in the Plan's
+[`Model and Quantization Cells`](../../Plan.md#model-and-quantization-cells).
+The table below records only why each cell matters to the research questions.
 
 | Cell | Role | Boundary |
 |---|---|---|
@@ -100,22 +113,16 @@ cannot hide an independently failed component.
 | Exact 30B | First heterogeneous static-placement truth cell | Executes only after Plan admission and the foundation controller audit |
 | Exact 70B and 90B | Resource-DAG lower bounds, then conditional execution | Each artifact executes only if refreshed exact admission permits it |
 
-Primary requested tiers are 10 GiB and 12 GiB. The 8 GiB tier is a stress
-diagnostic. A nominal-device/reference tier is recorded from physical and live
-evidence, never rounded up to a marketing bucket. Requested tier, policy ceiling,
-pre-context cap, post-context cap, and observed peak remain separate fields.
+The Plan fixes 10 GiB and 12 GiB as primary requested tiers and 8 GiB as a
+stress-diagnostic tier. A nominal-device/reference tier is recorded from
+physical and live evidence, never rounded up to a marketing bucket.
 
-## Claim taxonomy
+## Applying the Plan-owned claim classes
 
-- **Observed:** directly measured under a declared cell.
-- **Inferred:** derived from observed values with a named method and uncertainty.
-- **Simulated:** produced without the target runtime or hardware path.
-- **Capacity-only:** reduces admitted peak bytes but does not meet the speed gate.
-- **Performance:** passes the same-cell end-to-end continuation threshold.
-- **Quality-preserving:** passes the frozen paired fixtures and statistical rule.
-- **Rejected/not admitted:** stopped by a predeclared bound; still publishable
-  negative evidence.
-- **Unsupported:** required evidence is missing or contradictory.
+The binding evidence and result labels are the Plan's
+[`Evidence and claim classes`](../../Plan.md#evidence-and-claim-classes). The
+research questions may produce any of those positive or negative outcomes, but
+this charter cannot promote one class into another.
 
 No paper result, microbenchmark, nominal bit width, configured value, or
 requested actuator is promoted as an observed PrismInfer result.

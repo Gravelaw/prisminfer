@@ -50,6 +50,20 @@ failed static-controller thesis.
 | Optimization benefit | Fresh held-out same-cell evidence beats the strongest upstream sweep under cap, quality and tail-latency gates. | Safe selection/replay is retained without a speedup claim. |
 | Large-model feasibility | An exact artifact passes optimistic capacity, bandwidth and service-envelope admission before execution. | That exact 30B/70B/90B cell is rejected or classified slow/offline without being loaded. |
 
+### Evidence and claim classes
+
+- **Observed:** directly measured under one declared exact cell.
+- **Inferred:** derived from observed values with a named method and uncertainty.
+- **Simulated:** produced without the target runtime or hardware path.
+- **Capacity-only:** reduces admitted peak bytes but does not meet the
+  end-to-end performance gate.
+- **Performance:** passes the frozen same-cell end-to-end continuation rule.
+- **Quality-preserving:** passes the frozen paired fixtures and statistical
+  rule.
+- **Rejected/not admitted:** stopped by a predeclared resource, safety,
+  evidence, quality, or performance bound.
+- **Unsupported:** required evidence is missing or contradictory.
+
 Negative, rejected, research-only, measured-non-certified, slow/offline and
 validated results are first-class outcomes. The program must stop instead of
 changing thresholds after observing a failure.
@@ -120,6 +134,11 @@ changing thresholds after observing a failure.
 | Exact 30B | First heterogeneous static-placement truth cell. | #84 admission, then #90. |
 | Exact 70B/90B | Capacity/resource-DAG lower bounds first. | #97 refreshed admission; #99/#100 activate independently only if admitted. |
 
+Primary requested constrained tiers are 10 GiB and 12 GiB. The 8 GiB tier is
+stress-diagnostic only. Requested tier, policy ceiling, pre-context cap,
+post-context cap, and observed peak are separate fields; a live effective cap
+may be lower than the requested tier.
+
 `Q4_K_M` is a quantization recipe/file-type label that can contain multiple
 per-tensor `ggml_type` values. #74 must inventory every type in the pinned
 artifact, provide exact reference fixtures for every type used by a claimed
@@ -161,9 +180,9 @@ reservation ends the transition immediately.
 | C4 calibration readiness | #78 Phase 6 audit, #83 actuator inventory, #85 actual-path adapter, #86 frozen sample plans and drift rules. | Designed supervised foundation calibration. |
 | C5 calibrated static replay | #87 selector/oracle gates and #88 immutable acknowledged replay/recovery tests. | First safe calibrated static foundation replay. |
 | C6 Phase 7 exact-cell clearance | #89 fresh confirmation and security/evidence/claim audit. | Exact foundation result; Ornith only as its separately admitted stress cell. |
-| C7 30B static | #84 exact 30B admission and #90. | One exact 30B static result or rejection. |
-| C8 optional mechanisms | #90 plus each mechanism's own #91–#95 entry and evidence gate; #96 audit. | Only independently passing optional providers. |
-| C9 large-model/portability | #97 refreshed admission, conditional #98–#100, #101 and #102. | Only admitted exact scale cells and final classifications. |
+| C7 30B static truth | #84 exact 30B admission and accepted #90 result or rejection. | Independent issue-specific #91–#95 optional-mechanism entries; no joint work. |
+| C8 optional-mechanism decisions | #90 plus each mechanism's own #91–#95 entry and evidence gate; #96 audit. | Packet G refreshed admission and only separately admitted dynamic, joint, or scale cells. |
+| C9 final program classification | #97 refreshed admission, conditional #98–#100, #101 and #102. | Publication of the retained final classifications; no new hardware/model clearance. |
 
 No issue, milestone or Project status may skip a clearance row.
 

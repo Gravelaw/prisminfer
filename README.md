@@ -270,14 +270,14 @@ paths can be exercised without a large allocation:
 | [`configs/`](configs/) | Safe modes and offline/simulated policy fixtures |
 | [`scripts/`](scripts/) | Dependency preflight, bounded verification, cleanup, and plan/tracker checks |
 | [`third_party/`](third_party/) | Provenance pins only; no llama.cpp source or model artifact is vendored |
-| [`docs/adaptive-runtime-v2/`](docs/adaptive-runtime-v2/) | Active adaptive-runtime V2 thesis, architecture, mathematics, safety, evidence, research, and milestones |
+| [`docs/adaptive-runtime-v2/`](docs/adaptive-runtime-v2/) | Active adaptive-runtime V2 research hypothesis, architecture, mathematics, safety, evidence, and milestones within root Plan scope |
 | [`docs/archive/`](docs/archive/) | Curated source-controlled history; no active instruction depends on the ignored local archive |
 
 ## Canonical design documents
 
-- [`Plan.md`](Plan.md) — binding program order, clearances, packets, and tracker contract
+- [`Plan.md`](Plan.md) — binding thesis, scope, cells, claim classes, program order, clearances, packets, and tracker contract
 - [`Adaptive Runtime V2 index`](docs/adaptive-runtime-v2/README.md) — authority map and reading order
-- [`program-charter.md`](docs/adaptive-runtime-v2/program-charter.md) — thesis, scope, cells, and claim taxonomy
+- [`program-charter.md`](docs/adaptive-runtime-v2/program-charter.md) — research questions and falsifiable working hypothesis within Plan scope
 - [`architecture.md`](docs/adaptive-runtime-v2/architecture.md) — provisional GGML seam, providers, and runtime reopen gates
 - [`optimizer-mathematics.md`](docs/adaptive-runtime-v2/optimizer-mathematics.md) — corrected objectives, constraints, and statistical definitions
 - [`safety-actuation-and-admission.md`](docs/adaptive-runtime-v2/safety-actuation-and-admission.md) — supervisor, admission, acknowledgements, and recovery

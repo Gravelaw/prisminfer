@@ -350,9 +350,10 @@ audit.
 **Issue sequence.** #90; then independently checkpointed #91 through #95; then
 #96.
 
-**Predecessor and clearance.** M5/C6 exit and exact #84 admission. #90 owns C7
-30B static truth. Each optional mechanism requires its own C8 entry and evidence
-gate.
+**Predecessor and clearance.** M5/C6 exit and exact #84 admission. Accepted #90
+static truth establishes C7. Under C7, each #91 through #95 mechanism requires
+its own issue-specific entry and evidence gate; #96 establishes C8 only after
+every independent decision is retained.
 
 **Allowed work.**
 
@@ -408,8 +409,11 @@ results, portability/invalidation evidence, and the final program audit.
 
 **Issue sequence.** #97, then #98, conditional #99/#100, then #101 and #102.
 
-**Predecessor and clearance.** M6/Phase 8 audit exit. C9 permits only exact cells
-admitted by the refreshed resource bounds.
+**Predecessor and clearance.** M6/#96 establishes C8. Under C8, #97 refreshes
+admission; #98 and conditional #99/#100 may run only for their separately
+admitted exact cells; #101 tests portability/invalidation; and the #102 final
+audit establishes C9. C9 is the final classification, not an entry clearance
+for the work that establishes it.
 
 **Allowed work.**
 

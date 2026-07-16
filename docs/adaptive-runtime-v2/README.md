@@ -53,7 +53,7 @@ are preferred to copied prose.
 ## Reading order
 
 1. Read [`program-charter.md`](program-charter.md) for the problem and
-   falsifiable thesis.
+   falsifiable working hypothesis within Plan scope.
 2. Read [`architecture.md`](architecture.md) for the provisional GGML seam
    and provider escalation ladder.
 3. Read [`major-milestones.md`](major-milestones.md) for M0 and Plan packets
