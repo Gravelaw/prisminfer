@@ -366,13 +366,15 @@ every independent decision is retained.
   prefixes, cold-residual entropy, and direct execution provider;
 - #95 structured-compute oracle followed by a guarded router only if the oracle
   passes;
-- a joint plan only after at least two mechanisms pass independently.
+- record joint-optimization eligibility only after at least two mechanisms pass
+  independently; Packet G owns any combined plan or execution.
 
 **Prohibited work.**
 
 - opening optional mechanisms before #90;
 - hiding a failed component inside a joint result;
 - sharing one pass between decode, prefill, and KV/state paths;
+- joint candidate execution, combined planning, or joint-manifest generation;
 - full persistent reconstruction, source-tensor duplication, or lossy-Q4
   requantization;
 - calling distillation/model adaptation a runtime provider;
@@ -393,7 +395,8 @@ every independent decision is retained.
   prefill, KV/state, transfer, recovery, profiler, quality, retrieval, and
   output-length evidence;
 - isolated microbenchmarks linked to end-to-end confirmation;
-- independent and joint candidate manifests.
+- independent candidate manifests and a joint-eligibility decision record; no
+  joint candidate manifest is produced before Packet G admission.
 
 **Claim boundary and negative outcome.** Exact mechanism/cell/phase only.
 Capacity-only, slower, quality-failing, provider-unsupported, and not-admitted
