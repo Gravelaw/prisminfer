@@ -59,15 +59,15 @@ function Assert-Value {
 
 $phaseStatus = [ordered]@{
     73 = "Done"
-    74 = "Ready"
-    75 = "Blocked"
+    74 = "In Progress"
+    75 = "In Progress"
     76 = "Ready"
     77 = "Blocked"
     78 = "Blocked"
     79 = "Done"
     80 = "Ready"
-    81 = "Ready"
-    82 = "Ready"
+    81 = "Review"
+    82 = "Review"
     83 = "Ready"
     84 = "Blocked"
     85 = "Blocked"
@@ -88,7 +88,7 @@ $phaseStatus = [ordered]@{
     100 = "Blocked"
     101 = "Backlog"
     102 = "Backlog"
-    103 = "Ready"
+    103 = "In Progress"
 }
 
 $expectedTitles = @{
@@ -110,7 +110,13 @@ foreach ($entry in $phaseStatus.GetEnumerator()) {
         continue
     }
 
-    $expectedCoarse = if ($number -in @(73, 79)) { "Done" } else { "Todo" }
+    $expectedCoarse = if ($number -in @(73, 79)) {
+        "Done"
+    } elseif ($number -in @(74, 75, 81, 82, 103)) {
+        "In Progress"
+    } else {
+        "Todo"
+    }
     Assert-Value $number "Status" $item.status $expectedCoarse
     Assert-Value $number "Phase Status" $item.'phase Status' $entry.Value
 
@@ -206,7 +212,19 @@ if ($null -ne $hostAdmission109) {
     Assert-Value 109 "milestone" $hostAdmission109.milestone.title "Phase 6: Safety and Exact Evidence Foundation"
 }
 
-foreach ($needle in @("Plan.md", "#103", "#109", "workload-relative host admission", "Llama 3.1 8B", "Phase 8 Optional Mechanisms")) {
+foreach ($needle in @(
+    "Plan.md",
+    "docs/adaptive-runtime-v2/",
+    "M0",
+    "M7",
+    "#103",
+    "#109",
+    "PR #111",
+    "PR #112",
+    "workload-relative host admission",
+    "Llama 3.1 8B",
+    "Phase 8 Optional Mechanisms"
+)) {
     if (-not ([string]$project.readme).Contains($needle)) {
         Add-Failure "Project README is missing '$needle'."
     }
@@ -217,4 +235,4 @@ if ($failures.Count -gt 0) {
     exit 1
 }
 
-Write-Output ("Plan/Project sync PASS: {0} items checked; #73-#103, #107 and #109 status, roadmap, milestone, title and README contracts match." -f $items.Count)
+Write-Output ("Plan/Project sync PASS: {0} items checked; #73-#103, #107/#109, Packet A/B active status, V2 authority and README contracts match." -f $items.Count)

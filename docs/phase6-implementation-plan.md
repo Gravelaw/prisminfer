@@ -16,8 +16,9 @@ kept in `docs/phase6-compression-architecture.md`.
 ## Goal
 
 Build a manifest-backed evidence path for one exact `>5B-10B` foundation GGUF
-under an admitted device-specific GPU cap, with 8 GiB as the primary
-constrained research tier. P7-01 owns the exact model selection; Meta Llama 3.1
+under an admitted device-specific GPU cap, with requested 10 GiB and 12 GiB as
+the primary constrained research tiers and 8 GiB as stress-only. P7-01 owns
+the exact model selection; Meta Llama 3.1
 8B is preferred pending license acceptance, access, exact pin, converter
 support, and reproducible hashes. Ornith-1.0-9B remains a separate hybrid stress
 cell.

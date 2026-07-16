@@ -20,8 +20,9 @@ otherwise:
 ## Architecture Goal
 
 Run one exact P7-01-selected foundation GGUF under a device-admitted cap, with
-8 GiB as the primary constrained research tier. Meta Llama 3.1 8B is preferred
-pending license/access/pin. The core path uses upstream quantized weights,
+requested 10 GiB and 12 GiB as the primary constrained research tiers and
+8 GiB as stress-only. Meta Llama 3.1 8B is preferred pending
+license/access/pin. The core path uses upstream quantized weights,
 exact artifact and per-tensor `ggml_type` identity, KV accounting, strict memory
 certification, and same-cell quality/performance comparison. Custom fused
 dequantization and KV compression are optional, nonblocking branches.
@@ -180,9 +181,9 @@ Perplexity-only evidence is insufficient for promoted Phase 6 claims.
 
 The first foundation validated-benchmark target requires:
 
-- 8 GiB primary VRAM tier, with 12 GiB and a nominal 16 GiB ceiling as
-  reference tiers only when live admission permits; no tier is an allocation
-  target,
+- requested 10 GiB and 12 GiB primary tiers, an 8 GiB stress-only tier, and a
+  physical/live device-reference tier under the 16 GiB policy ceiling; no tier
+  is an allocation target,
 - context length 2048,
 - batch size 1,
 - at least 128 decode tokens per retained run,

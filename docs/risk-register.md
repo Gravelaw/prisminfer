@@ -37,7 +37,7 @@
 | WDDM physical residency is mistaken for PrismInfer-owned allocation | Critical | 7 | keep owned-allocation, process-tree, DXGI budget/usage, backend-ledger, and physical-residency claims separate | Proposed adaptive-runtime control | Needs the Windows evidence protocol and Job-backed process boundary |
 | Shell-based backend launch permits unsafe arguments or escapes accounting | Critical | 7 | replace `std::system` with native argument-vector process creation, controlled environment, inherited-handle policy, and Job Object containment | Proposed adaptive-runtime control | Current process-backed adapter remains unsuitable for adaptive execution |
 | Calibration overfits one prompt or thermal state | High | 7-9 | randomized blocks, nested holdouts, fresh confirmation runs, abstention, and fingerprint-bound invalidation | Proposed adaptive-runtime control | Needs calibration store, threshold registry, and independent request/session samples |
-| Hybrid recurrent state is incorrectly treated as ordinary KV cache | High | 7-8 | use a conventional full-attention 9B foundation cell; model Ornith/DeltaNet state explicitly in a separate stress cell | Proposed adaptive-runtime control | Needs architecture-aware state schema and hybrid fixtures |
+| Hybrid recurrent state is incorrectly treated as ordinary KV cache | High | 7-8 | use Llama 3.1 8B as the conventional foundation cell; model Ornith/DeltaNet state explicitly in a separate 9B stress cell | Proposed adaptive-runtime control | Needs architecture-aware state schema and hybrid fixtures |
 | Post-commit router audit is described as lossless fallback | Critical | 8 | require verification before commit for reversible paths; otherwise classify output as explicitly lossy and stop future use | Proposed adaptive-runtime control | Structured-compute provider remains optional research |
 | Speculative decoding optimizes acceptance rather than useful output | High | 8 | optimize committed target-distributed output tokens/sec and observed external bytes per committed token | Proposed adaptive-runtime control | Needs exact cycle accounting including the target token and rollback/recovery |
 | 70B/90B roadmap work begins despite infeasible host or bandwidth lower bounds | Critical | 7-9 | run exact capacity, storage, transfer, and resource-DAG admission at program entry; keep cells gated when the service envelope cannot be met | Proposed adaptive-runtime control | Needs exact artifacts and measured hardware inputs |
@@ -79,7 +79,7 @@
 | `docs/phase6-compression-architecture.md` | Phase 6 compression workflow, memory ledger, lane order, and claim classification. |
 | `docs/phase6-evidence.md` | Phase 6 evidence status and audit placeholder. |
 | `docs/kernel-benchmark-methodology.md` | Benchmark, comparator, baseline, and profiler evidence policy for kernel work. |
-| `docs/adaptive-runtime/README.md` | Index for the proposed calibrated adaptive-runtime architecture, 9B optimizer experiment, evidence protocols, scope, roadmap, and council record. |
+| `docs/adaptive-runtime-v2/README.md` | Active index for the adaptive-runtime V2 thesis, corrected optimizer mathematics, safety/evidence contracts, research boundary, and Plan-aligned milestones. |
 
 Archived context:
 
