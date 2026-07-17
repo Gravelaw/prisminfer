@@ -301,3 +301,8 @@ add_test(NAME prism_compare_benchmark_manifest_validation_cell_mismatch
     --baseline-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/baseline-valid.json
     --candidate-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/candidate-validation-cell-mismatch.json)
 set_tests_properties(prism_compare_benchmark_manifest_validation_cell_mismatch PROPERTIES WILL_FAIL TRUE)
+add_test(NAME prism_compare_benchmark_manifest_aborted_rejected
+  COMMAND prism-compare-benchmark
+    --baseline-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/baseline-valid.json
+    --candidate-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/candidate-aborted.json)
+set_tests_properties(prism_compare_benchmark_manifest_aborted_rejected PROPERTIES WILL_FAIL TRUE)

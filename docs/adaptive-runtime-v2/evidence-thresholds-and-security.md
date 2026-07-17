@@ -49,6 +49,14 @@ Configured transfer bytes cannot be relabeled measured. Requested GPU layers
 cannot be relabeled actual placement. A profiler claim retains the profiler
 artifact.
 
+The current CPU-only Packet A emitter is a non-promotable checkpoint. It binds
+an exact manifest to a retained raw-trial or failure-record hash under explicit
+trusted evidence and output roots, rejects unknown manifest fields, and rejects
+non-completed outcomes that retain raw trials or promotion state. Exact identity
+fields are SHA-256 values. This checkpoint does not yet satisfy M1: raw record
+structure/count and freshness remain fail-closed completion gates, as do atomic
+bundle publication and the exact #74 artifact dependency.
+
 ## Hardware safety and admission thresholds
 
 ### T-100: GPU effective cap

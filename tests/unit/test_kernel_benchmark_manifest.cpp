@@ -20,12 +20,12 @@ std::string valid_manifest() {
   return R"json({
   "manifest_version": "0.1",
   "validation_cell_id": "phase6-cell",
-  "model_hash": "model",
+  "model_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "quantization_format": "Q4_K_M",
-  "quant_artifact_sha256": "quant",
+  "quant_artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   "context_tokens": 2048,
   "batch_size": 1,
-  "prompt_fixture_hash": "prompt",
+  "prompt_fixture_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
   "backend": "llama.cpp",
   "os": "windows",
   "gpu_name": "gpu",
@@ -40,9 +40,9 @@ std::string valid_manifest() {
   "kernel_name": "baseline",
   "kernel_version": "1",
   "baseline_backend": "llama.cpp",
-  "baseline_manifest_hash": "baseline",
-  "correctness_fixture_hash": "correctness",
-  "quality_fixture_hash": "quality",
+  "baseline_manifest_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "correctness_fixture_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "quality_fixture_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
   "full_dequant_materialized": false,
   "workspace_peak_bytes": 1024,
   "device_resident_bytes": 0,
@@ -112,7 +112,8 @@ int main() {
                                          valid_manifest());
   const auto parsed = prisminfer::read_kernel_benchmark_manifest(valid_path);
   if (expect(parsed.ok, parsed.error.c_str())) return 1;
-  if (expect(parsed.manifest.cell.model_hash == "model",
+  if (expect(parsed.manifest.cell.model_hash ==
+                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
              "model hash parsed")) return 1;
   if (expect(parsed.manifest.cell.hard_cap_bytes == 8589934592ULL,
              "hard cap parsed")) return 1;
@@ -130,6 +131,7 @@ int main() {
              "required runner evidence parsed")) return 1;
   const auto emitted_path = std::filesystem::temp_directory_path() /
                             "prisminfer-kernel-emitted.json";
+  std::filesystem::remove(emitted_path, remove_error);
   std::string write_error;
   if (expect(prisminfer::write_kernel_benchmark_manifest(
                  emitted_path, parsed.manifest, &write_error),
@@ -139,7 +141,8 @@ int main() {
   const auto emitted =
       prisminfer::read_kernel_benchmark_manifest(emitted_path);
   if (expect(emitted.ok, emitted.error.c_str())) return 1;
-  if (expect(emitted.manifest.cell.model_hash == "model",
+  if (expect(emitted.manifest.cell.model_hash ==
+                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
              "emitted manifest preserves identity")) {
     return 1;
   }
@@ -155,6 +158,21 @@ int main() {
       prisminfer::read_kernel_benchmark_manifest(malformed_hash_path);
   if (expect(!malformed_hash.ok, "malformed raw hash rejected")) return 1;
   std::filesystem::remove(malformed_hash_path, remove_error);
+
+  const auto malformed_identity_path = write_manifest(
+      "prisminfer-kernel-malformed-identity.json",
+      replace_once(
+          valid_manifest(),
+          "\"quant_artifact_sha256\": \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"",
+          "\"quant_artifact_sha256\": \"not-a-hash\""));
+  const auto malformed_identity =
+      prisminfer::read_kernel_benchmark_manifest(malformed_identity_path);
+  if (expect(!malformed_identity.ok, "malformed identity hash rejected")) {
+    return 1;
+  }
+  if (expect(malformed_identity.error == "invalid_field:identity_sha256",
+             "malformed identity hash reason")) return 1;
+  std::filesystem::remove(malformed_identity_path, remove_error);
 
   const auto missing_evidence_path = write_manifest(
       "prisminfer-kernel-missing-evidence.json",
@@ -278,7 +296,10 @@ int main() {
 
   const auto missing_path = write_manifest(
       "prisminfer-kernel-missing.json",
-      replace_once(valid_manifest(), "  \"model_hash\": \"model\",\n", ""));
+      replace_once(
+          valid_manifest(),
+          "  \"model_hash\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n",
+          ""));
   const auto missing = prisminfer::read_kernel_benchmark_manifest(missing_path);
   if (expect(!missing.ok, "missing required field rejected")) return 1;
   if (expect(missing.error == "missing_required_field:model_hash",
@@ -317,7 +338,9 @@ int main() {
 
   const auto empty_path = write_manifest(
       "prisminfer-kernel-empty.json",
-      replace_once(valid_manifest(), "\"model_hash\": \"model\"",
+      replace_once(
+          valid_manifest(),
+          "\"model_hash\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"",
                    "\"model_hash\": \"\""));
   const auto empty = prisminfer::read_kernel_benchmark_manifest(empty_path);
   if (expect(!empty.ok, "empty required string rejected")) return 1;

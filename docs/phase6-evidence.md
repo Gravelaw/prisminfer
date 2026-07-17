@@ -13,6 +13,8 @@ Current status:
   retain raw trials or promotion state, and requires timing, device-residency,
   host-commit, supervisor/admission, and zero-unknown-owned-byte fields; this
   contract is not model-run evidence.
+  The normative evidence trust contract is owned by
+  `docs/adaptive-runtime-v2/evidence-thresholds-and-security.md`.
 - `configs/model-cell-catalog.json` pins only the checked-in deterministic
   smoke fixture and records source-verified, non-admitted foundation and
   Ornith receipts. Ornith's retained source identity is not a GGUF or a model

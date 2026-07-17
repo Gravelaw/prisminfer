@@ -36,9 +36,10 @@ int main() {
 
   std::string digest;
   std::string error;
-  if (expect(prisminfer::sha256_trusted_regular_file_bounded(
-                 root, root / "inside.txt", 64U, &digest, &error),
-             error.c_str())) {
+  const bool trusted_file_ok = prisminfer::sha256_trusted_regular_file_bounded(
+      root, root / "inside.txt", 64U, &digest, &error);
+  if (expect(trusted_file_ok,
+             error.empty() ? "trusted file hashing failed" : error.c_str())) {
     std::filesystem::remove_all(temporary, error_code);
     return 1;
   }

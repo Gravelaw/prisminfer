@@ -50,15 +50,12 @@ int main(int argc, char** argv) {
     std::cerr << "evidence_hash_mismatch\n";
     return static_cast<int>(prisminfer::ExitCode::FailedClosed);
   }
-  if (!prisminfer::write_kernel_benchmark_manifest(argv[2], input.manifest,
-                                                    &error)) {
-    std::cerr << "output_manifest_rejected:" << error << "\n";
-    return static_cast<int>(prisminfer::ExitCode::FailedClosed);
-  }
+  const std::string canonical_manifest =
+      prisminfer::canonical_kernel_benchmark_manifest_json(input.manifest);
   std::string digest;
-  if (!prisminfer::sha256_trusted_regular_file_bounded(
-          argv[4], argv[2], kMaximumManifestBytes, &digest, &error)) {
-    std::cerr << "output_manifest_hash_failed:" << error << "\n";
+  if (canonical_manifest.size() > kMaximumManifestBytes ||
+      !prisminfer::sha256_text(canonical_manifest, &digest)) {
+    std::cerr << "output_manifest_hash_failed\n";
     return static_cast<int>(prisminfer::ExitCode::FailedClosed);
   }
   const std::filesystem::path sidecar = std::string(argv[2]) + ".sha256";
@@ -67,6 +64,11 @@ int main(int argc, char** argv) {
   if (!prisminfer::write_new_or_same_text_file_atomically(
           sidecar, sidecar_contents, kMaximumManifestBytes, {}, &error)) {
     std::cerr << "output_manifest_hash_write_failed:" << error << "\n";
+    return static_cast<int>(prisminfer::ExitCode::FailedClosed);
+  }
+  if (!prisminfer::write_kernel_benchmark_manifest(argv[2], input.manifest,
+                                                    &error)) {
+    std::cerr << "output_manifest_rejected:" << error << "\n";
     return static_cast<int>(prisminfer::ExitCode::FailedClosed);
   }
   std::cout << "{\"status\":\"" << input.manifest.run_outcome

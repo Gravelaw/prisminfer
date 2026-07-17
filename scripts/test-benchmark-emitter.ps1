@@ -72,6 +72,9 @@ try {
     if ($exitCode -eq 0 -or [IO.File]::ReadAllText($victim) -ne "victim-content") {
         throw "Benchmark emitter overwrote an existing hard-linked sidecar."
     }
+    if (Test-Path -LiteralPath $sidecarOutput) {
+        throw "Benchmark emitter published a manifest after sidecar rejection."
+    }
 
     $legacyTempOutput = Join-Path $tempRoot "legacy-temp-output.json"
     New-Item -ItemType HardLink -Path ($legacyTempOutput + ".tmp") -Target $victim | Out-Null

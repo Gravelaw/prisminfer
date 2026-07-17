@@ -67,6 +67,9 @@ struct KernelBenchmarkManifestResult {
 KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
     const std::filesystem::path& path);
 
+std::string canonical_kernel_benchmark_manifest_json(
+    const KernelBenchmarkManifest& manifest);
+
 bool write_kernel_benchmark_manifest(
     const std::filesystem::path& path,
     const KernelBenchmarkManifest& manifest,

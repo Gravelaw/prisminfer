@@ -11,7 +11,8 @@ namespace prisminfer::kernels {
 
 // Exact block layout for GGML_TYPE_Q4_K at the pinned llama.cpp/GGML revision.
 // This is a CPU reference only. It does not make Q4_K eligible for a particular
-// artifact or CUDA path; #80 must supply the artifact inventory and eligibility.
+// artifact or CUDA path; #74 owns the artifact inventory and eligibility map,
+// while #80 separately owns immutable artifact selection and provenance.
 struct GgmlQ4KBlock {
   std::uint16_t delta_fp16{0};
   std::uint16_t minimum_fp16{0};

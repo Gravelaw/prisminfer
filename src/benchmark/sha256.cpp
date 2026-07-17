@@ -108,6 +108,17 @@ bool full_input_path(const std::filesystem::path& path, std::wstring* output) {
   return true;
 }
 
+bool long_input_path(const std::wstring& path, std::wstring* output) {
+  const DWORD required = GetLongPathNameW(path.c_str(), nullptr, 0U);
+  if (required == 0U) return false;
+  std::vector<wchar_t> buffer(static_cast<std::size_t>(required) + 1U);
+  const DWORD written = GetLongPathNameW(
+      path.c_str(), buffer.data(), static_cast<DWORD>(buffer.size()));
+  if (written == 0U || written >= buffer.size()) return false;
+  output->assign(buffer.data(), written);
+  return true;
+}
+
 std::wstring with_extended_prefix(const std::wstring& path) {
   if (path.rfind(L"\\\\?\\", 0U) == 0U) return path;
   if (path.rfind(L"\\\\", 0U) == 0U) return L"\\\\?\\UNC\\" + path.substr(2U);
@@ -139,7 +150,7 @@ bool sha256_windows_trusted_handle(const std::filesystem::path& trusted_root,
                                    std::string* digest,
                                    std::string* error) {
   ScopedHandle root(CreateFileW(trusted_root.c_str(), FILE_READ_ATTRIBUTES,
-                                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                FILE_SHARE_READ | FILE_SHARE_WRITE,
                                 nullptr, OPEN_EXISTING,
                                 FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
                                 nullptr));
@@ -150,12 +161,14 @@ bool sha256_windows_trusted_handle(const std::filesystem::path& trusted_root,
   BY_HANDLE_FILE_INFORMATION root_info{};
   std::wstring root_final;
   std::wstring root_input;
+  std::wstring root_long_input;
   if (!GetFileInformationByHandle(root.get(), &root_info) ||
       (root_info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U ||
       (root_info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0U ||
       !final_path_from_handle(root.get(), &root_final) ||
       !full_input_path(trusted_root, &root_input) ||
-      !equal_path_ci(root_final, with_extended_prefix(root_input))) {
+      !long_input_path(root_input, &root_long_input) ||
+      !equal_path_ci(root_final, with_extended_prefix(root_long_input))) {
     if (error) *error = "sha256_trusted_root_rejected";
     return false;
   }
@@ -300,6 +313,11 @@ bool sha256_posix_trusted_handle(const std::filesystem::path& trusted_root,
 }
 #endif
 }  // namespace
+
+bool sha256_text(const std::string& text, std::string* digest) {
+  return sha256_bytes(std::vector<std::uint8_t>(text.begin(), text.end()),
+                      digest);
+}
 
 bool sha256_file(const std::filesystem::path& path, std::string* digest, std::string* error) {
   std::ifstream input(path, std::ios::binary);

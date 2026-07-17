@@ -398,6 +398,14 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
                      parse_non_empty_string, &error)) {
     return fail(error);
   }
+  for (const auto* identity : {
+           &manifest.cell.model_hash, &manifest.cell.quant_artifact_sha256,
+           &manifest.cell.prompt_fixture_hash, &manifest.baseline_manifest_hash,
+           &manifest.correctness_fixture_hash, &manifest.quality_fixture_hash}) {
+    if (!valid_optional_sha256(*identity)) {
+      return fail("invalid_field:identity_sha256");
+    }
+  }
   if (manifest.ttft_ms < 0.0 || manifest.prefill_ms < 0.0 ||
       manifest.decode_tokens_per_second < 0.0 || manifest.request_tail_ms < 0.0) {
     return fail("invalid_field:run_timing");
@@ -499,7 +507,8 @@ bool write_kernel_benchmark_manifest(
     const KernelBenchmarkManifest& manifest,
     std::string* error) {
   constexpr std::uint64_t kMaximumManifestBytes = 64ULL * 1024ULL;
-  const std::string serialized = serialize(manifest);
+  const std::string serialized =
+      canonical_kernel_benchmark_manifest_json(manifest);
   const AtomicFileValidator validator = [](const std::filesystem::path& candidate,
                                            std::string* validation_error) {
     const auto verified = read_kernel_benchmark_manifest(candidate);
@@ -511,6 +520,11 @@ bool write_kernel_benchmark_manifest(
   };
   return write_new_or_same_text_file_atomically(
       path, serialized, kMaximumManifestBytes, validator, error);
+}
+
+std::string canonical_kernel_benchmark_manifest_json(
+    const KernelBenchmarkManifest& manifest) {
+  return serialize(manifest);
 }
 
 }  // namespace prisminfer

@@ -9,6 +9,8 @@ namespace prisminfer {
 bool sha256_file(const std::filesystem::path& path, std::string* digest,
                  std::string* error);
 
+bool sha256_text(const std::string& text, std::string* digest);
+
 bool sha256_regular_file_bounded(const std::filesystem::path& path,
                                  std::uint64_t maximum_bytes,
                                  std::string* digest,
