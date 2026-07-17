@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prisminfer.local/schemas/model_artifact_record.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_version", "artifact_kind", "artifact_filename", "artifact_sha256", "artifact_bytes", "source_repository", "source_revision", "source_manifest_sha256", "producer_repository", "producer_revision", "producer_readme_sha256", "quantizer_revision", "quantization_recipe", "quantization_receipt_sha256", "inventory_sha256", "retained_slice_manifest_sha256", "license_status", "license_sha256", "use_policy_sha256", "lineage_status", "claim_boundary"],
+  "properties": {
+    "record_version": { "const": "packet-a-artifact-v2" },
+    "artifact_kind": { "const": "gguf" },
+    "artifact_filename": { "type": "string", "minLength": 1 },
+    "artifact_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "artifact_bytes": { "type": "integer", "minimum": 1 },
+    "source_repository": { "const": "meta-llama/Llama-3.1-8B-Instruct" },
+    "source_revision": { "const": "0e9e39f249a16976918f6564b8830bc894c89659" },
+    "source_manifest_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "producer_repository": { "const": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF" },
+    "producer_revision": { "const": "bf5b95e96dac0462e2a09145ec66cae9a3f12067" },
+    "producer_readme_sha256": { "const": "6eaacf655181af2b04b6583e5a338591de89cb80a4b9f6babc77e35452fd8f5e" },
+    "quantizer_revision": { "const": "b5e95468b1676e1e5c9d80d1eeeb26f542a38f42" },
+    "quantization_recipe": { "const": "Q4_K_M" },
+    "quantization_receipt_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "inventory_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "retained_slice_manifest_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "license_status": { "const": "accepted" },
+    "license_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "use_policy_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "lineage_status": { "const": "admitted-related-community-quant-under-one-time-exception" },
+    "claim_boundary": { "const": "CPU/offline artifact admission only; no inference, CUDA, calibration, benchmark, or performance claim" }
+  }
+}

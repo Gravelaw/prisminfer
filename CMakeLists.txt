@@ -157,6 +157,22 @@ target_link_libraries(prism-emit-benchmark PRIVATE prisminfer_core)
 
 enable_testing()
 
+find_program(PRISMINFER_PYTHON_EXECUTABLE NAMES python3 python)
+if(PRISMINFER_PYTHON_EXECUTABLE)
+  add_test(
+    NAME test_evidence_runner
+    COMMAND ${PRISMINFER_PYTHON_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/test_evidence_runner.py)
+  add_test(
+    NAME test_inventory_gguf
+    COMMAND ${PRISMINFER_PYTHON_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/test_inventory_gguf.py)
+  add_test(
+    NAME test_admit_model_artifact
+    COMMAND ${PRISMINFER_PYTHON_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/test_admit_model_artifact.py)
+endif()
+
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/emitter-valid.json
   ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/candidate-aborted.json
@@ -315,6 +331,16 @@ add_test(NAME test_q4_decode_gemv COMMAND test_q4_decode_gemv)
 add_executable(test_ggml_q4_k_reference tests/unit/test_ggml_q4_k_reference.cpp)
 target_link_libraries(test_ggml_q4_k_reference PRIVATE prisminfer_core)
 add_test(NAME test_ggml_q4_k_reference COMMAND test_ggml_q4_k_reference)
+
+add_executable(test_real_gguf_slices tests/unit/test_real_gguf_slices.cpp)
+target_link_libraries(test_real_gguf_slices PRIVATE prisminfer_core)
+file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/test_real_gguf_slices.cpp" PRISMINFER_SLICE_TEST_SHA)
+file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/include/prisminfer/kernels/ggml_q4_k_reference.h" PRISMINFER_SLICE_HEADER_SHA)
+file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/src/kernels/ggml_q4_k_reference.cpp" PRISMINFER_SLICE_IMPL_SHA)
+string(SHA256 PRISMINFER_REAL_SLICE_DECODER_ID
+  "${PRISMINFER_SLICE_TEST_SHA}:${PRISMINFER_SLICE_HEADER_SHA}:${PRISMINFER_SLICE_IMPL_SHA}")
+target_compile_definitions(test_real_gguf_slices PRIVATE
+  PRISMINFER_REAL_SLICE_DECODER_ID="${PRISMINFER_REAL_SLICE_DECODER_ID}")
 
 add_test(NAME prism_compare_benchmark_manifest_same
   COMMAND prism-compare-benchmark

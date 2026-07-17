@@ -49,13 +49,26 @@ Configured transfer bytes cannot be relabeled measured. Requested GPU layers
 cannot be relabeled actual placement. A profiler claim retains the profiler
 artifact.
 
-The current CPU-only Packet A emitter is a non-promotable checkpoint. It binds
-an exact manifest to a retained raw-trial or failure-record hash under explicit
-trusted evidence and output roots, rejects unknown manifest fields, and rejects
-non-completed outcomes that retain raw trials or promotion state. Exact identity
-fields are SHA-256 values. This checkpoint does not yet satisfy M1: raw record
-structure/count and freshness remain fail-closed completion gates, as do atomic
-bundle publication and the exact #74 artifact dependency.
+The CPU-only Packet A evidence runner owns emission rather than trusting a
+caller-supplied manifest. It generates the opaque run id, wall-clock start and
+completion times, normalized records, evidence hash, deterministic fingerprint,
+terminal sequence, and manifest. Versioned `evidence-policy-v1` and
+`sample-plan-v1` fix the 15-minute publication window, five-minute future skew,
+strict sequential counts, one final terminal record, and claim ceilings.
+Completed runs require one or more exact `ok` trials; skipped, unsupported,
+rejected, and aborted runs are terminal-only with a reason and rejected ceiling.
+
+Publication uses a fresh exclusive directory, writes and flushes the manifest,
+evidence, and digest files, writes `COMMIT.json` last, then performs an
+exclusive no-replace rename. POSIX operations are relative to held directory
+descriptors and use `renameat2(RENAME_NOREPLACE)`; Windows traversal and
+publication use no-reparse NT handles, root-relative `NtCreateFile`, and
+root-relative `NtSetInformationFile` rename. The deterministic fingerprint is
+the final directory identity, so the same semantic input cannot publish twice
+and an interrupted temporary directory does not burn a replay key. Consumers
+enumerate and read only the five committed files
+through held handles, verify every identity and hash, and distinguish retained
+bundle integrity from the policy freshness required at publication.
 
 ## Hardware safety and admission thresholds
 
@@ -324,6 +337,44 @@ Every promoted result retains:
 
 A mutable branch name is not a pin. A changed covered path or artifact hash
 invalidates its review receipt.
+
+## M1 one-time artifact-production exception
+
+On 2026-07-17 the repository owner authorized one bounded exception for Packet
+A to acquire the already pinned Llama 3.1 8B Instruct source revision, produce
+its canonical F16 intermediate and Q4_K_M GGUF, and perform the CPU/offline
+artifact inspection needed by issues #74, #75, and #80. The retained receipt
+must record the exact source files and hashes, llama.cpp revision, commands,
+toolchain and host identity, sampled physical/commit memory, reserve-triggered
+abort behavior, output hashes, and validation results.
+
+This exception permits only the minimum download, conversion, CPU
+quantization, hashing, inventory, and retained-slice work needed for Packet A.
+It does not authorize CUDA, model inference, calibration, benchmarking,
+self-hosted workflows, sustained hardware claims, or any performance or model
+promotion. Missing telemetry, a physical or commit reserve breach, an
+unexpected artifact identity, or a parser/provenance failure still stops the
+operation and remains a valid negative result.
+
+The local self-production attempts and the first remote CPU production job
+preserve negative receipts: local runs stopped at the physical-memory reserve,
+while the remote run completed quantization but could not persist its output
+because the supplied Hub token lacked repository-write permission. The owner
+therefore extended the same one-time exception to the directly related
+`bartowski/Meta-Llama-3.1-8B-Instruct-GGUF` Q4_K_M object at producer revision
+`bf5b95e96dac0462e2a09145ec66cae9a3f12067`. Admission requires its published
+LFS SHA-256, complete local inventory, source-lineage metadata, retained
+per-type differentials, and explicit third-party producer provenance to agree.
+This transfer exception does not convert community provenance into
+self-produced provenance and grants no inference, benchmark, CUDA, or
+performance credit.
+
+Artifact admission also binds the complete GGUF inventory, retained slices,
+exact eligibility map, canonical Git-object oracle hashes, and the source hash
+of the CPU differential decoder build. Hosted checks validate the checked-in
+small-file provenance addresses without model bytes; local artifact admission
+additionally opens the approved content-addressed GGUF and retained bytes
+through held, no-reparse, single-link handles.
 
 ## Threshold change control
 

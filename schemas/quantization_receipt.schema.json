@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["admission_exception", "claim_boundary", "imatrix_chunks", "imatrix_entries", "imatrix_status", "local_opened_sha256", "producer_host_identity", "producer_readme_sha256", "producer_repository", "producer_revision", "published_lfs_sha256", "quantization_recipe", "quantization_version", "quantizer_release", "quantizer_revision", "receipt_version", "source_lineage_evidence", "source_repository", "source_revision"],
+  "properties": {
+    "admission_exception": { "const": "repository-owner one-time 2026-07-17 related-community-artifact transfer exception" },
+    "claim_boundary": { "const": "CPU/offline artifact admission only; no inference, CUDA, calibration, benchmark, or performance claim" },
+    "imatrix_chunks": { "const": 125 }, "imatrix_entries": { "const": 224 }, "imatrix_status": { "const": "used" },
+    "local_opened_sha256": { "const": "7b064f5842bf9532c91456deda288a1b672397a54fa729aa665952863033557c" },
+    "producer_host_identity": { "const": "not published by producer" },
+    "producer_readme_sha256": { "const": "6eaacf655181af2b04b6583e5a338591de89cb80a4b9f6babc77e35452fd8f5e" },
+    "producer_repository": { "const": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF" },
+    "producer_revision": { "const": "bf5b95e96dac0462e2a09145ec66cae9a3f12067" },
+    "published_lfs_sha256": { "const": "7b064f5842bf9532c91456deda288a1b672397a54fa729aa665952863033557c" },
+    "quantization_recipe": { "const": "Q4_K_M" }, "quantization_version": { "const": 2 },
+    "quantizer_release": { "const": "llama.cpp b3472" },
+    "quantizer_revision": { "const": "b5e95468b1676e1e5c9d80d1eeeb26f542a38f42" },
+    "receipt_version": { "const": "packet-a-imported-quant-v1" },
+    "source_lineage_evidence": { "type": "string", "minLength": 1 },
+    "source_repository": { "const": "meta-llama/Llama-3.1-8B-Instruct" },
+    "source_revision": { "const": "0e9e39f249a16976918f6564b8830bc894c89659" }
+  }
+}

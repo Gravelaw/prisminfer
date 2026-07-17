@@ -6,13 +6,13 @@
   "additionalProperties": false,
   "required": ["catalog_version", "catalog_status", "cells"],
   "properties": {
-    "catalog_version": { "const": "0.1" },
+    "catalog_version": { "const": "0.2" },
     "catalog_status": {
-      "enum": ["metadata-only", "source-verified"]
+      "enum": ["metadata-only", "source-verified", "artifact-descriptors-ready"]
     },
     "cells": {
       "type": "array",
-      "minItems": 4,
+      "minItems": 7,
       "items": { "$ref": "#/$defs/cell" }
     }
   },
@@ -32,21 +32,39 @@
         "modality",
         "architecture_state",
         "notes"
+        ,"artifact_state"
       ],
       "properties": {
         "cell_id": { "type": "string", "minLength": 1 },
         "role": {
           "type": "string",
-          "enum": ["smoke", "foundation", "stress", "lineage-comparator"]
+          "enum": ["smoke", "foundation", "stress", "lineage-comparator", "scale"]
         },
         "status": {
           "type": "string",
-          "enum": ["pinned", "metadata-only", "pending-license-access", "source-verified"]
+          "enum": ["pinned", "verified", "metadata-only", "pending-license-access", "source-verified"]
         },
         "artifact_kind": {
           "type": "string",
-          "enum": ["synthetic-text", "text-gguf", "metadata-only"]
+          "enum": ["synthetic-text", "text-gguf", "metadata-only", "descriptor-only"]
         },
+        "artifact_state": {
+          "enum": ["verified", "unsupported", "selection-deferred"]
+        },
+        "content_address": {
+          "type": "string",
+          "pattern": "^$|^artifact://sha256/[0-9a-f]{64}$"
+        },
+        "artifact_record_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
+        "quantization_receipt_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
+        "inventory_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
+        "retained_slice_manifest_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
+        "eligibility_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
+        "unsupported_reason": {
+          "type": "string",
+          "enum": ["", "unsupported-converter", "not-admitted"]
+        },
+        "owner_issue": { "type": "integer", "minimum": 1 },
         "artifact_path": { "type": "string" },
         "artifact_sha256": {
           "type": "string",
@@ -96,7 +114,7 @@
         "imatrix_status": { "type": "string", "enum": ["not-used", "used"] },
         "conversion_status": {
           "type": "string",
-          "enum": ["not-attempted", "q4-k-m-aborted-run-bound"]
+          "enum": ["not-attempted", "q4-k-m-aborted-run-bound", "q4-k-m-completed"]
         },
         "f16_intermediate_sha256": {
           "type": "string",
@@ -168,6 +186,36 @@
         "notes": { "type": "string", "minLength": 1 }
       },
       "allOf": [
+        {
+          "if": {
+            "properties": {
+              "cell_id": { "const": "llama-3.1-8b-instruct-foundation" },
+              "status": { "const": "verified" }
+            }
+          },
+          "then": {
+            "required": [
+              "content_address", "artifact_record_sha256",
+              "quantization_receipt_sha256", "inventory_sha256",
+              "retained_slice_manifest_sha256", "eligibility_sha256", "source_manifest_sha256",
+              "source_file_count", "source_total_bytes", "source_config_sha256",
+              "tokenizer_sha256", "tokenizer_config_sha256", "chat_template_sha256",
+              "license_sha256", "use_policy_sha256", "architecture_fingerprint",
+              "tokenizer_class", "converter_revision", "conversion_command",
+              "quantization_recipe", "imatrix_status", "f16_intermediate_sha256",
+              "f16_intermediate_bytes", "f16_tensor_inventory_sha256",
+              "f16_tensor_count", "f16_tensor_type_counts"
+            ],
+            "properties": {
+              "artifact_state": { "const": "verified" },
+              "artifact_path": { "maxLength": 0 },
+              "artifact_sha256": { "pattern": "^[0-9a-f]{64}$" },
+              "content_address": { "pattern": "^artifact://sha256/[0-9a-f]{64}$" },
+              "conversion_status": { "const": "q4-k-m-completed" },
+              "license_status": { "const": "accepted" }
+            }
+          }
+        },
         {
           "if": {
             "properties": { "status": { "const": "pinned" } }
@@ -247,6 +295,29 @@
               "q4_k_m_attempts": { "minItems": 1 },
               "license_status": { "const": "accepted" }
             }
+          }
+        },
+        {
+          "if": {
+            "properties": { "artifact_state": { "enum": ["unsupported", "selection-deferred"] } },
+            "required": ["artifact_state"]
+          },
+          "then": {
+            "properties": {
+              "artifact_path": { "maxLength": 0 },
+              "artifact_sha256": { "maxLength": 0 },
+              "content_address": { "maxLength": 0 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "artifact_state": { "const": "unsupported" } },
+            "required": ["artifact_state"]
+          },
+          "then": {
+            "required": ["unsupported_reason"],
+            "properties": { "unsupported_reason": { "enum": ["unsupported-converter", "not-admitted"] } }
           }
         },
         {

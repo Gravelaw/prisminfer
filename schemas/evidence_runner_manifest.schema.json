@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prisminfer.local/schemas/evidence_runner_manifest.schema.json",
+  "title": "PrismInfer strict evidence-runner manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifest_version",
+    "run_id",
+    "run_fingerprint_sha256",
+    "validation_cell_id",
+    "evidence_policy_version",
+    "sample_plan_version",
+    "started_at_utc",
+    "completed_at_utc",
+    "terminal_sequence",
+    "declared_trial_count",
+    "evidence_sha256",
+    "run_outcome",
+    "claim_ceiling",
+    "failure_reason"
+  ],
+  "properties": {
+    "manifest_version": { "const": "1.0" },
+    "run_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{15,63}$" },
+    "run_fingerprint_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "validation_cell_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "evidence_policy_version": { "const": "evidence-policy-v1" },
+    "sample_plan_version": { "const": "sample-plan-v1" },
+    "started_at_utc": { "type": "string", "format": "date-time" },
+    "completed_at_utc": { "type": "string", "format": "date-time" },
+    "terminal_sequence": { "type": "integer", "minimum": 1, "maximum": 1000001 },
+    "declared_trial_count": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+    "evidence_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "run_outcome": { "enum": ["completed", "skipped", "unsupported", "rejected", "aborted"] },
+    "claim_ceiling": { "enum": ["research-only", "rejected"] },
+    "failure_reason": { "type": "string", "maxLength": 512 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "run_outcome": { "const": "completed" } } },
+      "then": {
+        "properties": {
+          "declared_trial_count": { "minimum": 1 },
+          "claim_ceiling": { "const": "research-only" },
+          "failure_reason": { "maxLength": 0 }
+        }
+      },
+      "else": {
+        "properties": {
+          "declared_trial_count": { "const": 0 },
+          "claim_ceiling": { "const": "rejected" },
+          "failure_reason": { "minLength": 1 }
+        }
+      }
+    }
+  ]
+}

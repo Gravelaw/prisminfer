@@ -1,0 +1,12 @@
+{
+  "policy_version": "evidence-policy-v1",
+  "maximum_manifest_bytes": 65536,
+  "maximum_evidence_bytes": 67108864,
+  "maximum_trial_count": 1000000,
+  "publication_freshness_seconds": 900,
+  "maximum_future_skew_seconds": 300,
+  "completed_claim_ceiling": "research-only",
+  "failure_claim_ceiling": "rejected",
+  "atomic_bundle_version": "committed-evidence-v1",
+  "replay_identity": "run_fingerprint_sha256"
+}

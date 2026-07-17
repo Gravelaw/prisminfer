@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prisminfer.local/schemas/committed_evidence_bundle.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["bundle_version", "run_id", "run_fingerprint_sha256", "manifest_sha256", "evidence_sha256"],
+  "properties": {
+    "bundle_version": { "const": "committed-evidence-v1" },
+    "run_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{15,63}$" },
+    "run_fingerprint_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "manifest_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "evidence_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
