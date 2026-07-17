@@ -6,6 +6,11 @@
 
 #include "prisminfer/sha256.h"
 
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 namespace {
 int expect(bool condition, const char* message) {
   if (condition) return 0;
@@ -49,6 +54,26 @@ int main() {
     std::filesystem::remove_all(temporary, error_code);
     return 1;
   }
+
+#ifdef _WIN32
+  std::wstring short_root_buffer(32768U, L'\0');
+  const DWORD short_root_length = GetShortPathNameW(
+      root.c_str(), short_root_buffer.data(),
+      static_cast<DWORD>(short_root_buffer.size()));
+  if (short_root_length > 0U && short_root_length < short_root_buffer.size()) {
+    short_root_buffer.resize(short_root_length);
+    const std::filesystem::path short_root(short_root_buffer);
+    error.clear();
+    const bool short_path_ok = prisminfer::sha256_trusted_regular_file_bounded(
+        short_root, short_root / "inside.txt", 64U, &digest, &error);
+    if (expect(short_path_ok,
+               error.empty() ? "short-path trusted hashing failed"
+                             : error.c_str())) {
+      std::filesystem::remove_all(temporary, error_code);
+      return 1;
+    }
+  }
+#endif
 
   error.clear();
   if (expect(!prisminfer::sha256_trusted_regular_file_bounded(

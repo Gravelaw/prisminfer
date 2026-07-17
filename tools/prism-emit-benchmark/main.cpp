@@ -40,6 +40,11 @@ int main(int argc, char** argv) {
     std::cerr << "output_root_rejected:" << error << "\n";
     return static_cast<int>(prisminfer::ExitCode::FailedClosed);
   }
+  if (input.manifest.claim_status != "research-only" ||
+      input.manifest.cap_certification_status != "research-only") {
+    std::cerr << "checkpoint_promotion_rejected\n";
+    return static_cast<int>(prisminfer::ExitCode::FailedClosed);
+  }
   std::string actual_evidence_hash;
   if (!prisminfer::sha256_trusted_regular_file_bounded(
           argv[6], argv[8], kMaximumEvidenceBytes, &actual_evidence_hash, &error)) {

@@ -100,6 +100,26 @@ try {
     if ($exitCode -eq 0 -or (Test-Path -LiteralPath $outsideOutput)) {
         throw "Benchmark emitter published outside the trusted output root."
     }
+
+    $promotedInput = Join-Path $tempRoot "promoted-input.json"
+    $promotedText = [IO.File]::ReadAllText((Join-Path $fixtureRoot "emitter-valid.json"))
+    $promotedText = $promotedText.Replace('"claim_status": "research-only"', '"claim_status": "measured"')
+    [IO.File]::WriteAllText($promotedInput, $promotedText)
+    $promotedOutput = Join-Path $tempRoot "promoted-output.json"
+    $savedPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & $EmitterPath $promotedInput $promotedOutput `
+            --output-root $tempRoot `
+            --evidence-root $fixtureRoot --raw-trials (Join-Path $fixtureRoot "raw-trials.jsonl") 2>&1 | Out-Null
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $savedPreference
+    }
+    if ($exitCode -eq 0 -or (Test-Path -LiteralPath $promotedOutput)) {
+        throw "Benchmark emitter accepted promotion from the CPU-only checkpoint."
+    }
 }
 finally {
     if (Test-Path -LiteralPath $junction) {

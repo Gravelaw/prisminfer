@@ -157,11 +157,15 @@ target_link_libraries(prism-emit-benchmark PRIVATE prisminfer_core)
 
 enable_testing()
 
+file(SHA256
+     ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/emitter-valid.json
+     PRISMINFER_EMITTER_FIXTURE_SHA256)
+
 add_test(
     NAME prism_emit_benchmark_binds_raw_evidence
     COMMAND prism-emit-benchmark
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/emitter-valid.json
-            $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-valid-output.json
+            $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-valid-${PRISMINFER_EMITTER_FIXTURE_SHA256}.json
             --output-root
             $<TARGET_FILE_DIR:prism-emit-benchmark>
             --evidence-root
@@ -172,7 +176,7 @@ add_test(
     NAME prism_emit_benchmark_rejects_raw_evidence_mismatch
     COMMAND prism-emit-benchmark
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/emitter-valid.json
-            $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-mismatch-output.json
+            $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-mismatch-${PRISMINFER_EMITTER_FIXTURE_SHA256}.json
             --output-root
             $<TARGET_FILE_DIR:prism-emit-benchmark>
             --evidence-root
