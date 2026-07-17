@@ -9,8 +9,10 @@ Current status:
 - The CPU-only `prism-emit-benchmark` path canonicalizes manifests, writes a
   deterministic SHA-256 sidecar, and fails closed when completed outcomes lack
   raw-trial evidence or non-completed outcomes lack failure evidence. It also
-  requires timing, device-residency, host-commit, supervisor/admission, and
-  zero-unknown-owned-byte fields; this contract is not model-run evidence.
+  requires an explicit trusted output root, rejects non-completed outcomes that
+  retain raw trials or promotion state, and requires timing, device-residency,
+  host-commit, supervisor/admission, and zero-unknown-owned-byte fields; this
+  contract is not model-run evidence.
 - `configs/model-cell-catalog.json` pins only the checked-in deterministic
   smoke fixture and records source-verified, non-admitted foundation and
   Ornith receipts. Ornith's retained source identity is not a GGUF or a model

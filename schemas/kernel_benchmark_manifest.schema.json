@@ -201,7 +201,11 @@
         "required": ["failure_reason", "failure_record_sha256"],
         "properties": {
           "failure_reason": { "type": "string", "minLength": 1 },
-          "failure_record_sha256": { "pattern": "^[0-9a-fA-F]{64}$" }
+          "failure_record_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+          "raw_trial_count": { "const": 0 },
+          "raw_trial_sha256": { "const": "" },
+          "cap_certification_status": { "const": "rejected" },
+          "claim_status": { "enum": ["rejected", "research-only"] }
         }
       }
     },

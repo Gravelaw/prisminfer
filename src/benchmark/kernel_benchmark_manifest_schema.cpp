@@ -73,6 +73,10 @@ bool kernel_manifest_identity_constraints_ok(
   const bool promoted_cap_status =
       manifest.cap_certification_status == "quality-gated" ||
       manifest.cap_certification_status == "validated-benchmark";
+  const bool completed = manifest.run_outcome == "completed";
+  const bool promotable_claim = manifest.claim_status == "measured" ||
+                                manifest.claim_status ==
+                                    "measured-non-certified";
   return manifest.cell.context_tokens != 0 && manifest.cell.batch_size != 0 &&
          valid_vram_tier(manifest.cell.vram_tier_gib) &&
          manifest.cell.hard_cap_bytes != 0 &&
@@ -97,6 +101,10 @@ bool kernel_manifest_identity_constraints_ok(
                 {"completed", "skipped", "unsupported", "rejected",
                  "aborted"}) &&
          manifest.unknown_owned_bytes == 0 &&
+         (completed ||
+          (!promotable_claim && manifest.cap_certification_status == "rejected")) &&
+         (manifest.requested_execution_path == manifest.actual_execution_path ||
+          (!promotable_claim && !promoted_cap_status)) &&
          (!promoted_cap_status ||
           (manifest.run_outcome == "completed" &&
            manifest.supervisor_status == "active" &&

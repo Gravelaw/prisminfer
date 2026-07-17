@@ -54,6 +54,7 @@ add_library(prisminfer_core
   src/backend/llama_backend.cpp
   src/backend/null_backend.cpp
   src/benchmark/manifest_writer.cpp
+  src/benchmark/atomic_file.cpp
   src/benchmark/benchmark_comparator.cpp
   src/benchmark/kernel_evidence.cpp
   src/benchmark/flat_json.cpp
@@ -161,6 +162,8 @@ add_test(
     COMMAND prism-emit-benchmark
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/emitter-valid.json
             $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-valid-output.json
+            --output-root
+            $<TARGET_FILE_DIR:prism-emit-benchmark>
             --evidence-root
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests
             --raw-trials
@@ -170,6 +173,8 @@ add_test(
     COMMAND prism-emit-benchmark
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/emitter-valid.json
             $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-mismatch-output.json
+            --output-root
+            $<TARGET_FILE_DIR:prism-emit-benchmark>
             --evidence-root
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests
             --raw-trials
@@ -264,6 +269,10 @@ add_test(NAME test_kernel_evidence COMMAND test_kernel_evidence)
 add_executable(test_kernel_benchmark_manifest tests/unit/test_kernel_benchmark_manifest.cpp)
 target_link_libraries(test_kernel_benchmark_manifest PRIVATE prisminfer_core)
 add_test(NAME test_kernel_benchmark_manifest COMMAND test_kernel_benchmark_manifest)
+
+add_executable(test_sha256_trusted_file tests/unit/test_sha256_trusted_file.cpp)
+target_link_libraries(test_sha256_trusted_file PRIVATE prisminfer_core)
+add_test(NAME test_sha256_trusted_file COMMAND test_sha256_trusted_file)
 
 add_executable(test_q4_decode_gemv tests/unit/test_q4_decode_gemv.cpp)
 target_link_libraries(test_q4_decode_gemv PRIVATE prisminfer_core)

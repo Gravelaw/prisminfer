@@ -225,6 +225,16 @@ int main() {
       aborted, "\"failure_record_sha256\": \"\"",
       "\"failure_record_sha256\": "
       "\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"");
+  aborted = replace_once(aborted, "  \"raw_trial_count\": 3,\n", "");
+  aborted = replace_once(
+      aborted,
+      "  \"raw_trial_sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n",
+      "");
+  aborted = replace_once(aborted,
+                         "\"cap_certification_status\": \"research-only\"",
+                         "\"cap_certification_status\": \"rejected\"");
+  aborted = replace_once(aborted, "\"claim_status\": \"research-only\"",
+                         "\"claim_status\": \"rejected\"");
   const auto aborted_path =
       write_manifest("prisminfer-kernel-aborted.json", aborted);
   const auto aborted_result =
@@ -233,6 +243,38 @@ int main() {
   if (expect(aborted_result.manifest.run_outcome == "aborted",
              "aborted outcome parsed")) return 1;
   std::filesystem::remove(aborted_path, remove_error);
+
+  const auto aborted_with_trials_path = write_manifest(
+      "prisminfer-kernel-aborted-with-trials.json",
+      replace_once(
+          aborted, "  \"failure_reason\": \"watchdog_timeout\",\n",
+          "  \"failure_reason\": \"watchdog_timeout\",\n"
+          "  \"raw_trial_count\": 1,\n"
+          "  \"raw_trial_sha256\": "
+          "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n"));
+  const auto aborted_with_trials =
+      prisminfer::read_kernel_benchmark_manifest(aborted_with_trials_path);
+  if (expect(!aborted_with_trials.ok,
+             "aborted evidence cannot retain promotable raw trials")) return 1;
+  if (expect(aborted_with_trials.error == "failure_evidence_required",
+             "aborted raw trial rejection reason")) return 1;
+  std::filesystem::remove(aborted_with_trials_path, remove_error);
+
+  const auto mismatched_promoted_path = write_manifest(
+      "prisminfer-kernel-mismatched-promoted.json",
+      replace_once(
+          replace_once(valid_manifest(),
+                       "\"actual_execution_path\": \"upstream-baseline\"",
+                       "\"actual_execution_path\": \"fallback\""),
+          "\"claim_status\": \"research-only\"",
+          "\"claim_status\": \"measured\""));
+  const auto mismatched_promoted =
+      prisminfer::read_kernel_benchmark_manifest(mismatched_promoted_path);
+  if (expect(!mismatched_promoted.ok,
+             "requested and actual path mismatch cannot be promoted")) return 1;
+  if (expect(mismatched_promoted.error == "manifest_schema_constraint_failed",
+             "promoted path mismatch reason")) return 1;
+  std::filesystem::remove(mismatched_promoted_path, remove_error);
 
   const auto missing_path = write_manifest(
       "prisminfer-kernel-missing.json",

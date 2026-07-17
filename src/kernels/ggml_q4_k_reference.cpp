@@ -12,6 +12,28 @@ constexpr std::size_t kValuesPerBlock = 256U;
 constexpr std::size_t kSubblocksPerBlock = 8U;
 constexpr std::size_t kValuesPerSubblock = 32U;
 
+GgmlQ4KDecodeLimitsResult validate_decode_limits(
+    std::size_t block_count, std::size_t maximum_decoded_bytes) {
+  if (block_count > std::numeric_limits<std::size_t>::max() /
+                          kValuesPerBlock) {
+    return {false, "decoded_value_count_overflow", 0U};
+  }
+  const std::size_t decoded_values = block_count * kValuesPerBlock;
+  std::vector<float> values;
+  if (decoded_values > values.max_size()) {
+    return {false, "decoded_value_limit_exceeded", 0U};
+  }
+  if (decoded_values > std::numeric_limits<std::size_t>::max() /
+                           sizeof(float)) {
+    return {false, "decoded_byte_count_overflow", 0U};
+  }
+  const std::size_t decoded_bytes = decoded_values * sizeof(float);
+  if (decoded_bytes > maximum_decoded_bytes) {
+    return {false, "decoded_byte_limit_exceeded", 0U};
+  }
+  return {true, "", decoded_values};
+}
+
 float fp16_to_float(std::uint16_t bits) {
   const std::uint32_t sign = static_cast<std::uint32_t>(bits & 0x8000U) << 16U;
   std::uint32_t exponent = (bits >> 10U) & 0x1FU;
@@ -58,24 +80,12 @@ void decode_scale_and_minimum(const std::array<std::uint8_t, 12>& scales,
 
 GgmlQ4KDecodeLimitsResult validate_ggml_q4_k_decode_limits(
     std::size_t block_count, std::size_t maximum_decoded_bytes) {
-  if (block_count > std::numeric_limits<std::size_t>::max() /
-                          kValuesPerBlock) {
-    return {false, "decoded_value_count_overflow", 0U};
-  }
-  const std::size_t decoded_values = block_count * kValuesPerBlock;
-  std::vector<float> values;
-  if (decoded_values > values.max_size()) {
-    return {false, "decoded_value_limit_exceeded", 0U};
-  }
-  if (decoded_values > std::numeric_limits<std::size_t>::max() /
-                           sizeof(float)) {
-    return {false, "decoded_byte_count_overflow", 0U};
-  }
-  const std::size_t decoded_bytes = decoded_values * sizeof(float);
-  if (decoded_bytes > maximum_decoded_bytes) {
-    return {false, "decoded_byte_limit_exceeded", 0U};
-  }
-  return {true, "", decoded_values};
+  return validate_decode_limits(block_count, maximum_decoded_bytes);
+}
+
+GgmlQ4KDecodeLimitsResult validate_ggml_q6_k_decode_limits(
+    std::size_t block_count, std::size_t maximum_decoded_bytes) {
+  return validate_decode_limits(block_count, maximum_decoded_bytes);
 }
 
 GgmlQ4KDecodeResult decode_ggml_q4_k_reference(
@@ -108,6 +118,67 @@ GgmlQ4KDecodeResult decode_ggml_q4_k_reference(
           values.push_back(scaled_delta * static_cast<float>(quant) -
                            scaled_minimum);
         }
+      }
+    }
+    return {true, "", std::move(values)};
+  } catch (const std::bad_alloc&) {
+    return {false, "decoded_allocation_failed", {}};
+  }
+}
+
+GgmlQ4KDecodeResult decode_ggml_q6_k_reference(
+    std::span<const GgmlQ6KBlock> blocks, std::size_t maximum_decoded_bytes) {
+  const auto limits =
+      validate_ggml_q6_k_decode_limits(blocks.size(), maximum_decoded_bytes);
+  if (!limits.ok) {
+    return {false, limits.reason, {}};
+  }
+  try {
+    std::vector<float> values(limits.decoded_value_count);
+    std::size_t output_offset = 0U;
+    for (const GgmlQ6KBlock& block : blocks) {
+      const float delta = fp16_to_float(block.delta_fp16);
+      const std::uint8_t* low = block.low_quants.data();
+      const std::uint8_t* high = block.high_quants.data();
+      const std::int8_t* scale = block.scales.data();
+      for (std::size_t half = 0U; half < 2U; ++half) {
+        for (std::size_t index = 0U; index < 32U; ++index) {
+          const std::size_t scale_index = index / 16U;
+          const auto decode_quant = [](std::uint8_t low_bits,
+                                       std::uint8_t high_bits) {
+            return static_cast<std::int8_t>(
+                static_cast<int>(low_bits | (high_bits << 4U)) - 32);
+          };
+          const std::uint8_t high_packed = high[index];
+          const std::int8_t q1 = decode_quant(
+              static_cast<std::uint8_t>(low[index] & 0x0FU),
+              static_cast<std::uint8_t>((high_packed >> 0U) & 0x03U));
+          const std::int8_t q2 = decode_quant(
+              static_cast<std::uint8_t>(low[index + 32U] & 0x0FU),
+              static_cast<std::uint8_t>((high_packed >> 2U) & 0x03U));
+          const std::int8_t q3 = decode_quant(
+              static_cast<std::uint8_t>(low[index] >> 4U),
+              static_cast<std::uint8_t>((high_packed >> 4U) & 0x03U));
+          const std::int8_t q4 = decode_quant(
+              static_cast<std::uint8_t>(low[index + 32U] >> 4U),
+              static_cast<std::uint8_t>((high_packed >> 6U) & 0x03U));
+          values[output_offset + index] =
+              delta * static_cast<float>(scale[scale_index + 0U]) *
+              static_cast<float>(q1);
+          values[output_offset + index + 32U] =
+              delta * static_cast<float>(scale[scale_index + 2U]) *
+              static_cast<float>(q2);
+          values[output_offset + index + 64U] =
+              delta * static_cast<float>(scale[scale_index + 4U]) *
+              static_cast<float>(q3);
+          values[output_offset + index + 96U] =
+              delta * static_cast<float>(scale[scale_index + 6U]) *
+              static_cast<float>(q4);
+        }
+        output_offset += 128U;
+        low += 64U;
+        high += 32U;
+        scale += 8U;
       }
     }
     return {true, "", std::move(values)};

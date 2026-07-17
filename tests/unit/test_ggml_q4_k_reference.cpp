@@ -73,5 +73,45 @@ int main() {
              "decoded value limit reason")) {
     return 1;
   }
+
+  prisminfer::kernels::GgmlQ6KBlock q6_block{};
+  q6_block.delta_fp16 = 0x3C00U;  // 1.0
+  q6_block.low_quants.fill(0xFFU);
+  q6_block.high_quants.fill(0xFFU);
+  for (std::size_t index = 0U; index < q6_block.scales.size(); ++index) {
+    q6_block.scales[index] = static_cast<std::int8_t>(index + 1U);
+  }
+  const std::vector<prisminfer::kernels::GgmlQ6KBlock> q6_blocks = {q6_block};
+  const auto q6_decoded =
+      prisminfer::kernels::decode_ggml_q6_k_reference(q6_blocks, 1024U);
+  if (expect(q6_decoded.ok, "Q6_K block decodes")) return 1;
+  if (expect(q6_decoded.values.size() == 256U, "Q6_K has 256 values")) {
+    return 1;
+  }
+  if (expect(std::fabs(q6_decoded.values[0] - 31.0F) < 0.0001F,
+             "Q6_K first low quant")) {
+    return 1;
+  }
+  if (expect(std::fabs(q6_decoded.values[32] - 93.0F) < 0.0001F,
+             "Q6_K first second group")) {
+    return 1;
+  }
+  if (expect(std::fabs(q6_decoded.values[128] - 279.0F) < 0.0001F,
+             "Q6_K second half scale")) {
+    return 1;
+  }
+  if (expect(std::fabs(q6_decoded.values[255] - 496.0F) < 0.0001F,
+             "Q6_K last value")) {
+    return 1;
+  }
+  const auto q6_rejected =
+      prisminfer::kernels::decode_ggml_q6_k_reference(q6_blocks, 1023U);
+  if (expect(!q6_rejected.ok, "Q6_K decoded byte limit rejects output")) {
+    return 1;
+  }
+  if (expect(q6_rejected.reason == "decoded_byte_limit_exceeded",
+             "Q6_K decoded byte limit reason")) {
+    return 1;
+  }
   return 0;
 }

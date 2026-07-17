@@ -11,6 +11,11 @@
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
+#else
+#include <cerrno>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #endif
 
 namespace prisminfer {
@@ -63,49 +68,6 @@ bool sha256_bytes(const std::vector<std::uint8_t>& data, std::string* digest) {
   std::ostringstream out; out<<std::hex<<std::setfill('0');
   for (const auto value:state) out<<std::setw(8)<<value;
   *digest=out.str(); return true;
-}
-
-bool relative_path_is_descendant(const std::filesystem::path& relative) {
-  return !relative.empty() && relative != "." &&
-         std::none_of(relative.begin(), relative.end(),
-                      [](const std::filesystem::path& component) {
-                        return component == "..";
-                      });
-}
-
-bool is_platform_reparse_point(const std::filesystem::path& path) {
-#ifdef _WIN32
-  const auto attributes = GetFileAttributesW(path.c_str());
-  return attributes == INVALID_FILE_ATTRIBUTES ||
-         (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U;
-#else
-  (void)path;
-  return false;
-#endif
-}
-
-bool path_components_are_not_reparse_points(
-    const std::filesystem::path& root,
-    const std::filesystem::path& relative,
-    std::string* error) {
-  std::error_code status_error;
-  const auto root_status = std::filesystem::symlink_status(root, status_error);
-  if (status_error || !std::filesystem::is_directory(root_status) ||
-      std::filesystem::is_symlink(root_status) || is_platform_reparse_point(root)) {
-    if (error) *error = "sha256_trusted_root_rejected";
-    return false;
-  }
-  auto current = root;
-  for (const auto& component : relative) {
-    current /= component;
-    const auto status = std::filesystem::symlink_status(current, status_error);
-    if (status_error || std::filesystem::is_symlink(status) ||
-        is_platform_reparse_point(current)) {
-      if (error) *error = "sha256_input_reparse_point";
-      return false;
-    }
-  }
-  return true;
 }
 
 #ifdef _WIN32
@@ -236,6 +198,106 @@ bool sha256_windows_trusted_handle(const std::filesystem::path& trusted_root,
   }
   return sha256_bytes(data, digest);
 }
+#else
+class ScopedFd {
+ public:
+  explicit ScopedFd(int value = -1) : value_(value) {}
+  ~ScopedFd() {
+    if (value_ >= 0) close(value_);
+  }
+  ScopedFd(const ScopedFd&) = delete;
+  ScopedFd& operator=(const ScopedFd&) = delete;
+  ScopedFd(ScopedFd&& other) noexcept : value_(other.value_) {
+    other.value_ = -1;
+  }
+  ScopedFd& operator=(ScopedFd&& other) noexcept {
+    if (this != &other) {
+      if (value_ >= 0) close(value_);
+      value_ = other.value_;
+      other.value_ = -1;
+    }
+    return *this;
+  }
+  int get() const { return value_; }
+
+ private:
+  int value_{-1};
+};
+
+bool sha256_posix_trusted_handle(const std::filesystem::path& trusted_root,
+                                 const std::filesystem::path& path,
+                                 std::uint64_t maximum_bytes,
+                                 std::string* digest,
+                                 std::string* error) {
+  std::error_code path_error;
+  const auto root =
+      std::filesystem::absolute(trusted_root, path_error).lexically_normal();
+  const auto candidate =
+      std::filesystem::absolute(path, path_error).lexically_normal();
+  if (path_error) {
+    if (error) *error = "sha256_input_outside_trusted_root";
+    return false;
+  }
+  const auto relative = candidate.lexically_relative(root);
+  if (relative.empty() || relative == ".") {
+    if (error) *error = "sha256_input_outside_trusted_root";
+    return false;
+  }
+  for (const auto& component : relative) {
+    if (component.empty() || component == "." || component == "..") {
+      if (error) *error = "sha256_input_outside_trusted_root";
+      return false;
+    }
+  }
+
+  ScopedFd current(open(root.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW |
+                                          O_CLOEXEC));
+  if (current.get() < 0) {
+    if (error) *error = "sha256_trusted_root_rejected";
+    return false;
+  }
+  struct stat metadata {};
+  if (fstat(current.get(), &metadata) != 0 || !S_ISDIR(metadata.st_mode)) {
+    if (error) *error = "sha256_trusted_root_rejected";
+    return false;
+  }
+
+  auto component = relative.begin();
+  while (component != relative.end()) {
+    const auto next = std::next(component);
+    const bool final = next == relative.end();
+    const int flags = O_RDONLY | O_NOFOLLOW | O_CLOEXEC |
+                      (final ? 0 : O_DIRECTORY);
+    ScopedFd opened(openat(current.get(), component->c_str(), flags));
+    if (opened.get() < 0 || fstat(opened.get(), &metadata) != 0 ||
+        (final ? !S_ISREG(metadata.st_mode) : !S_ISDIR(metadata.st_mode))) {
+      if (error) *error = "sha256_input_reparse_point";
+      return false;
+    }
+    current = std::move(opened);
+    component = next;
+  }
+
+  std::vector<std::uint8_t> data;
+  std::array<std::uint8_t, 8192> buffer{};
+  for (;;) {
+    const ssize_t count = read(current.get(), buffer.data(), buffer.size());
+    if (count < 0 && errno == EINTR) continue;
+    if (count < 0) {
+      if (error) *error = "sha256_input_read_failed";
+      return false;
+    }
+    if (count == 0) break;
+    const auto read_count = static_cast<std::uint64_t>(count);
+    if (read_count > maximum_bytes ||
+        static_cast<std::uint64_t>(data.size()) > maximum_bytes - read_count) {
+      if (error) *error = "sha256_input_size_exceeds_limit";
+      return false;
+    }
+    data.insert(data.end(), buffer.begin(), buffer.begin() + count);
+  }
+  return sha256_bytes(data, digest);
+}
 #endif
 }  // namespace
 
@@ -287,32 +349,8 @@ bool sha256_trusted_regular_file_bounded(
   return sha256_windows_trusted_handle(trusted_root, path, maximum_bytes,
                                        digest, error);
 #else
-  std::error_code path_error;
-  const auto root = std::filesystem::absolute(trusted_root, path_error).lexically_normal();
-  if (path_error) { if (error) *error = "sha256_trusted_root_rejected"; return false; }
-  const auto candidate = std::filesystem::absolute(path, path_error).lexically_normal();
-  if (path_error) { if (error) *error = "sha256_input_outside_trusted_root"; return false; }
-  const auto relative = candidate.lexically_relative(root);
-  if (!relative_path_is_descendant(relative) ||
-      !path_components_are_not_reparse_points(root, relative, error)) {
-    if (error && error->empty()) *error = "sha256_input_outside_trusted_root";
-    return false;
-  }
-
-  const auto size_before = std::filesystem::file_size(candidate, path_error);
-  const auto write_before = std::filesystem::last_write_time(candidate, path_error);
-  if (path_error) { if (error) *error = "sha256_input_metadata_failed"; return false; }
-  if (!sha256_regular_file_bounded(candidate, maximum_bytes, digest, error)) {
-    return false;
-  }
-  const auto size_after = std::filesystem::file_size(candidate, path_error);
-  const auto write_after = std::filesystem::last_write_time(candidate, path_error);
-  if (path_error || size_before != size_after || write_before != write_after ||
-      !path_components_are_not_reparse_points(root, relative, error)) {
-    if (error && error->empty()) *error = "sha256_input_changed_during_hash";
-    return false;
-  }
-  return true;
+  return sha256_posix_trusted_handle(trusted_root, path, maximum_bytes,
+                                     digest, error);
 #endif
 }
 }  // namespace prisminfer

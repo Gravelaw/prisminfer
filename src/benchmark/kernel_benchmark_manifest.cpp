@@ -1,5 +1,7 @@
 #include "prisminfer/kernel_benchmark_manifest.h"
 
+#include "prisminfer/atomic_file.h"
+
 #include <algorithm>
 #include <charconv>
 #include <climits>
@@ -417,11 +419,14 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
     return fail(error);
   }
   if (manifest.run_outcome == "completed") {
-    if (manifest.raw_trial_count == 0 || manifest.raw_trial_sha256.empty()) {
+    if (manifest.raw_trial_count == 0 || manifest.raw_trial_sha256.empty() ||
+        !manifest.failure_reason.empty() ||
+        !manifest.failure_record_sha256.empty()) {
       return fail("completed_raw_evidence_required");
     }
   } else if (manifest.failure_reason.empty() ||
-             manifest.failure_record_sha256.empty()) {
+             manifest.failure_record_sha256.empty() ||
+             manifest.raw_trial_count != 0 || !manifest.raw_trial_sha256.empty()) {
     return fail("failure_evidence_required");
   }
 
@@ -493,39 +498,19 @@ bool write_kernel_benchmark_manifest(
     const std::filesystem::path& path,
     const KernelBenchmarkManifest& manifest,
     std::string* error) {
-  const auto temporary = path.string() + ".tmp";
-  {
-    std::ofstream out(temporary, std::ios::out | std::ios::trunc | std::ios::binary);
-    if (!out) {
-      if (error != nullptr) *error = "manifest_output_open_failed";
-      return false;
+  constexpr std::uint64_t kMaximumManifestBytes = 64ULL * 1024ULL;
+  const std::string serialized = serialize(manifest);
+  const AtomicFileValidator validator = [](const std::filesystem::path& candidate,
+                                           std::string* validation_error) {
+    const auto verified = read_kernel_benchmark_manifest(candidate);
+    if (verified.ok) return true;
+    if (validation_error) {
+      *validation_error = "manifest_output_invalid:" + verified.error;
     }
-    out << serialize(manifest);
-    out.flush();
-    if (!out) {
-      if (error != nullptr) *error = "manifest_output_write_failed";
-      return false;
-    }
-  }
-  const auto verified = read_kernel_benchmark_manifest(temporary);
-  if (!verified.ok) {
-    std::filesystem::remove(temporary);
-    if (error != nullptr) *error = "manifest_output_invalid:" + verified.error;
     return false;
-  }
-  std::error_code rename_error;
-  std::filesystem::rename(temporary, path, rename_error);
-  if (rename_error) {
-    std::filesystem::remove(path, rename_error);
-    rename_error.clear();
-    std::filesystem::rename(temporary, path, rename_error);
-  }
-  if (rename_error) {
-    std::filesystem::remove(temporary);
-    if (error != nullptr) *error = "manifest_output_publish_failed";
-    return false;
-  }
-  return true;
+  };
+  return write_new_or_same_text_file_atomically(
+      path, serialized, kMaximumManifestBytes, validator, error);
 }
 
 }  // namespace prisminfer
