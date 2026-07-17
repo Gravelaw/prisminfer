@@ -54,12 +54,15 @@ add_library(prisminfer_core
   src/backend/llama_backend.cpp
   src/backend/null_backend.cpp
   src/benchmark/manifest_writer.cpp
+  src/benchmark/atomic_file.cpp
   src/benchmark/benchmark_comparator.cpp
   src/benchmark/kernel_evidence.cpp
   src/benchmark/flat_json.cpp
   src/benchmark/kernel_benchmark_manifest_schema.cpp
   src/benchmark/kernel_benchmark_manifest.cpp
+  src/benchmark/sha256.cpp
   src/benchmark/transfer_metrics.cpp
+  src/kernels/ggml_q4_k_reference.cpp
   src/kernels/q4_decode_gemv.cpp
   src/planner/hybrid_plan.cpp
   src/kv/kv_cache_ledger.cpp
@@ -149,7 +152,85 @@ target_link_libraries(prism-validate-claim PRIVATE prisminfer_core)
 add_executable(prism-compare-benchmark tools/prism-compare-benchmark/main.cpp)
 target_link_libraries(prism-compare-benchmark PRIVATE prisminfer_core)
 
+add_executable(prism-emit-benchmark tools/prism-emit-benchmark/main.cpp)
+target_link_libraries(prism-emit-benchmark PRIVATE prisminfer_core)
+
 enable_testing()
+
+find_program(PRISMINFER_PYTHON_EXECUTABLE NAMES python3 python)
+if(PRISMINFER_PYTHON_EXECUTABLE)
+  add_test(
+    NAME test_evidence_runner
+    COMMAND ${PRISMINFER_PYTHON_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/test_evidence_runner.py)
+  add_test(
+    NAME test_inventory_gguf
+    COMMAND ${PRISMINFER_PYTHON_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/test_inventory_gguf.py)
+  add_test(
+    NAME test_admit_model_artifact
+    COMMAND ${PRISMINFER_PYTHON_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/test_admit_model_artifact.py)
+endif()
+
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/emitter-valid.json
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/candidate-aborted.json
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/failure-record-aborted.jsonl)
+file(SHA256
+     ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/emitter-valid.json
+     PRISMINFER_EMITTER_FIXTURE_SHA256)
+file(SHA256
+     ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/candidate-aborted.json
+     PRISMINFER_ABORTED_MANIFEST_SHA256)
+file(SHA256
+     ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/failure-record-aborted.jsonl
+     PRISMINFER_ABORTED_RECORD_SHA256)
+
+add_test(
+    NAME prism_emit_benchmark_binds_raw_evidence
+    COMMAND prism-emit-benchmark
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/emitter-valid.json
+            $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-valid-${PRISMINFER_EMITTER_FIXTURE_SHA256}.json
+            --output-root
+            $<TARGET_FILE_DIR:prism-emit-benchmark>
+            --evidence-root
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests
+            --raw-trials
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/raw-trials.jsonl)
+add_test(
+    NAME prism_emit_benchmark_rejects_raw_evidence_mismatch
+    COMMAND prism-emit-benchmark
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/emitter-valid.json
+            $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-mismatch-${PRISMINFER_EMITTER_FIXTURE_SHA256}.json
+            --output-root
+            $<TARGET_FILE_DIR:prism-emit-benchmark>
+            --evidence-root
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests
+            --raw-trials
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/raw-trials-mismatch.jsonl)
+set_tests_properties(prism_emit_benchmark_rejects_raw_evidence_mismatch
+                     PROPERTIES WILL_FAIL TRUE)
+add_test(
+    NAME prism_emit_benchmark_retains_aborted_failure
+    COMMAND prism-emit-benchmark
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/candidate-aborted.json
+            $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-aborted-${PRISMINFER_ABORTED_MANIFEST_SHA256}-${PRISMINFER_ABORTED_RECORD_SHA256}.json
+            --output-root
+            $<TARGET_FILE_DIR:prism-emit-benchmark>
+            --evidence-root
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests
+            --failure-record
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/failure-record-aborted.jsonl)
+set_tests_properties(prism_emit_benchmark_retains_aborted_failure
+                     PROPERTIES WILL_FAIL TRUE)
+add_test(
+    NAME prism_emit_benchmark_aborted_outputs_published
+    COMMAND ${CMAKE_COMMAND} -E cat
+            $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-aborted-${PRISMINFER_ABORTED_MANIFEST_SHA256}-${PRISMINFER_ABORTED_RECORD_SHA256}.json
+            $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-aborted-${PRISMINFER_ABORTED_MANIFEST_SHA256}-${PRISMINFER_ABORTED_RECORD_SHA256}.json.sha256)
+set_tests_properties(prism_emit_benchmark_aborted_outputs_published
+                     PROPERTIES DEPENDS prism_emit_benchmark_retains_aborted_failure)
 
 add_executable(test_config tests/unit/test_config.cpp)
 target_link_libraries(test_config PRIVATE prisminfer_core)
@@ -239,9 +320,27 @@ add_executable(test_kernel_benchmark_manifest tests/unit/test_kernel_benchmark_m
 target_link_libraries(test_kernel_benchmark_manifest PRIVATE prisminfer_core)
 add_test(NAME test_kernel_benchmark_manifest COMMAND test_kernel_benchmark_manifest)
 
+add_executable(test_sha256_trusted_file tests/unit/test_sha256_trusted_file.cpp)
+target_link_libraries(test_sha256_trusted_file PRIVATE prisminfer_core)
+add_test(NAME test_sha256_trusted_file COMMAND test_sha256_trusted_file)
+
 add_executable(test_q4_decode_gemv tests/unit/test_q4_decode_gemv.cpp)
 target_link_libraries(test_q4_decode_gemv PRIVATE prisminfer_core)
 add_test(NAME test_q4_decode_gemv COMMAND test_q4_decode_gemv)
+
+add_executable(test_ggml_q4_k_reference tests/unit/test_ggml_q4_k_reference.cpp)
+target_link_libraries(test_ggml_q4_k_reference PRIVATE prisminfer_core)
+add_test(NAME test_ggml_q4_k_reference COMMAND test_ggml_q4_k_reference)
+
+add_executable(test_real_gguf_slices tests/unit/test_real_gguf_slices.cpp)
+target_link_libraries(test_real_gguf_slices PRIVATE prisminfer_core)
+file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/test_real_gguf_slices.cpp" PRISMINFER_SLICE_TEST_SHA)
+file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/include/prisminfer/kernels/ggml_q4_k_reference.h" PRISMINFER_SLICE_HEADER_SHA)
+file(SHA256 "${CMAKE_CURRENT_SOURCE_DIR}/src/kernels/ggml_q4_k_reference.cpp" PRISMINFER_SLICE_IMPL_SHA)
+string(SHA256 PRISMINFER_REAL_SLICE_DECODER_ID
+  "${PRISMINFER_SLICE_TEST_SHA}:${PRISMINFER_SLICE_HEADER_SHA}:${PRISMINFER_SLICE_IMPL_SHA}")
+target_compile_definitions(test_real_gguf_slices PRIVATE
+  PRISMINFER_REAL_SLICE_DECODER_ID="${PRISMINFER_REAL_SLICE_DECODER_ID}")
 
 add_test(NAME prism_compare_benchmark_manifest_same
   COMMAND prism-compare-benchmark
@@ -262,3 +361,8 @@ add_test(NAME prism_compare_benchmark_manifest_validation_cell_mismatch
     --baseline-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/baseline-valid.json
     --candidate-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/candidate-validation-cell-mismatch.json)
 set_tests_properties(prism_compare_benchmark_manifest_validation_cell_mismatch PROPERTIES WILL_FAIL TRUE)
+add_test(NAME prism_compare_benchmark_manifest_aborted_rejected
+  COMMAND prism-compare-benchmark
+    --baseline-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/baseline-valid.json
+    --candidate-manifest ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/candidate-aborted.json)
+set_tests_properties(prism_compare_benchmark_manifest_aborted_rejected PROPERTIES WILL_FAIL TRUE)

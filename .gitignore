@@ -26,3 +26,5 @@ phase4-overclaim-rejected.json
 .idea/
 Thumbs.db
 Desktop.ini
+__pycache__/
+*.pyc

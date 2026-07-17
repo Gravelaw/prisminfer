@@ -1,12 +1,17 @@
 #include "prisminfer/kernel_benchmark_manifest.h"
 
+#include "prisminfer/atomic_file.h"
+
+#include <algorithm>
 #include <charconv>
 #include <climits>
 #include <cmath>
+#include <fstream>
 #include <sstream>
 
 #include "prisminfer/flat_json.h"
 #include "prisminfer/kernel_benchmark_manifest_schema.h"
+#include "prisminfer/telemetry.h"
 
 namespace prisminfer {
 
@@ -67,6 +72,94 @@ bool parse_string(const FlatJsonValue& value, std::string* output) {
 
 bool parse_non_empty_string(const FlatJsonValue& value, std::string* output) {
   return parse_string(value, output) && !output->empty();
+}
+
+bool valid_optional_sha256(const std::string& value) {
+  if (value.empty() || value.size() != 64U) {
+    return value.empty();
+  }
+  return std::all_of(value.begin(), value.end(), [](unsigned char character) {
+    return (character >= '0' && character <= '9') ||
+           (character >= 'a' && character <= 'f') ||
+           (character >= 'A' && character <= 'F');
+  });
+}
+
+std::string serialize(const KernelBenchmarkManifest& manifest) {
+  std::ostringstream out;
+  if (!manifest.fields.empty()) {
+    out << "{\n";
+    std::size_t index = 0U;
+    for (const auto& [key, value] : manifest.fields) {
+      out << "  \"" << json_escape(key) << "\": ";
+      if (value.kind == FlatJsonValue::Kind::String) {
+        out << "\"" << json_escape(value.text) << "\"";
+      } else {
+        out << value.text;
+      }
+      if (++index != manifest.fields.size()) {
+        out << ",";
+      }
+      out << "\n";
+    }
+    out << "}\n";
+    return out.str();
+  }
+  out << "{\n"
+      << "  \"manifest_version\": \"" << json_escape(manifest.manifest_version)
+      << "\",\n"
+      << "  \"validation_cell_id\": \"" << json_escape(manifest.validation_cell_id)
+      << "\",\n"
+      << "  \"model_hash\": \"" << json_escape(manifest.cell.model_hash) << "\",\n"
+      << "  \"quantization_format\": \"" << json_escape(manifest.cell.quantization_format) << "\",\n"
+      << "  \"quant_artifact_sha256\": \"" << json_escape(manifest.cell.quant_artifact_sha256) << "\",\n"
+      << "  \"context_tokens\": " << manifest.cell.context_tokens << ",\n"
+      << "  \"batch_size\": " << manifest.cell.batch_size << ",\n"
+      << "  \"prompt_fixture_hash\": \"" << json_escape(manifest.cell.prompt_fixture_hash) << "\",\n"
+      << "  \"backend\": \"" << json_escape(manifest.cell.backend) << "\",\n"
+      << "  \"os\": \"" << json_escape(manifest.cell.os) << "\",\n"
+      << "  \"gpu_name\": \"" << json_escape(manifest.cell.gpu_name) << "\",\n"
+      << "  \"driver_mode\": \"" << json_escape(manifest.cell.driver_mode) << "\",\n"
+      << "  \"cuda_driver_version\": " << manifest.cell.cuda_driver_version << ",\n"
+      << "  \"cuda_runtime_version\": " << manifest.cell.cuda_runtime_version << ",\n"
+      << "  \"vram_tier_gib\": " << manifest.cell.vram_tier_gib << ",\n"
+      << "  \"hard_cap_bytes\": " << manifest.cell.hard_cap_bytes << ",\n"
+      << "  \"op_type\": \"" << json_escape(manifest.cell.op_type) << "\",\n"
+      << "  \"sequence_phase\": \"" << json_escape(manifest.cell.sequence_phase) << "\",\n"
+      << "  \"kernel_backend\": \"" << json_escape(manifest.cell.kernel_backend) << "\",\n"
+      << "  \"kernel_name\": \"" << json_escape(manifest.cell.kernel_name) << "\",\n"
+      << "  \"kernel_version\": \"" << json_escape(manifest.cell.kernel_version) << "\",\n"
+      << "  \"baseline_backend\": \"" << json_escape(manifest.baseline_backend) << "\",\n"
+      << "  \"baseline_manifest_hash\": \"" << json_escape(manifest.baseline_manifest_hash) << "\",\n"
+      << "  \"correctness_fixture_hash\": \"" << json_escape(manifest.correctness_fixture_hash) << "\",\n"
+      << "  \"quality_fixture_hash\": \"" << json_escape(manifest.quality_fixture_hash) << "\",\n"
+      << "  \"full_dequant_materialized\": " << (manifest.full_dequant_materialized ? "true" : "false") << ",\n"
+      << "  \"workspace_peak_bytes\": " << manifest.workspace_peak_bytes << ",\n"
+      << "  \"device_resident_bytes\": " << manifest.device_resident_bytes << ",\n"
+      << "  \"host_commit_peak_bytes\": " << manifest.host_commit_peak_bytes << ",\n"
+      << "  \"unknown_owned_bytes\": " << manifest.unknown_owned_bytes << ",\n"
+      << "  \"ttft_ms\": " << manifest.ttft_ms << ",\n"
+      << "  \"prefill_ms\": " << manifest.prefill_ms << ",\n"
+      << "  \"decode_tokens_per_second\": " << manifest.decode_tokens_per_second << ",\n"
+      << "  \"request_tail_ms\": " << manifest.request_tail_ms << ",\n"
+      << "  \"speedup_ratio\": " << manifest.speedup_ratio << ",\n"
+      << "  \"compression_status\": \"" << json_escape(manifest.compression_status) << "\",\n"
+      << "  \"quality_gate_id\": \"" << json_escape(manifest.quality_gate_id) << "\",\n"
+      << "  \"cap_certification_status\": \"" << json_escape(manifest.cap_certification_status) << "\",\n"
+      << "  \"run_outcome\": \"" << json_escape(manifest.run_outcome) << "\",\n"
+      << "  \"supervisor_status\": \"" << json_escape(manifest.supervisor_status) << "\",\n"
+      << "  \"admission_status\": \"" << json_escape(manifest.admission_status) << "\",\n"
+      << "  \"requested_execution_path\": \"" << json_escape(manifest.requested_execution_path) << "\",\n"
+      << "  \"actual_execution_path\": \"" << json_escape(manifest.actual_execution_path) << "\",\n"
+      << "  \"failure_reason\": \"" << json_escape(manifest.failure_reason) << "\",\n"
+      << "  \"raw_trial_count\": " << manifest.raw_trial_count << ",\n"
+      << "  \"raw_trial_sha256\": \"" << json_escape(manifest.raw_trial_sha256)
+      << "\",\n"
+      << "  \"failure_record_sha256\": \""
+      << json_escape(manifest.failure_record_sha256) << "\",\n"
+      << "  \"claim_status\": \"" << json_escape(manifest.claim_status) << "\"\n"
+      << "}\n";
+  return out.str();
 }
 
 template <typename T, typename Parser, typename Constraint>
@@ -263,6 +356,21 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
                      &manifest.full_dequant_materialized, parse_bool, &error) ||
       !read_required(fields, "workspace_peak_bytes",
                      &manifest.workspace_peak_bytes, parse_u64, &error) ||
+      !read_required(fields, "device_resident_bytes",
+                     &manifest.device_resident_bytes, parse_u64, &error) ||
+      !read_required(fields, "host_commit_peak_bytes",
+                     &manifest.host_commit_peak_bytes, parse_u64, &error) ||
+      !read_required(fields, "unknown_owned_bytes",
+                     &manifest.unknown_owned_bytes, parse_u64, &error) ||
+      !read_required(fields, "ttft_ms", &manifest.ttft_ms, parse_double,
+                     &error) ||
+      !read_required(fields, "prefill_ms", &manifest.prefill_ms, parse_double,
+                     &error) ||
+      !read_required(fields, "decode_tokens_per_second",
+                     &manifest.decode_tokens_per_second, parse_double,
+                     &error) ||
+      !read_required(fields, "request_tail_ms", &manifest.request_tail_ms,
+                     parse_double, &error) ||
       !read_required(fields, "speedup_ratio", &manifest.speedup_ratio,
                      parse_double, &error) ||
       !read_required(fields, "claim_status", &manifest.claim_status,
@@ -275,6 +383,59 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
                      &manifest.cap_certification_status,
                      parse_non_empty_string, &error)) {
     return fail(error);
+  }
+  if (!read_required(fields, "run_outcome", &manifest.run_outcome,
+                     parse_non_empty_string, &error) ||
+      !read_required(fields, "supervisor_status", &manifest.supervisor_status,
+                     parse_non_empty_string, &error) ||
+      !read_required(fields, "admission_status", &manifest.admission_status,
+                     parse_non_empty_string, &error) ||
+      !read_required(fields, "requested_execution_path",
+                     &manifest.requested_execution_path,
+                     parse_non_empty_string, &error) ||
+      !read_required(fields, "actual_execution_path",
+                     &manifest.actual_execution_path,
+                     parse_non_empty_string, &error)) {
+    return fail(error);
+  }
+  for (const auto* identity : {
+           &manifest.cell.model_hash, &manifest.cell.quant_artifact_sha256,
+           &manifest.cell.prompt_fixture_hash, &manifest.baseline_manifest_hash,
+           &manifest.correctness_fixture_hash, &manifest.quality_fixture_hash}) {
+    if (!valid_optional_sha256(*identity)) {
+      return fail("invalid_field:identity_sha256");
+    }
+  }
+  if (manifest.ttft_ms < 0.0 || manifest.prefill_ms < 0.0 ||
+      manifest.decode_tokens_per_second < 0.0 || manifest.request_tail_ms < 0.0) {
+    return fail("invalid_field:run_timing");
+  }
+  if (!read_optional(fields, "raw_trial_count", &manifest.raw_trial_count,
+                     parse_u64, &error) ||
+      !read_optional(fields, "raw_trial_sha256", &manifest.raw_trial_sha256,
+                     parse_string, &error) ||
+      !read_optional(fields, "failure_record_sha256",
+                     &manifest.failure_record_sha256, parse_string, &error)) {
+    return fail(error);
+  }
+  if (!valid_optional_sha256(manifest.raw_trial_sha256) ||
+      !valid_optional_sha256(manifest.failure_record_sha256)) {
+    return fail("invalid_field:raw_evidence_sha256");
+  }
+  if (!read_optional(fields, "failure_reason", &manifest.failure_reason,
+                     parse_string, &error)) {
+    return fail(error);
+  }
+  if (manifest.run_outcome == "completed") {
+    if (manifest.raw_trial_count == 0 || manifest.raw_trial_sha256.empty() ||
+        !manifest.failure_reason.empty() ||
+        !manifest.failure_record_sha256.empty()) {
+      return fail("completed_raw_evidence_required");
+    }
+  } else if (manifest.failure_reason.empty() ||
+             manifest.failure_record_sha256.empty() ||
+             manifest.raw_trial_count != 0 || !manifest.raw_trial_sha256.empty()) {
+    return fail("failure_evidence_required");
   }
 
   if (!kernel_manifest_identity_constraints_ok(manifest)) {
@@ -336,8 +497,34 @@ KernelBenchmarkManifestResult read_kernel_benchmark_manifest(
 
   KernelBenchmarkManifestResult result;
   result.ok = true;
+  manifest.fields = fields;
   result.manifest = manifest;
   return result;
+}
+
+bool write_kernel_benchmark_manifest(
+    const std::filesystem::path& path,
+    const KernelBenchmarkManifest& manifest,
+    std::string* error) {
+  constexpr std::uint64_t kMaximumManifestBytes = 64ULL * 1024ULL;
+  const std::string serialized =
+      canonical_kernel_benchmark_manifest_json(manifest);
+  const AtomicFileValidator validator = [](const std::filesystem::path& candidate,
+                                           std::string* validation_error) {
+    const auto verified = read_kernel_benchmark_manifest(candidate);
+    if (verified.ok) return true;
+    if (validation_error) {
+      *validation_error = "manifest_output_invalid:" + verified.error;
+    }
+    return false;
+  };
+  return write_new_or_same_text_file_atomically(
+      path, serialized, kMaximumManifestBytes, validator, error);
+}
+
+std::string canonical_kernel_benchmark_manifest_json(
+    const KernelBenchmarkManifest& manifest) {
+  return serialize(manifest);
 }
 
 }  // namespace prisminfer

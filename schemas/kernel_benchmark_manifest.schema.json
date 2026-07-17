@@ -31,21 +31,33 @@
     "quality_fixture_hash",
     "full_dequant_materialized",
     "workspace_peak_bytes",
+    "device_resident_bytes",
+    "host_commit_peak_bytes",
+    "unknown_owned_bytes",
+    "ttft_ms",
+    "prefill_ms",
+    "decode_tokens_per_second",
+    "request_tail_ms",
+    "supervisor_status",
+    "admission_status",
     "speedup_ratio",
     "compression_status",
     "quality_gate_id",
     "cap_certification_status",
+    "run_outcome",
+    "requested_execution_path",
+    "actual_execution_path",
     "claim_status"
   ],
   "properties": {
     "manifest_version": { "const": "0.1" },
     "validation_cell_id": { "type": "string", "minLength": 1 },
-    "model_hash": { "type": "string", "minLength": 1 },
+    "model_hash": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
     "quantization_format": { "type": "string", "minLength": 1 },
-    "quant_artifact_sha256": { "type": "string", "minLength": 1 },
+    "quant_artifact_sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
     "context_tokens": { "type": "integer", "minimum": 1 },
     "batch_size": { "type": "integer", "minimum": 1 },
-    "prompt_fixture_hash": { "type": "string", "minLength": 1 },
+    "prompt_fixture_hash": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
     "backend": { "type": "string", "minLength": 1 },
     "os": { "type": "string", "minLength": 1 },
     "gpu_name": { "type": "string", "minLength": 1 },
@@ -75,16 +87,23 @@
     "kernel_name": { "type": "string", "minLength": 1 },
     "kernel_version": { "type": "string", "minLength": 1 },
     "baseline_backend": { "type": "string", "minLength": 1 },
-    "baseline_manifest_hash": { "type": "string", "minLength": 1 },
-    "correctness_fixture_hash": { "type": "string", "minLength": 1 },
-    "quality_fixture_hash": { "type": "string", "minLength": 1 },
+    "baseline_manifest_hash": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "correctness_fixture_hash": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+    "quality_fixture_hash": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
     "dequant_fused": { "type": "boolean" },
     "full_dequant_materialized": { "type": "boolean" },
     "workspace_bytes": { "type": "integer", "minimum": 0 },
     "workspace_peak_bytes": { "type": "integer", "minimum": 0 },
+    "device_resident_bytes": { "type": "integer", "minimum": 0 },
+    "host_commit_peak_bytes": { "type": "integer", "minimum": 0 },
+    "unknown_owned_bytes": { "type": "integer", "minimum": 0, "maximum": 0 },
     "kernel_ms": { "type": "number", "minimum": 0 },
     "launch_ms": { "type": "number", "minimum": 0 },
     "sync_ms": { "type": "number", "minimum": 0 },
+    "ttft_ms": { "type": "number", "minimum": 0 },
+    "prefill_ms": { "type": "number", "minimum": 0 },
+    "decode_tokens_per_second": { "type": "number", "minimum": 0 },
+    "request_tail_ms": { "type": "number", "minimum": 0 },
     "transfer_h2d_bytes": { "type": "integer", "minimum": 0 },
     "transfer_d2h_bytes": { "type": "integer", "minimum": 0 },
     "tensor_core_claimed": { "type": "boolean" },
@@ -126,12 +145,70 @@
       "type": "string",
       "enum": ["research-only", "measured-non-certified", "quality-gated", "validated-benchmark", "rejected"]
     },
+    "supervisor_status": {
+      "type": "string",
+      "enum": ["not-attempted", "unavailable", "active", "rejected", "aborted"]
+    },
+    "admission_status": {
+      "type": "string",
+      "enum": ["not-attempted", "unavailable", "admitted", "rejected", "aborted"]
+    },
+    "run_outcome": {
+      "type": "string",
+      "enum": ["completed", "skipped", "unsupported", "rejected", "aborted"]
+    },
+    "requested_execution_path": { "type": "string", "minLength": 1 },
+    "actual_execution_path": { "type": "string", "minLength": 1 },
+    "failure_reason": { "type": "string" },
+    "raw_trial_count": { "type": "integer", "minimum": 0 },
+    "raw_trial_sha256": {
+      "type": "string",
+      "pattern": "^$|^[0-9a-fA-F]{64}$"
+    },
+    "failure_record_sha256": {
+      "type": "string",
+      "pattern": "^$|^[0-9a-fA-F]{64}$"
+    },
     "claim_status": {
       "type": "string",
       "enum": ["measured", "measured-non-certified", "rejected", "research-only"]
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "run_outcome": { "const": "completed" }
+        }
+      },
+      "then": {
+        "required": ["raw_trial_count", "raw_trial_sha256"],
+        "properties": {
+          "raw_trial_count": { "type": "integer", "minimum": 1 },
+          "raw_trial_sha256": { "pattern": "^[0-9a-fA-F]{64}$" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "run_outcome": {
+            "enum": ["skipped", "unsupported", "rejected", "aborted"]
+          }
+        }
+      },
+      "then": {
+        "required": ["failure_reason", "failure_record_sha256"],
+        "properties": {
+          "failure_reason": { "type": "string", "minLength": 1 },
+          "failure_record_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+          "raw_trial_count": { "const": 0 },
+          "raw_trial_sha256": { "const": "" },
+          "cap_certification_status": { "const": "rejected" },
+          "claim_status": { "enum": ["rejected", "research-only"] }
+        }
+      }
+    },
     {
       "if": {
         "properties": {
@@ -149,6 +226,22 @@
           "compression_decode_overhead_ms",
           "quality_result_path"
         ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "cap_certification_status": {
+            "enum": ["quality-gated", "validated-benchmark"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "run_outcome": { "const": "completed" },
+          "supervisor_status": { "const": "active" },
+          "admission_status": { "const": "admitted" }
+        }
       }
     }
   ],

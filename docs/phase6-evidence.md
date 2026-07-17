@@ -6,12 +6,40 @@ CUDA scaffolding. It has no model-backed evidence and remains `research-only`.
 Current status:
 
 - Strict kernel-manifest file ingestion and same-cell comparator tests exist.
+- The CPU-only `prism-emit-benchmark` path canonicalizes manifests, writes a
+  deterministic SHA-256 sidecar, and fails closed when completed outcomes lack
+  raw-trial evidence or non-completed outcomes lack failure evidence. It also
+  requires an explicit trusted output root, rejects non-completed outcomes that
+  retain raw trials or promotion state, and requires timing, device-residency,
+  host-commit, supervisor/admission, and zero-unknown-owned-byte fields; this
+  contract is not model-run evidence.
+  The normative evidence trust contract is owned by
+  `docs/adaptive-runtime-v2/evidence-thresholds-and-security.md`.
+- `configs/model-cell-catalog.json` pins only the checked-in deterministic
+  smoke fixture and records source-verified, non-admitted foundation and
+  Ornith receipts. Ornith's retained source identity is not a GGUF or a model
+  execution admission; the Qwen lineage entry remains metadata-only.
 - The Phase 6 gate schema/config and compression-oriented manifest fields exist.
 - The guarded CUDA target, bounded synthetic CUDA correctness test source,
   `-WithCudaKernels` verification flag, and manual self-hosted workflow exist.
 - The CUDA fixture uses toy `Q4Block` semantics; it is not evidence for any
   selected GGUF tensor type or model.
-- No retained real foundation or Ornith GGUF artifact exists in the repository.
+- The preferred foundation source is hash-verified and a self-produced F16
+  intermediate is retained outside the repository; four Q4_K_M attempts were
+  aborted at run-specific CPU working-set bounds (4 GiB, 6 GiB, 8 GiB, and
+  10 GiB). The authorized 15 GiB retry's retained receipt reports that the 4 GiB
+  physical-reserve guard fired, but lacks the sampled physical-memory values
+  needed to independently prove that inequality; it is therefore an explicitly
+  unverified, noncanonical forensic receipt. No canonical foundation quant exists.
+- The source-verified foundation receipt pins source config, tokenizer,
+  tokenizer-template, license/use-policy, architecture, converter, recipe,
+  and imatrix-not-used metadata. Its retained F16 metadata inventory contains
+  292 tensors (226 F16 and 66 F32); these records are source evidence only and
+  are not a Q4_K_M tensor-type inventory.
+- The source-verified Ornith receipt pins the 18-file BF16 source manifest,
+  config, tokenizer, tokenizer template, architecture, and MIT license
+  evidence. It remains noncanonical pending converter/operator coverage and
+  the separately required supervised stress-cell clearance.
 - No same-cell llama.cpp/GGML CUDA/MMQ baseline exists.
 - No manifest-backed PrismInfer candidate kernel benchmark exists.
 - No compression-specific foundation/stress-cell benchmark manifest exists.

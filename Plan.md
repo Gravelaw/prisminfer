@@ -1,8 +1,8 @@
 # PrismInfer Final Plan
 
-Status: Adaptive Runtime V2 governance active; M0 complete. Packet A
-exact-truth closeout is the next implementation packet.
-Last reconciled: 2026-07-16 (M0)
+Status: Adaptive Runtime V2 governance active; M0 and M1 complete. Packet B is
+the next implementation packet under the conservative packet order.
+Last reconciled: 2026-07-18 (M1)
 Operational tracker: [GitHub Project #2](https://github.com/users/Gravelaw/projects/2)
 
 ## Authority and Change Control
@@ -78,9 +78,9 @@ changing thresholds after observing a failure.
 | Backend boundary | The llama adapter invokes a shell command through `std::system`; there is no native Job-contained worker, bounded cancellation, or child-tree evidence. |
 | Hardware safety | No exclusive GPU lease, staged admission token, live WDDM/host/thermal watchdog, or atomic abort/cleanup state exists. |
 | Host admission | #109 supplies authoritative Windows physical/commit telemetry and a pure workload-relative admission primitive. #103 must still integrate it into staged tokens, the watchdog and cancellation before C2. No fixed free-RAM prerequisite is valid. |
-| Model evidence | No approved foundation/Ornith artifact hashes or complete retained same-cell 8B/9B evidence exist. The checked-in 9B gate hashes are empty. |
+| Model evidence | Packet A pins one approved offline Llama 3.1 8B Q4_K_M artifact identity and complete per-tensor inventory under the recorded one-time acquisition exception. Ornith remains an immutable unsupported-converter negative descriptor, and 30B/70B/90B selection remains deferred. No model execution, quality, capacity, calibration or performance evidence exists. |
 | Adaptive runtime | Actuator, recovery, optimizer and evidence contracts are documented; the in-process adapter, calibration store, selector and plan executor are proposed, not implemented. |
-| Worktree/PR | PRs #72, #104, #105, #106, #108, #110 and #113 establish the current merged baseline. Draft PR #111 carries a reviewed CPU Q4_K checkpoint inside still-in-progress #74, provisional #75 work and non-credit #80 source/catalog receipts; draft PR #112 carries reviewable #81/#82 work and provisional #103 supervisor/admission work. Neither draft is merged evidence or a model, calibration, performance, C2 or sustained-hardware clearance. |
+| Worktree/PR | PRs #72, #104, #105, #106, #108, #110 and #113 establish the pre-M1 merged baseline. PR #111 carries the exact-head-reviewed Packet A closeout for #74/#75/#80; its merge makes M1 repository evidence. Draft PR #112 remains the separate Packet B branch with reviewable #81/#82 work and provisional #103 supervisor/admission work. Packet A grants no model execution, calibration, performance, C2 or sustained-hardware clearance. |
 
 ## Frozen Scope
 
@@ -194,13 +194,13 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 | Issue | Responsibility | Required predecessors | Planned state at freeze |
 |---|---|---|---|
 | #73 | Tiny synthetic CUDA correctness only. | C0 and attended hardware preflight. | Done |
-| #74 | Exact per-tensor GGML quant semantics/fixtures. | #73 for CUDA reuse; CPU reference work may start now. | In Progress; one CPU Q4_K checkpoint is under review in draft PR #111 |
-| #75 | Strict manifest-emitting evidence runner. | Provisional on #74's reviewed CPU checkpoint; final acceptance remains packet-gated. | In Progress |
+| #74 | Exact per-tensor GGML quant semantics/fixtures. | #73 for CUDA reuse; CPU reference work may start now. | Done in Packet A PR #111 |
+| #75 | Strict manifest-emitting evidence runner. | Provisional on #74's reviewed CPU checkpoint; final acceptance remains packet-gated. | Done in Packet A PR #111 |
 | #76 | Mandatory quality fixtures; optional offline KV evaluator remains separately classified. | #80 for final artifact; model execution also requires C2 and #84. | Ready |
 | #77 | Supervised same-cell upstream and PrismInfer foundation evidence; no mandatory custom-kernel/KV win. | #73-#76, #80-#82, #84 and #103. | Blocked |
 | #78 | Phase 6 evidence and claim audit. | #77. | Blocked |
 | #79 | Final council, root Plan and tracker freeze. | Current repository/session evidence. | Done |
-| #80 | Pin foundation, Ornith stress and smoke artifacts. | #79 plus Phase 6 artifact rules. | Ready |
+| #80 | Pin foundation, Ornith stress and smoke artifacts. | #79 plus Phase 6 artifact rules. | Done in Packet A PR #111 |
 | #81 | Secure native external worker/Job boundary. | #79 and pinned external executable identity. | Review in draft PR #112 |
 | #82 | Minimum live Windows/WDDM/host/file/transfer evidence. | #79; integrates #81. | Review in draft PR #112 |
 | #83 | Pinned actuator/acknowledgement/recovery inventory. | #79 and pinned runtime source/build. | Ready |
@@ -374,12 +374,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate-plan-projec
 - #73, #79 and cross-cutting #107 are closed with their retained tiny-fixture,
   final-freeze and integration-train evidence. Cross-cutting #109 records the
   host-admission correction and is `Done` when this contract reaches `main`.
-- #74 and #75 are `In Progress`; only #74's bounded CPU Q4_K checkpoint has a
-  review receipt. #81/#82 are in `Review` and #103 is provisionally
-  `In Progress` in draft PR #112. #76, #80 and #83 are `Ready`;
+- #74, #75 and #80 are `Done` with Packet A's exact-head evidence and review
+  receipts. #81/#82 are in `Review` and #103 is provisionally `In Progress` in
+  draft PR #112. #76 and #83 are `Ready`;
   dependency-gated #77-#78 and #84-#89 are `Blocked`; later work remains
   `Backlog` except independently admission-blocked #99/#100.
-- Draft PR #111 is the Packet A integration PR. Draft PR #112 is retained
+- PR #111 is the Packet A integration PR. Draft PR #112 is retained
   Packet B review work and remains merge-gated by the conservative packet order.
   Both must rebase after M0, must not restore the former V1 active directory,
   and require new independent exact-head review because the prior tree and

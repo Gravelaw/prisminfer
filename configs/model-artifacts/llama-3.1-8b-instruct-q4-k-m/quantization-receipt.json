@@ -1,0 +1,21 @@
+{
+  "admission_exception": "repository-owner one-time 2026-07-17 related-community-artifact transfer exception",
+  "claim_boundary": "CPU/offline artifact admission only; no inference, CUDA, calibration, benchmark, or performance claim",
+  "imatrix_chunks": 125,
+  "imatrix_entries": 224,
+  "imatrix_status": "used",
+  "local_opened_sha256": "7b064f5842bf9532c91456deda288a1b672397a54fa729aa665952863033557c",
+  "producer_host_identity": "not published by producer",
+  "producer_readme_sha256": "6eaacf655181af2b04b6583e5a338591de89cb80a4b9f6babc77e35452fd8f5e",
+  "producer_repository": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
+  "producer_revision": "bf5b95e96dac0462e2a09145ec66cae9a3f12067",
+  "published_lfs_sha256": "7b064f5842bf9532c91456deda288a1b672397a54fa729aa665952863033557c",
+  "quantization_recipe": "Q4_K_M",
+  "quantization_version": 2,
+  "quantizer_release": "llama.cpp b3472",
+  "quantizer_revision": "b5e95468b1676e1e5c9d80d1eeeb26f542a38f42",
+  "receipt_version": "packet-a-imported-quant-v1",
+  "source_lineage_evidence": "Hub base_model tag plus matching Llama architecture/tokenizer metadata; producer parent F16 was not retained",
+  "source_repository": "meta-llama/Llama-3.1-8B-Instruct",
+  "source_revision": "0e9e39f249a16976918f6564b8830bc894c89659"
+}

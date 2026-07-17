@@ -59,13 +59,13 @@ function Assert-Value {
 
 $phaseStatus = [ordered]@{
     73 = "Done"
-    74 = "In Progress"
-    75 = "In Progress"
+    74 = "Done"
+    75 = "Done"
     76 = "Ready"
     77 = "Blocked"
     78 = "Blocked"
     79 = "Done"
-    80 = "Ready"
+    80 = "Done"
     81 = "Review"
     82 = "Review"
     83 = "Ready"
@@ -110,9 +110,9 @@ foreach ($entry in $phaseStatus.GetEnumerator()) {
         continue
     }
 
-    $expectedCoarse = if ($number -in @(73, 79)) {
+    $expectedCoarse = if ($number -in @(73, 74, 75, 79, 80)) {
         "Done"
-    } elseif ($number -in @(74, 75, 81, 82, 103)) {
+    } elseif ($number -in @(81, 82, 103)) {
         "In Progress"
     } else {
         "Todo"

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prisminfer.local/schemas/evidence_record.schema.json",
+  "title": "PrismInfer strict evidence JSONL record",
+  "oneOf": [
+    { "$ref": "#/$defs/trial" },
+    { "$ref": "#/$defs/terminal" }
+  ],
+  "$defs": {
+    "identity": {
+      "type": "object",
+      "required": ["record_type", "run_id", "validation_cell_id", "evidence_policy_version", "sample_plan_version", "sequence"],
+      "properties": {
+        "record_type": { "enum": ["trial", "terminal"] },
+        "run_id": { "type": "string" },
+        "validation_cell_id": { "type": "string" },
+        "evidence_policy_version": { "const": "evidence-policy-v1" },
+        "sample_plan_version": { "const": "sample-plan-v1" },
+        "sequence": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "trial": {
+      "allOf": [
+        { "$ref": "#/$defs/identity" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["record_type", "run_id", "validation_cell_id", "evidence_policy_version", "sample_plan_version", "sequence", "trial_index", "status"],
+          "properties": {
+            "record_type": { "const": "trial" },
+            "run_id": { "type": "string" },
+            "validation_cell_id": { "type": "string" },
+            "evidence_policy_version": { "const": "evidence-policy-v1" },
+            "sample_plan_version": { "const": "sample-plan-v1" },
+            "sequence": { "type": "integer", "minimum": 1 },
+            "trial_index": { "type": "integer", "minimum": 1 },
+            "status": { "const": "ok" }
+          }
+        }
+      ]
+    },
+    "terminal": {
+      "allOf": [
+        { "$ref": "#/$defs/identity" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["record_type", "run_id", "validation_cell_id", "evidence_policy_version", "sample_plan_version", "sequence", "outcome", "reason"],
+          "properties": {
+            "record_type": { "const": "terminal" },
+            "run_id": { "type": "string" },
+            "validation_cell_id": { "type": "string" },
+            "evidence_policy_version": { "const": "evidence-policy-v1" },
+            "sample_plan_version": { "const": "sample-plan-v1" },
+            "sequence": { "type": "integer", "minimum": 1 },
+            "outcome": { "enum": ["completed", "skipped", "unsupported", "rejected", "aborted"] },
+            "reason": { "type": "string", "maxLength": 512 }
+          }
+        }
+      ]
+    }
+  }
+}

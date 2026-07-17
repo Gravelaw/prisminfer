@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prisminfer.local/schemas/evidence_policy.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["policy_version", "maximum_manifest_bytes", "maximum_evidence_bytes", "maximum_trial_count", "publication_freshness_seconds", "maximum_future_skew_seconds", "completed_claim_ceiling", "failure_claim_ceiling", "atomic_bundle_version", "replay_identity"],
+  "properties": {
+    "policy_version": { "const": "evidence-policy-v1" },
+    "maximum_manifest_bytes": { "const": 65536 },
+    "maximum_evidence_bytes": { "const": 67108864 },
+    "maximum_trial_count": { "const": 1000000 },
+    "publication_freshness_seconds": { "const": 900 },
+    "maximum_future_skew_seconds": { "const": 300 },
+    "completed_claim_ceiling": { "const": "research-only" },
+    "failure_claim_ceiling": { "const": "rejected" },
+    "atomic_bundle_version": { "const": "committed-evidence-v1" },
+    "replay_identity": { "const": "run_fingerprint_sha256" }
+  }
+}

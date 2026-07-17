@@ -273,6 +273,14 @@ try {
         git diff --check
     }
 
+    Run-Step "Model-cell catalog validation" {
+        & (Join-Path $PSScriptRoot "validate-model-cell-catalog.ps1")
+    }
+
+    Run-Step "Model-cell catalog negative tests" {
+        & (Join-Path $PSScriptRoot "test-model-cell-catalog.ps1")
+    }
+
     Run-Step "Workflow lint" {
         $actionlint = Get-Command actionlint -ErrorAction SilentlyContinue
         if (-not $actionlint) {
@@ -297,6 +305,10 @@ try {
 
     Run-Step "CTest default Debug" {
         ctest --test-dir build -C Debug --output-on-failure
+    }
+
+    Run-Step "Benchmark emitter reparse-point test" {
+        & (Join-Path $PSScriptRoot "test-benchmark-emitter.ps1") -EmitterPath ".\build\Debug\prism-emit-benchmark.exe"
     }
 
     if (-not $SkipProbeSmoke) {

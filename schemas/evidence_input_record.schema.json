@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prisminfer.local/schemas/evidence_input_record.schema.json",
+  "title": "PrismInfer strict evidence-runner source record",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trial_index", "status"],
+      "properties": {
+        "trial_index": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "status": { "const": "ok" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "reason"],
+      "properties": {
+        "outcome": { "enum": ["skipped", "unsupported", "rejected", "aborted"] },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    }
+  ]
+}

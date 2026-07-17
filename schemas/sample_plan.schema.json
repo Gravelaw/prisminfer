@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prisminfer.local/schemas/sample_plan.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sample_plan_version", "sequence_origin", "trial_index_origin", "trial_order", "terminal_records", "terminal_position", "failure_trial_count", "accepted_trial_status"],
+  "properties": {
+    "sample_plan_version": { "const": "sample-plan-v1" },
+    "sequence_origin": { "const": 1 },
+    "trial_index_origin": { "const": 1 },
+    "trial_order": { "const": "strictly-sequential" },
+    "terminal_records": { "const": 1 },
+    "terminal_position": { "const": "last" },
+    "failure_trial_count": { "const": 0 },
+    "accepted_trial_status": { "const": "ok" }
+  }
+}

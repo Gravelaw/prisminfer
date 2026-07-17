@@ -1,0 +1,23 @@
+{
+  "artifact_bytes": 4920739232,
+  "artifact_filename": "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf",
+  "artifact_kind": "gguf",
+  "artifact_sha256": "7b064f5842bf9532c91456deda288a1b672397a54fa729aa665952863033557c",
+  "claim_boundary": "CPU/offline artifact admission only; no inference, CUDA, calibration, benchmark, or performance claim",
+  "inventory_sha256": "e49ef5d6b443965f8a1f89a4d9ccc6b01809e3b4117ce1120243772cb957df15",
+  "license_sha256": "64e1b2889b7892e6bbe7a7ed5bfe6ff793c61f9d584345f8f41cf9f5cb30a369",
+  "license_status": "accepted",
+  "lineage_status": "admitted-related-community-quant-under-one-time-exception",
+  "producer_readme_sha256": "6eaacf655181af2b04b6583e5a338591de89cb80a4b9f6babc77e35452fd8f5e",
+  "producer_repository": "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF",
+  "producer_revision": "bf5b95e96dac0462e2a09145ec66cae9a3f12067",
+  "quantization_receipt_sha256": "030c5e54e773cb0cd1aa026a947a634bc888d9be704cf915662a012e64302aaa",
+  "quantization_recipe": "Q4_K_M",
+  "quantizer_revision": "b5e95468b1676e1e5c9d80d1eeeb26f542a38f42",
+  "record_version": "packet-a-artifact-v2",
+  "retained_slice_manifest_sha256": "ec785e66d759a9c7eb1e7c85d2e31e8293bb2fc7a6b1fee3fe4674420c0c2cd9",
+  "source_manifest_sha256": "e45dd921a7e07c93dffe9ef929f5c26843ec66875aa8aa71372d73a3fdc71166",
+  "source_repository": "meta-llama/Llama-3.1-8B-Instruct",
+  "source_revision": "0e9e39f249a16976918f6564b8830bc894c89659",
+  "use_policy_sha256": "a568f2ebc73cec3fd74ba2afd992d4e945a8c7a9d851f9b66163aac834b7b859"
+}

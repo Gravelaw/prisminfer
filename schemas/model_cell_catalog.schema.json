@@ -1,0 +1,375 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prisminfer.local/schemas/model_cell_catalog.schema.json",
+  "title": "PrismInfer model-cell catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["catalog_version", "catalog_status", "cells"],
+  "properties": {
+    "catalog_version": { "const": "0.2" },
+    "catalog_status": {
+      "enum": ["metadata-only", "source-verified", "artifact-descriptors-ready"]
+    },
+    "cells": {
+      "type": "array",
+      "minItems": 7,
+      "items": { "$ref": "#/$defs/cell" }
+    }
+  },
+  "$defs": {
+    "cell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cell_id",
+        "role",
+        "status",
+        "artifact_kind",
+        "artifact_path",
+        "artifact_sha256",
+        "source_revision",
+        "license_status",
+        "modality",
+        "architecture_state",
+        "notes"
+        ,"artifact_state"
+      ],
+      "properties": {
+        "cell_id": { "type": "string", "minLength": 1 },
+        "role": {
+          "type": "string",
+          "enum": ["smoke", "foundation", "stress", "lineage-comparator", "scale"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pinned", "verified", "metadata-only", "pending-license-access", "source-verified"]
+        },
+        "artifact_kind": {
+          "type": "string",
+          "enum": ["synthetic-text", "text-gguf", "metadata-only", "descriptor-only"]
+        },
+        "artifact_state": {
+          "enum": ["verified", "unsupported", "selection-deferred"]
+        },
+        "content_address": {
+          "type": "string",
+          "pattern": "^$|^artifact://sha256/[0-9a-f]{64}$"
+        },
+        "artifact_record_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
+        "quantization_receipt_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
+        "inventory_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
+        "retained_slice_manifest_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
+        "eligibility_sha256": { "type": "string", "pattern": "^$|^[0-9a-f]{64}$" },
+        "unsupported_reason": {
+          "type": "string",
+          "enum": ["", "unsupported-converter", "not-admitted"]
+        },
+        "owner_issue": { "type": "integer", "minimum": 1 },
+        "artifact_path": { "type": "string" },
+        "artifact_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "source_revision": { "type": "string" },
+        "source_manifest_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "source_file_count": { "type": "integer", "minimum": 0 },
+        "source_total_bytes": { "type": "integer", "minimum": 0 },
+        "source_config_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "tokenizer_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "tokenizer_config_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "chat_template_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "license_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "use_policy_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "license_evidence_path": { "type": "string" },
+        "license_evidence_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "architecture_fingerprint": { "type": "string" },
+        "tokenizer_class": { "type": "string" },
+        "converter_revision": { "type": "string" },
+        "conversion_command": { "type": "string" },
+        "quantization_recipe": { "type": "string" },
+        "imatrix_status": { "type": "string", "enum": ["not-used", "used"] },
+        "conversion_status": {
+          "type": "string",
+          "enum": ["not-attempted", "q4-k-m-aborted-run-bound", "q4-k-m-completed"]
+        },
+        "f16_intermediate_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "f16_intermediate_bytes": { "type": "integer", "minimum": 0 },
+        "f16_tensor_inventory_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "f16_tensor_count": { "type": "integer", "minimum": 0 },
+        "f16_tensor_type_counts": { "type": "string" },
+        "q4_k_m_partial_sha256": {
+          "type": "string",
+          "pattern": "^$|^[0-9a-fA-F]{64}$"
+        },
+        "q4_k_m_partial_bytes": { "type": "integer", "minimum": 0 },
+        "q4_k_m_failure_reason": { "type": "string" },
+        "q4_k_m_attempts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["working_set_limit_bytes", "max_working_set_bytes", "partial_sha256", "partial_bytes", "failure_reason"],
+            "properties": {
+              "working_set_limit_bytes": { "type": "integer", "minimum": 1 },
+              "max_working_set_bytes": { "type": "integer", "minimum": 1 },
+              "partial_sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+              "partial_bytes": { "type": "integer", "minimum": 1 },
+              "failure_reason": { "type": "string", "minLength": 1 },
+              "run_receipt_sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" },
+              "declared_physical_reserve_bytes": { "type": "integer", "minimum": 1 },
+              "declared_commit_reserve_bytes": { "type": "integer", "minimum": 1 },
+              "telemetry_status": {
+                "type": "string",
+                "enum": ["missing_sampled_memory_values"]
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "failure_reason": {
+                      "const": "physical_reserve_guard_triggered_unverified"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "run_receipt_sha256",
+                    "declared_physical_reserve_bytes",
+                    "declared_commit_reserve_bytes",
+                    "telemetry_status"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "license_status": {
+          "type": "string",
+          "enum": ["not-applicable", "pending", "accepted"]
+        },
+        "modality": {
+          "type": "string",
+          "enum": ["text", "text-only-main-artifact", "metadata-only"]
+        },
+        "architecture_state": { "type": "string", "minLength": 1 },
+        "notes": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "cell_id": { "const": "llama-3.1-8b-instruct-foundation" },
+              "status": { "const": "verified" }
+            }
+          },
+          "then": {
+            "required": [
+              "content_address", "artifact_record_sha256",
+              "quantization_receipt_sha256", "inventory_sha256",
+              "retained_slice_manifest_sha256", "eligibility_sha256", "source_manifest_sha256",
+              "source_file_count", "source_total_bytes", "source_config_sha256",
+              "tokenizer_sha256", "tokenizer_config_sha256", "chat_template_sha256",
+              "license_sha256", "use_policy_sha256", "architecture_fingerprint",
+              "tokenizer_class", "converter_revision", "conversion_command",
+              "quantization_recipe", "imatrix_status", "f16_intermediate_sha256",
+              "f16_intermediate_bytes", "f16_tensor_inventory_sha256",
+              "f16_tensor_count", "f16_tensor_type_counts"
+            ],
+            "properties": {
+              "artifact_state": { "const": "verified" },
+              "artifact_path": { "maxLength": 0 },
+              "artifact_sha256": { "pattern": "^[0-9a-f]{64}$" },
+              "content_address": { "pattern": "^artifact://sha256/[0-9a-f]{64}$" },
+              "conversion_status": { "const": "q4-k-m-completed" },
+              "license_status": { "const": "accepted" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "status": { "const": "pinned" } }
+          },
+          "then": {
+            "properties": {
+              "artifact_path": { "minLength": 1 },
+              "artifact_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "source_revision": { "minLength": 1 },
+              "license_status": { "const": "not-applicable" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cell_id": { "const": "llama-3.1-8b-instruct-foundation" },
+              "status": { "const": "source-verified" }
+            }
+          },
+          "then": {
+            "required": [
+              "source_manifest_sha256",
+              "source_file_count",
+              "source_total_bytes",
+              "source_config_sha256",
+              "tokenizer_sha256",
+              "tokenizer_config_sha256",
+              "chat_template_sha256",
+              "license_sha256",
+              "use_policy_sha256",
+              "architecture_fingerprint",
+              "tokenizer_class",
+              "converter_revision",
+              "conversion_command",
+              "quantization_recipe",
+              "imatrix_status",
+              "conversion_status",
+              "f16_intermediate_sha256",
+              "f16_intermediate_bytes",
+              "f16_tensor_inventory_sha256",
+              "f16_tensor_count",
+              "f16_tensor_type_counts",
+              "q4_k_m_partial_sha256",
+              "q4_k_m_partial_bytes",
+              "q4_k_m_failure_reason",
+              "q4_k_m_attempts"
+            ],
+            "properties": {
+              "artifact_path": { "maxLength": 0 },
+              "artifact_sha256": { "maxLength": 0 },
+              "source_revision": { "minLength": 1 },
+              "source_manifest_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "source_file_count": { "minimum": 1 },
+              "source_total_bytes": { "minimum": 1 },
+              "source_config_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "tokenizer_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "tokenizer_config_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "chat_template_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "license_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "use_policy_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "architecture_fingerprint": { "minLength": 1 },
+              "tokenizer_class": { "minLength": 1 },
+              "converter_revision": { "minLength": 1 },
+              "conversion_command": { "minLength": 1 },
+              "quantization_recipe": { "minLength": 1 },
+              "imatrix_status": { "const": "not-used" },
+              "conversion_status": { "const": "q4-k-m-aborted-run-bound" },
+              "f16_intermediate_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "f16_intermediate_bytes": { "minimum": 1 },
+              "f16_tensor_inventory_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "f16_tensor_count": { "minimum": 1 },
+              "f16_tensor_type_counts": { "minLength": 1 },
+              "q4_k_m_partial_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "q4_k_m_partial_bytes": { "minimum": 1 },
+              "q4_k_m_failure_reason": { "minLength": 1 },
+              "q4_k_m_attempts": { "minItems": 1 },
+              "license_status": { "const": "accepted" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "artifact_state": { "enum": ["unsupported", "selection-deferred"] } },
+            "required": ["artifact_state"]
+          },
+          "then": {
+            "properties": {
+              "artifact_path": { "maxLength": 0 },
+              "artifact_sha256": { "maxLength": 0 },
+              "content_address": { "maxLength": 0 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "artifact_state": { "const": "unsupported" } },
+            "required": ["artifact_state"]
+          },
+          "then": {
+            "required": ["unsupported_reason"],
+            "properties": { "unsupported_reason": { "enum": ["unsupported-converter", "not-admitted"] } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cell_id": { "const": "ornith-1.0-9b-stress" },
+              "status": { "const": "source-verified" }
+            }
+          },
+          "then": {
+            "required": [
+              "source_manifest_sha256", "source_file_count", "source_total_bytes",
+              "source_config_sha256", "tokenizer_sha256", "tokenizer_config_sha256",
+              "chat_template_sha256", "license_evidence_path", "license_evidence_sha256",
+              "architecture_fingerprint", "tokenizer_class"
+            ],
+            "properties": {
+              "artifact_path": { "maxLength": 0 },
+              "artifact_sha256": { "maxLength": 0 },
+              "source_revision": { "minLength": 1 },
+              "source_manifest_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "source_file_count": { "minimum": 1 },
+              "source_total_bytes": { "minimum": 1 },
+              "source_config_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "tokenizer_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "tokenizer_config_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "chat_template_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "license_evidence_path": { "minLength": 1 },
+              "license_evidence_sha256": { "pattern": "^[0-9a-fA-F]{64}$" },
+              "architecture_fingerprint": { "minLength": 1 },
+              "tokenizer_class": { "minLength": 1 },
+              "license_status": { "const": "accepted" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": ["metadata-only", "pending-license-access"]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "artifact_path": { "maxLength": 0 },
+              "artifact_sha256": { "maxLength": 0 },
+              "source_revision": { "maxLength": 0 }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

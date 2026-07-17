@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifest_version", "repository", "revision", "file_count", "total_bytes", "chat_template_sha256", "files"],
+  "properties": {
+    "manifest_version": { "const": "packet-a-source-v1" },
+    "repository": { "const": "meta-llama/Llama-3.1-8B-Instruct" },
+    "revision": { "const": "0e9e39f249a16976918f6564b8830bc894c89659" },
+    "file_count": { "const": 13 }, "total_bytes": { "const": 16069779031 },
+    "chat_template_sha256": { "const": "e10ca381b1ccc5cf9db52e371f3b6651576caee0a630b452e2816b2d404d4b65" },
+    "files": { "type": "array", "minItems": 13, "maxItems": 13, "items": {
+      "type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"],
+      "properties": { "path": { "type": "string", "minLength": 1 }, "bytes": { "type": "integer", "minimum": 1 }, "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+    } }
+  }
+}

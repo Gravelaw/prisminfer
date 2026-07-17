@@ -135,6 +135,16 @@ format, or an unpromising census is a valid stop result.
 **Review tier.** T1 for ordinary CPU fixtures; T2 for untrusted parsers,
 artifact trust, evidence governance, or allocation arithmetic.
 
+**M1 closeout (2026-07-18).** Issues #74, #75, and #80 are complete in binding
+order through Packet A PR #111. The retained closeout covers the complete
+292-tensor Llama inventory and exact CPU differential slices, strict
+fail-closed evidence bundles, and immutable positive/negative/deferred model
+cell descriptors. The foundation artifact acquisition is the recorded one-time
+owner-authorized exception; it does not convert third-party production into a
+self-produced claim. All work and validation remained CPU/offline. M1 grants
+no CUDA, model-execution, quality, calibration, capacity, performance, C2, or
+sustained-hardware clearance.
+
 ## M2: Packet B - secure worker and hardware boundary
 
 **Outcome.** A native contained worker, minimum independent Windows/WDDM/host
