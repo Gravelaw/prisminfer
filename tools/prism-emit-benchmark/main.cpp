@@ -40,8 +40,12 @@ int main(int argc, char** argv) {
     std::cerr << "output_root_rejected:" << error << "\n";
     return static_cast<int>(prisminfer::ExitCode::FailedClosed);
   }
-  if (input.manifest.claim_status != "research-only" ||
-      input.manifest.cap_certification_status != "research-only") {
+  const bool checkpoint_state_ok =
+      completed ? (input.manifest.claim_status == "research-only" &&
+                   input.manifest.cap_certification_status == "research-only")
+                : (input.manifest.claim_status == "rejected" &&
+                   input.manifest.cap_certification_status == "rejected");
+  if (!checkpoint_state_ok) {
     std::cerr << "checkpoint_promotion_rejected\n";
     return static_cast<int>(prisminfer::ExitCode::FailedClosed);
   }

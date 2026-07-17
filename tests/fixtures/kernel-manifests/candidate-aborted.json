@@ -45,6 +45,6 @@
   "failure_reason": "watchdog_timeout",
   "raw_trial_count": 0,
   "raw_trial_sha256": "",
-  "failure_record_sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+  "failure_record_sha256": "8a4133ddf98f3701a98fbbf81e1576dd3ec1e92f645d5b2e21ac776216c70bf1",
   "claim_status": "rejected"
 }

@@ -1,3 +1,4 @@
 # Raw retained-evidence fixtures are byte-identified by SHA-256.
 tests/fixtures/kernel-manifests/raw-trials*.jsonl text eol=lf
+tests/fixtures/kernel-manifests/failure-record*.jsonl text eol=lf
 tests/fixtures/model-cells/*.txt text eol=lf

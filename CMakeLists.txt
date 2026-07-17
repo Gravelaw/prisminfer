@@ -157,9 +157,19 @@ target_link_libraries(prism-emit-benchmark PRIVATE prisminfer_core)
 
 enable_testing()
 
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/emitter-valid.json
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/candidate-aborted.json
+  ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/failure-record-aborted.jsonl)
 file(SHA256
      ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/emitter-valid.json
      PRISMINFER_EMITTER_FIXTURE_SHA256)
+file(SHA256
+     ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/candidate-aborted.json
+     PRISMINFER_ABORTED_MANIFEST_SHA256)
+file(SHA256
+     ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/failure-record-aborted.jsonl
+     PRISMINFER_ABORTED_RECORD_SHA256)
 
 add_test(
     NAME prism_emit_benchmark_binds_raw_evidence
@@ -185,6 +195,26 @@ add_test(
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/raw-trials-mismatch.jsonl)
 set_tests_properties(prism_emit_benchmark_rejects_raw_evidence_mismatch
                      PROPERTIES WILL_FAIL TRUE)
+add_test(
+    NAME prism_emit_benchmark_retains_aborted_failure
+    COMMAND prism-emit-benchmark
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/candidate-aborted.json
+            $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-aborted-${PRISMINFER_ABORTED_MANIFEST_SHA256}-${PRISMINFER_ABORTED_RECORD_SHA256}.json
+            --output-root
+            $<TARGET_FILE_DIR:prism-emit-benchmark>
+            --evidence-root
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests
+            --failure-record
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/kernel-manifests/failure-record-aborted.jsonl)
+set_tests_properties(prism_emit_benchmark_retains_aborted_failure
+                     PROPERTIES WILL_FAIL TRUE)
+add_test(
+    NAME prism_emit_benchmark_aborted_outputs_published
+    COMMAND ${CMAKE_COMMAND} -E cat
+            $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-aborted-${PRISMINFER_ABORTED_MANIFEST_SHA256}-${PRISMINFER_ABORTED_RECORD_SHA256}.json
+            $<TARGET_FILE_DIR:prism-emit-benchmark>/emitter-aborted-${PRISMINFER_ABORTED_MANIFEST_SHA256}-${PRISMINFER_ABORTED_RECORD_SHA256}.json.sha256)
+set_tests_properties(prism_emit_benchmark_aborted_outputs_published
+                     PROPERTIES DEPENDS prism_emit_benchmark_retains_aborted_failure)
 
 add_executable(test_config tests/unit/test_config.cpp)
 target_link_libraries(test_config PRIVATE prisminfer_core)
