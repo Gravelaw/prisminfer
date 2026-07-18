@@ -185,8 +185,11 @@ if(PRISMINFER_ENABLE_C2_SYNTHETIC)
     tools/prism-c2-synthetic-worker/main.cu)
   set_target_properties(prism-c2-synthetic-worker PROPERTIES
     CUDA_STANDARD 17
-    CUDA_STANDARD_REQUIRED ON)
-  target_link_libraries(prism-c2-synthetic-worker PRIVATE CUDA::cudart)
+    CUDA_STANDARD_REQUIRED ON
+    # The CUDA target uses the static runtime; keep its MSVC CRT choice
+    # consistent so the checked worker is link-warning clean.
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  target_link_libraries(prism-c2-synthetic-worker PRIVATE CUDA::cudart CUDA::cuda_driver)
 
   add_executable(prism-c2-supervisor tools/prism-c2-supervisor/main.cpp)
   target_link_libraries(prism-c2-supervisor PRIVATE prisminfer_core)
