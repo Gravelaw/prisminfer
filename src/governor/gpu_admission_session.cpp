@@ -87,8 +87,15 @@ class CallbackProtocolSupervisor final
  public:
   std::function<bool(const NativeWorkerContainmentIdentity&)> bind;
   std::function<NativeWorkerAdmissionGrant(std::uint64_t)> ready;
+  std::function<NativeWorkerAdmissionGrant(
+      std::uint64_t, const NativeWorkerContextEvidence&)>
+      ready_with_evidence;
   std::function<bool(std::uint64_t, std::uint64_t)> consumed;
   std::function<bool(std::uint64_t, std::uint64_t)> beat;
+  std::function<bool(std::uint64_t, std::uint64_t,
+                     const NativeWorkerHeartbeatEvidence&)>
+      beat_with_evidence;
+  std::function<void(const std::string&, std::uint64_t)> cancel_requested;
   std::function<void(std::uint64_t)> cancel_ack;
 
   bool bind_owned_worker(
@@ -98,11 +105,30 @@ class CallbackProtocolSupervisor final
   NativeWorkerAdmissionGrant context_ready(std::uint64_t now) override {
     return ready(now);
   }
+  NativeWorkerAdmissionGrant context_ready_with_evidence(
+      std::uint64_t now,
+      const NativeWorkerContextEvidence& evidence) override {
+    return ready_with_evidence ? ready_with_evidence(now, evidence)
+                               : NativeWorkerProtocolSupervisor::
+                                     context_ready_with_evidence(now, evidence);
+  }
   bool token_consumed(std::uint64_t token_id, std::uint64_t now) override {
     return consumed(token_id, now);
   }
   bool heartbeat(std::uint64_t sequence, std::uint64_t now) override {
     return beat(sequence, now);
+  }
+  bool heartbeat_with_evidence(
+      std::uint64_t sequence, std::uint64_t now,
+      const NativeWorkerHeartbeatEvidence& evidence) override {
+    return beat_with_evidence
+               ? beat_with_evidence(sequence, now, evidence)
+               : NativeWorkerProtocolSupervisor::heartbeat_with_evidence(
+                     sequence, now, evidence);
+  }
+  void cooperative_cancel_requested(
+      const std::string& reason, std::uint64_t now) override {
+    if (cancel_requested) cancel_requested(reason, now);
   }
   void cooperative_cancel_acknowledged(std::uint64_t now) override {
     cancel_ack(now);
@@ -360,9 +386,11 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
   protocol.bind = [this](const NativeWorkerContainmentIdentity& identity) {
     return bind_owned_worker(identity);
   };
-  protocol.ready = [this, &post_context_evidence, process_device_evidence,
-                    protocol_policy,
-                    token_validity_milliseconds](std::uint64_t now) {
+  protocol.ready_with_evidence =
+      [this, &post_context_evidence, process_device_evidence,
+       protocol_policy, token_validity_milliseconds,
+       &request](std::uint64_t now,
+                 const NativeWorkerContextEvidence& context_evidence) {
     NativeWorkerAdmissionGrant grant;
     std::uint32_t process_id = 0U;
     {
@@ -399,11 +427,11 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
       grant.failure_reason = "monotonic_clock_invalid";
       return grant;
     }
-    auto request = std::move(live->request);
-    request.evaluation_monotonic_milliseconds = evaluated_at;
+    auto post_request = std::move(live->request);
+    post_request.evaluation_monotonic_milliseconds = evaluated_at;
     const auto& independent = live->independent;
     if (!bind_process_device_memory_evidence(
-            &request.owned_gpu, independent, process_id, luid_high,
+            &post_request.owned_gpu, independent, process_id, luid_high,
             luid_low, evaluated_at,
             protocol_policy.heartbeat_timeout_ms)) {
       {
@@ -415,7 +443,40 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
                                  : independent.unavailable_reason;
       return grant;
     }
-    const auto admitted = admit_post_context(std::move(request));
+    if (request.require_gpu_protocol_evidence) {
+      if (!context_evidence.available ||
+          context_evidence.adapter_luid_high != luid_high ||
+          context_evidence.adapter_luid_low != luid_low ||
+          independent.current_bytes == 0U ||
+          context_evidence.cuda_mem_info_total_bytes == 0U ||
+          context_evidence.cuda_mem_info_free_bytes >
+              context_evidence.cuda_mem_info_total_bytes) {
+        std::lock_guard lock(impl_->mutex);
+        impl_->state = GpuAdmissionSessionState::FailedClosed;
+        grant.failure_reason = "gpu_context_protocol_evidence_rejected";
+        return grant;
+      }
+      auto& owned = post_request.owned_gpu;
+      owned.available = true;
+      owned.reconciled = true;
+      owned.owned_current_bytes = independent.current_bytes;
+      owned.owned_peak_bytes = independent.current_bytes;
+      owned.cuda_context_runtime_current_bytes = independent.current_bytes;
+      owned.cuda_context_runtime_at_owned_peak_bytes = independent.current_bytes;
+      owned.cuda_mem_info_free_bytes =
+          context_evidence.cuda_mem_info_free_bytes;
+      owned.cuda_mem_info_total_bytes =
+          context_evidence.cuda_mem_info_total_bytes;
+      std::lock_guard lock(impl_->mutex);
+      if (!impl_->pre_receipt) {
+        impl_->state = GpuAdmissionSessionState::FailedClosed;
+        grant.failure_reason = "gpu_context_pre_receipt_missing";
+        return grant;
+      }
+      owned.hard_cap_bytes =
+          impl_->pre_receipt->pre_context_effective_cap_bytes();
+    }
+    const auto admitted = admit_post_context(std::move(post_request));
     if (!admitted.admitted) {
       grant.failure_reason = admitted.reason;
       return grant;
@@ -436,6 +497,9 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
     }
     return grant;
   };
+  protocol.ready = [&protocol](std::uint64_t now) {
+    return protocol.ready_with_evidence(now, NativeWorkerContextEvidence{});
+  };
   protocol.consumed = [this](std::uint64_t token_id, std::uint64_t now) {
     std::optional<AdmissionToken> token;
     {
@@ -450,9 +514,10 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
     }
     return consume_token(*token, now).status == AdmissionTokenStatus::Consumed;
   };
-  protocol.beat = [this, &watchdog_evidence, process_device_evidence,
-                   protocol_policy](
-                      std::uint64_t sequence, std::uint64_t now) {
+  protocol.beat_with_evidence =
+      [this, &watchdog_evidence, process_device_evidence, protocol_policy,
+       &request](std::uint64_t sequence, std::uint64_t now,
+                 const NativeWorkerHeartbeatEvidence& heartbeat_evidence) {
     std::uint32_t process_id = 0U;
     {
       std::lock_guard lock(impl_->mutex);
@@ -498,7 +563,46 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
             protocol_policy.heartbeat_timeout_ms)) {
       return false;
     }
+    if (request.require_gpu_protocol_evidence) {
+      const auto payload = request.expected_post_admission_payload_bytes;
+      if (!heartbeat_evidence.available || payload == 0U ||
+          payload > request.maximum_post_admission_payload_bytes ||
+          heartbeat_evidence.post_admission_payload_bytes != payload ||
+          independent.current_bytes <= payload ||
+          heartbeat_evidence.cuda_mem_info_total_bytes == 0U ||
+          heartbeat_evidence.cuda_mem_info_free_bytes >
+              heartbeat_evidence.cuda_mem_info_total_bytes) {
+        return false;
+      }
+      auto& owned = sample.owned_gpu;
+      owned.available = true;
+      owned.reconciled = true;
+      owned.owned_current_bytes = independent.current_bytes;
+      owned.owned_peak_bytes = independent.current_bytes;
+      owned.backend_buffer_current_bytes = payload;
+      owned.backend_buffer_at_owned_peak_bytes = payload;
+      owned.cuda_context_runtime_current_bytes =
+          independent.current_bytes - payload;
+      owned.cuda_context_runtime_at_owned_peak_bytes =
+          independent.current_bytes - payload;
+      owned.cuda_mem_info_free_bytes =
+          heartbeat_evidence.cuda_mem_info_free_bytes;
+      owned.cuda_mem_info_total_bytes =
+          heartbeat_evidence.cuda_mem_info_total_bytes;
+    }
     return evaluate_watchdog(sample).continue_work;
+  };
+  protocol.beat = [&protocol](std::uint64_t sequence, std::uint64_t now) {
+    return protocol.beat_with_evidence(
+        sequence, now, NativeWorkerHeartbeatEvidence{});
+  };
+  protocol.cancel_requested = [this](const std::string&, std::uint64_t now) {
+    std::lock_guard lock(impl_->mutex);
+    if (impl_->state == GpuAdmissionSessionState::TokenConsumed ||
+        impl_->state == GpuAdmissionSessionState::WatchdogActive) {
+      impl_->state = GpuAdmissionSessionState::CancelRequested;
+      impl_->cancel_requested_monotonic_milliseconds = now;
+    }
   };
   protocol.cancel_ack = [this](std::uint64_t now) {
     (void)advance_cancellation(now, true, false, false);

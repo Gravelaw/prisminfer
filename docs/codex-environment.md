@@ -151,4 +151,5 @@ Repository workflows remain under `.github/workflows/`:
 - `cuda-probe-self-hosted.yml`: manual-only self-hosted Windows/NVIDIA/CUDA probe validation.
 - `cuda-kernel-self-hosted.yml`: manual-only tiny synthetic CUDA correctness validation.
 - `offload-profitability-self-hosted.yml`: manual-only transfer-inclusive profitability validation.
+- `c2-clearance-self-hosted.yml`: reviewed-main-only, attended synthetic C2 candidate lane; its unreviewed artifacts are non-promotable and grant no C2 credit. See `docs/c2-synthetic-clearance.md`.
 - `project-automation.yml`: GitHub Project sync when `PROJECT_TOKEN` exists.

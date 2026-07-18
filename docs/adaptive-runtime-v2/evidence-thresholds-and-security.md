@@ -172,6 +172,15 @@ terminate the Job. Cleanup and lease reconciliation finish within 5 seconds.
 Automatic same-context retry count is zero. A missed deadline forces abort and
 quarantine before another hardware run.
 
+For the version-1 synthetic C2 candidate only, final adapter-wide WDDM local
+usage may exceed the attended pre-context value by at most 16 MiB after the Job
+tree is empty and worker cleanup has completed. This bounded allowance covers
+WDDM/desktop accounting noise outside the process-bound counter; it does not
+waive exact process cleanup, Job accounting, adapter-LUID reconciliation, or
+CUDA worker cleanup. The receipt retains pre/final values, the positive delta,
+and this exact bound. Any larger delta quarantines the candidate and requires a
+fresh preflight; it is never subtracted from owned usage or used to admit work.
+
 ## Foundation thresholds
 
 - **T-001:** observed GPU peak stays within T-100 for every lifecycle sample;

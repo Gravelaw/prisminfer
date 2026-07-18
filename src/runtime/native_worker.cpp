@@ -678,6 +678,18 @@ NativeWorkerResult run_native_worker_impl(
   if (request.timeout_ms == 0U) {
     return fail("native_worker_timeout_required");
   }
+  constexpr std::uint64_t kMaximumC2SyntheticPayloadBytes =
+      64ULL * 1024ULL * 1024ULL;
+  if (request.require_gpu_protocol_evidence &&
+      (!protocol_enabled ||
+       request.expected_post_admission_payload_bytes == 0U ||
+       request.maximum_post_admission_payload_bytes == 0U ||
+       request.expected_post_admission_payload_bytes >
+           request.maximum_post_admission_payload_bytes ||
+       request.maximum_post_admission_payload_bytes >
+           kMaximumC2SyntheticPayloadBytes)) {
+    return fail("native_worker_gpu_protocol_evidence_policy_invalid");
+  }
   constexpr std::uint64_t kMaximumWorkerOutputBytes = 16U * 1024U * 1024U;
   if (request.max_output_bytes == 0U ||
       request.max_output_bytes > kMaximumWorkerOutputBytes) {
@@ -1094,6 +1106,8 @@ NativeWorkerResult run_native_worker_impl(
       return;
     }
     protocol_failure = reason;
+    protocol_supervisor->cooperative_cancel_requested(
+        reason, monotonic_time_milliseconds());
     const std::string message = "PRISMINFER/1 CANCEL " + protocol_nonce + "\n";
     if (!write_protocol(message) && protocol_failure.empty()) {
       protocol_failure = "native_worker_protocol_cancel_write_failed";
@@ -1119,13 +1133,33 @@ NativeWorkerResult run_native_worker_impl(
     }
     const auto now = monotonic_time_milliseconds();
     if (type == "CONTEXT_READY") {
+      NativeWorkerContextEvidence evidence;
       std::string extra;
-      if (protocol_state != ProtocolState::AwaitContext || parsed >> extra) {
+      if (protocol_state != ProtocolState::AwaitContext) {
         request_protocol_cancel("native_worker_protocol_context_duplicate");
         return;
       }
+      if (parsed >> evidence.adapter_luid_high) {
+        if (!(parsed >> evidence.adapter_luid_low >>
+              evidence.cuda_mem_info_free_bytes >>
+              evidence.cuda_mem_info_total_bytes) ||
+            parsed >> extra || evidence.cuda_mem_info_total_bytes == 0U ||
+            evidence.cuda_mem_info_free_bytes >
+                evidence.cuda_mem_info_total_bytes) {
+          request_protocol_cancel("native_worker_protocol_context_evidence_invalid");
+          return;
+        }
+        evidence.available = true;
+      } else {
+        parsed.clear();
+      }
+      if (request.require_gpu_protocol_evidence && !evidence.available) {
+        request_protocol_cancel("native_worker_protocol_context_evidence_required");
+        return;
+      }
       begin_authority_callback();
-      const auto grant = protocol_supervisor->context_ready(now);
+      const auto grant = protocol_supervisor->context_ready_with_evidence(
+          now, evidence);
       end_authority_callback();
       if (!grant.admitted || grant.token_id == 0U ||
           grant.effective_cap_bytes == 0U ||
@@ -1153,6 +1187,7 @@ NativeWorkerResult run_native_worker_impl(
       }
       protocol_state = ProtocolState::TokenDelivered;
       token_consumption_deadline = grant.expires_monotonic_milliseconds;
+      result.context_evidence = evidence;
       return;
     }
     if (type == "TOKEN_CONSUMED") {
@@ -1177,24 +1212,53 @@ NativeWorkerResult run_native_worker_impl(
       }
       protocol_state = ProtocolState::Active;
       last_heartbeat = monotonic_time_milliseconds();
+      result.token_consumed_observed = true;
       return;
     }
     if (type == "HEARTBEAT") {
       std::uint64_t sequence = 0U;
+      NativeWorkerHeartbeatEvidence evidence;
       std::string extra;
       if (protocol_state != ProtocolState::Active || !(parsed >> sequence) ||
-          parsed >> extra || sequence != heartbeat_sequence + 1U) {
+          sequence != heartbeat_sequence + 1U) {
         request_protocol_cancel("native_worker_protocol_heartbeat_invalid");
+        return;
+      }
+      if (parsed >> evidence.post_admission_payload_bytes) {
+        if (!(parsed >> evidence.cuda_mem_info_free_bytes >>
+              evidence.cuda_mem_info_total_bytes) ||
+            parsed >> extra || evidence.cuda_mem_info_total_bytes == 0U ||
+            evidence.cuda_mem_info_free_bytes >
+                evidence.cuda_mem_info_total_bytes ||
+            evidence.post_admission_payload_bytes == 0U ||
+            evidence.post_admission_payload_bytes !=
+                request.expected_post_admission_payload_bytes ||
+            evidence.post_admission_payload_bytes >
+                request.maximum_post_admission_payload_bytes) {
+          request_protocol_cancel(
+              "native_worker_protocol_heartbeat_evidence_invalid");
+          return;
+        }
+        evidence.available = true;
+      } else {
+        parsed.clear();
+      }
+      if (request.require_gpu_protocol_evidence && !evidence.available) {
+        request_protocol_cancel(
+            "native_worker_protocol_heartbeat_evidence_required");
         return;
       }
       heartbeat_sequence = sequence;
       last_heartbeat = monotonic_time_milliseconds();
       begin_authority_callback();
-      const bool accepted = protocol_supervisor->heartbeat(sequence, now);
+      const bool accepted = protocol_supervisor->heartbeat_with_evidence(
+          sequence, now, evidence);
       end_authority_callback();
       if (!accepted || emergency_job_abort.load(std::memory_order_acquire)) {
         request_protocol_cancel("native_worker_protocol_watchdog_rejected");
       }
+      result.last_heartbeat_evidence = evidence;
+      result.heartbeat_sequence = sequence;
       return;
     }
     if (type == "CANCEL_ACK") {
@@ -1336,6 +1400,54 @@ NativeWorkerResult run_native_worker_impl(
     }
   }
   if (!drain_protocol()) return fail("native_worker_protocol_read_failed");
+  const auto reconcile_job_accounting = [&]() {
+    if (!sample_retained_root(process_handle.get(), process.dwProcessId,
+                              &tree_memory)) {
+      return false;
+    }
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION job_memory{};
+    JOBOBJECT_BASIC_AND_IO_ACCOUNTING_INFORMATION job_io{};
+    if (!QueryInformationJobObject(job.get(), JobObjectExtendedLimitInformation,
+                                   &job_memory, sizeof(job_memory), nullptr) ||
+        !QueryInformationJobObject(job.get(),
+                                   JobObjectBasicAndIoAccountingInformation,
+                                   &job_io, sizeof(job_io), nullptr)) {
+      return false;
+    }
+    if (job_io.BasicInfo.TotalProcesses == 0U ||
+        tree_memory.assigned_process_ids.size() !=
+            job_io.BasicInfo.TotalProcesses ||
+        tree_memory.assigned_process_ids.count(process.dwProcessId) != 1U ||
+        tree_memory.peak_active_processes == 0U ||
+        tree_memory.peak_active_processes > request.max_active_processes ||
+        tree_memory.root_peak_working_set_bytes == 0U ||
+        tree_memory.root_peak_private_commit_bytes == 0U ||
+        tree_memory.tree_peak_working_set_bytes <
+            tree_memory.root_peak_working_set_bytes ||
+        job_memory.PeakJobMemoryUsed == 0U) {
+      return false;
+    }
+    result.job_total_processes = job_io.BasicInfo.TotalProcesses;
+    result.job_peak_active_processes = tree_memory.peak_active_processes;
+    result.job_total_terminated_processes =
+        job_io.BasicInfo.TotalTerminatedProcesses;
+    result.root_peak_working_set_bytes =
+        tree_memory.root_peak_working_set_bytes;
+    result.root_peak_private_commit_bytes =
+        tree_memory.root_peak_private_commit_bytes;
+    result.tree_peak_working_set_bytes =
+        tree_memory.tree_peak_working_set_bytes;
+    result.tree_peak_private_commit_bytes = job_memory.PeakJobMemoryUsed;
+    result.tree_sample_interval_milliseconds =
+        kTreeSampleIntervalMilliseconds;
+    result.read_bytes = job_io.IoInfo.ReadTransferCount;
+    result.write_bytes = job_io.IoInfo.WriteTransferCount;
+    result.evidence_available = true;
+    result.job_accounting_reconciled = true;
+    result.per_process_memory_reconciled =
+        tree_memory.per_process_memory_reconciled;
+    return true;
+  };
   if (protocol_enabled && !protocol_failure.empty()) {
     if (!tree_complete &&
         !terminate_job_tree(job.get(), process_handle.get(), tree_memory,
@@ -1345,6 +1457,7 @@ NativeWorkerResult run_native_worker_impl(
     result.failure_reason = protocol_failure;
     result.worker_exit_observed = true;
     result.job_tree_empty = true;
+    (void)reconcile_job_accounting();
     result.artifact_handles_closed = true;
     result.temporary_files_reconciled = true;
     return result;
@@ -1354,6 +1467,7 @@ NativeWorkerResult run_native_worker_impl(
     result.failure_reason = "native_worker_protocol_incomplete";
     result.worker_exit_observed = true;
     result.job_tree_empty = true;
+    (void)reconcile_job_accounting();
     result.artifact_handles_closed = true;
     result.temporary_files_reconciled = true;
     return result;
@@ -1422,54 +1536,12 @@ NativeWorkerResult run_native_worker_impl(
     return fail("native_worker_exit_query_failed");
   }
   result.exit_code = exit_code;
-  if (!sample_retained_root(process_handle.get(), process.dwProcessId,
-                            &tree_memory)) {
-    return fail("native_worker_root_evidence_unavailable");
-  }
-  JOBOBJECT_EXTENDED_LIMIT_INFORMATION job_memory{};
-  JOBOBJECT_BASIC_AND_IO_ACCOUNTING_INFORMATION job_io{};
-  if (!QueryInformationJobObject(job.get(), JobObjectExtendedLimitInformation,
-                                 &job_memory, sizeof(job_memory), nullptr) ||
-      !QueryInformationJobObject(job.get(),
-                                 JobObjectBasicAndIoAccountingInformation,
-                                 &job_io, sizeof(job_io), nullptr)) {
-    return fail("native_worker_evidence_unavailable");
-  }
-  if (job_io.BasicInfo.TotalProcesses == 0U ||
-      tree_memory.assigned_process_ids.size() !=
-          job_io.BasicInfo.TotalProcesses ||
-      tree_memory.assigned_process_ids.count(process.dwProcessId) != 1U ||
-      (exit_code == 0U && !tree_memory.per_process_memory_reconciled) ||
-      tree_memory.peak_active_processes == 0U ||
-      tree_memory.peak_active_processes > request.max_active_processes ||
-      tree_memory.root_peak_working_set_bytes == 0U ||
-      tree_memory.root_peak_private_commit_bytes == 0U ||
-      tree_memory.tree_peak_working_set_bytes <
-          tree_memory.root_peak_working_set_bytes ||
-      job_memory.PeakJobMemoryUsed == 0U) {
+  if (!reconcile_job_accounting() ||
+      (exit_code == 0U && !result.per_process_memory_reconciled)) {
     return fail("native_worker_process_tree_evidence_incomplete");
   }
-  result.job_total_processes = job_io.BasicInfo.TotalProcesses;
-  result.job_peak_active_processes = tree_memory.peak_active_processes;
-  result.job_total_terminated_processes =
-      job_io.BasicInfo.TotalTerminatedProcesses;
-  result.root_peak_working_set_bytes =
-      tree_memory.root_peak_working_set_bytes;
-  result.root_peak_private_commit_bytes =
-      tree_memory.root_peak_private_commit_bytes;
-  result.tree_peak_working_set_bytes =
-      tree_memory.tree_peak_working_set_bytes;
-  result.tree_peak_private_commit_bytes = job_memory.PeakJobMemoryUsed;
-  result.tree_sample_interval_milliseconds =
-      kTreeSampleIntervalMilliseconds;
-  result.read_bytes = job_io.IoInfo.ReadTransferCount;
-  result.write_bytes = job_io.IoInfo.WriteTransferCount;
-  result.evidence_available = true;
   result.worker_exit_observed = true;
   result.job_tree_empty = true;
-  result.job_accounting_reconciled = true;
-  result.per_process_memory_reconciled =
-      tree_memory.per_process_memory_reconciled;
   result.artifact_handles_closed = true;
   result.temporary_files_reconciled = true;
   result.ok = !result.timed_out && result.exit_code == 0U;

@@ -1,0 +1,131 @@
+name: Synthetic C2 Clearance Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Exact independently reviewed 40-character SHA at the current tip of main
+        required: true
+        type: string
+      source_tree_sha:
+        description: Exact reviewed source tree SHA
+        required: true
+        type: string
+      authorization_id:
+        description: User-approved one-shot hardware authorization identifier
+        required: true
+        type: string
+      adapter_index:
+        description: Exact attended CUDA adapter index from the authorization packet
+        required: true
+        type: number
+        default: 0
+      gpu_uuid:
+        description: Exact lowercase NVML/CUDA GPU UUID from attended preflight
+        required: true
+        type: string
+      payload_bytes:
+        description: Post-admission synthetic payload, at most 64 MiB
+        required: true
+        type: number
+        default: 67108864
+      cuda_architecture:
+        description: Exact CUDA architecture from attended preflight
+        required: true
+        type: number
+        default: 120
+      preflight_confirmed:
+        description: Confirm AGENTS.md preflight, attendance, sensors, limits, and abort conditions
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prisminfer-self-hosted-gpu-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch-guard:
+    name: Validate reviewed-main authorization
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require exact reviewed main and bounded inputs
+        shell: bash
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          SOURCE_TREE_SHA: ${{ inputs.source_tree_sha }}
+          AUTHORIZATION_ID: ${{ inputs.authorization_id }}
+          ADAPTER_INDEX: ${{ inputs.adapter_index }}
+          GPU_UUID: ${{ inputs.gpu_uuid }}
+          PAYLOAD_BYTES: ${{ inputs.payload_bytes }}
+          CUDA_ARCHITECTURE: ${{ inputs.cuda_architecture }}
+          PREFLIGHT_CONFIRMED: ${{ inputs.preflight_confirmed }}
+        run: |
+          set -euo pipefail
+          [[ "$DISPATCH_REF" == "refs/heads/main" ]]
+          [[ "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$SOURCE_TREE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$REVIEWED_SHA" == "$DISPATCH_SHA" ]]
+          [[ "$AUTHORIZATION_ID" =~ ^[A-Za-z0-9_.:-]{1,128}$ ]]
+          [[ "$ADAPTER_INDEX" =~ ^[0-9]+$ && "$ADAPTER_INDEX" -le 63 ]]
+          [[ "$GPU_UUID" =~ ^GPU-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
+          [[ "$PAYLOAD_BYTES" =~ ^[0-9]+$ && "$PAYLOAD_BYTES" -ge 1 && "$PAYLOAD_BYTES" -le 67108864 ]]
+          [[ "$CUDA_ARCHITECTURE" =~ ^[0-9]+$ && "$CUDA_ARCHITECTURE" -ge 1 && "$CUDA_ARCHITECTURE" -le 999 ]]
+          [[ "$PREFLIGHT_CONFIRMED" == "true" ]]
+
+  c2-candidate:
+    name: Attended Windows synthetic C2 candidate
+    needs: dispatch-guard
+    runs-on:
+      - self-hosted
+      - Windows
+      - NVIDIA
+      - CUDA
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: Checkout exact reviewed main
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          clean: true
+          persist-credentials: false
+          ref: ${{ inputs.reviewed_sha }}
+
+      - name: Attended read-only preflight
+        run: |
+          $env:Path = '{0};{1}' -f [Environment]::GetEnvironmentVariable('Path','Machine'), [Environment]::GetEnvironmentVariable('Path','User')
+          cmake --version
+          nvcc --version
+          nvidia-smi --query-gpu=index,name,pci.bus_id,uuid,driver_version,memory.total,temperature.gpu,temperature.gpu.tlimit --format=csv,noheader
+
+      - name: Run four bounded cases once under the host lease
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-c2-clearance.ps1 `
+            -ReviewedSha '${{ inputs.reviewed_sha }}' `
+            -SourceTreeSha '${{ inputs.source_tree_sha }}' `
+            -AuthorizationId '${{ inputs.authorization_id }}' `
+            -AdapterIndex ${{ inputs.adapter_index }} `
+            -GpuUuid '${{ inputs.gpu_uuid }}' `
+            -PayloadBytes ${{ inputs.payload_bytes }} `
+            -CudaArchitecture ${{ inputs.cuda_architecture }}
+
+      - name: Retain non-promotable candidate artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: c2-clearance-candidate-${{ github.run_id }}
+          path: |
+            c2-clearance-output/*.json
+            build/c2-clearance/Testing/Temporary/*.log
+            build/c2-clearance/CMakeFiles/CMakeOutput.log
+            build/c2-clearance/CMakeFiles/CMakeError.log
+          if-no-files-found: ignore
+          retention-days: 14

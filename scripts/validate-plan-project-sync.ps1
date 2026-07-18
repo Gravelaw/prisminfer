@@ -89,6 +89,7 @@ $phaseStatus = [ordered]@{
     101 = "Backlog"
     102 = "Backlog"
     103 = "Done"
+    119 = "In Progress"
 }
 
 $expectedTitles = @{
@@ -101,6 +102,7 @@ $expectedTitles = @{
     84 = "P7-05 Run early exact-artifact 8B/9B/30B/70B/90B admission"
     89 = "P7-10 Validate foundation replay, then Ornith stress, and audit Phase 7"
     103 = "P6-04A Implement fail-closed hardware supervisor and staged admission boundary"
+    119 = "P6-C2 Add bounded synthetic supervisor clearance lane"
 }
 
 foreach ($entry in $phaseStatus.GetEnumerator()) {
@@ -112,6 +114,8 @@ foreach ($entry in $phaseStatus.GetEnumerator()) {
 
     $expectedCoarse = if ($number -in @(73, 74, 75, 79, 80, 81, 82, 103)) {
         "Done"
+    } elseif ($number -eq 119) {
+        "In Progress"
     } else {
         "Todo"
     }
@@ -127,7 +131,7 @@ foreach ($entry in $phaseStatus.GetEnumerator()) {
         Add-Failure "#$number is missing a milestone."
     }
 
-    if (($number -ge 73 -and $number -le 78) -or $number -eq 103) {
+    if (($number -ge 73 -and $number -le 78) -or $number -in @(103, 119)) {
         Assert-Value $number "Roadmap Phase" $item.'roadmap Phase' "Phase 6"
         Assert-Value $number "Roadmap Gate" $item.'roadmap Gate' "Phase 6 Evidence"
         Assert-Value $number "milestone" $item.milestone.title "Phase 6: Safety and Exact Evidence Foundation"
@@ -217,6 +221,7 @@ foreach ($needle in @(
     "M7",
     "#103",
     "#109",
+    "#119",
     "PR #111",
     "PR #112",
     "workload-relative host admission",
@@ -233,4 +238,4 @@ if ($failures.Count -gt 0) {
     exit 1
 }
 
-Write-Output ("Plan/Project sync PASS: {0} items checked; #73-#103, #107/#109, Packet A/B exit status, V2 authority and README contracts match." -f $items.Count)
+Write-Output ("Plan/Project sync PASS: {0} items checked; #73-#103, #107/#109/#119, Packet A/B exit status, V2 authority and README contracts match." -f $items.Count)
