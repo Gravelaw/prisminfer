@@ -194,19 +194,22 @@ does not justify bypassing the supervisor.
 **Review tier.** T2 exact-head functional/safety review; any tiny live hardware
 evidence is T3 and separately authorized.
 
-**M2 implementation receipt (2026-07-18, review state).** Packet B is ported
-onto the post-M1 `main` base without restoring the archived V1 packet. The
-retained CPU/source/simulation implementation binds approved executable
+**M2 exit receipt (2026-07-18).** Packet B merged in PR #112 as
+`393d1da8de780f52f4fa1b209b5a4d943baa5eef` without restoring the archived V1
+packet. The retained CPU/source/simulation implementation binds approved executable
 identity to suspended non-breakaway Job containment, explicit process/memory/
 time limits, exact child-tree cleanup, fresh independent Windows evidence,
 workload-relative #109 host admission, exclusive device lease, staged one-shot
 tokens, watchdog submission blocking, cooperative-cancel/Job-abort deadlines,
 and receipt-bound cleanup quarantine. Owned-GPU and WDDM evidence carry bounded
 capture freshness, and executable approval rejects unheld intermediate path
-components. This receipt is not the packet exit: C2 stays closed
-until final hosted checks and a fresh independent exact-head functional/safety
-review accept the complete tree. No CUDA, model, calibration, capacity, or
-performance evidence was produced.
+components. Final head `a5f35ba9f74c7cf69236c47e1e9f32fa41a88a22`
+and tree `fb95214a1e524d166ae6248b21a6262345a9890f` passed a fresh independent
+functional/safety review and hosted Ubuntu Debug, Windows Debug, and Windows
+Release suites at 44/44 tests each. This accepts the CPU/source/simulation M2
+exit only. C2 stays closed because no separately authorized live hardware
+receipt exists; no CUDA, model, calibration, capacity, or performance evidence
+was produced.
 
 The first fresh review of head `2effb8497c2b44328faeb7c8f93e1fcc0ea4deed`
 rejected packet exit. The CPU-safe follow-up now removes caller-assembled
@@ -230,9 +233,9 @@ are covered by contained CPU worker tests. The production llama GPU path fails
 closed until it implements this context-ready protocol. The Windows evidence
 producer samples WDDM GPU Process Memory while the retained process is live,
 binds PID plus DXGI LUID, and uses NVML only as a non-WDDM fallback. Missing,
-stale, mismatched, duplicate, or contradictory reports fail closed. This remains review-state
-implementation only: no tracker state or clearance changes occur until fresh
-exact-head review and hosted checks accept the final tree.
+stale, mismatched, duplicate, or contradictory reports fail closed. The merged
+implementation closes #81, #82, and #103 and their Project items. That tracker
+transition does not change the C2 or model-execution clearance boundary.
 
 ## M3: Packet C - exact admission and supervised foundation evidence
 
