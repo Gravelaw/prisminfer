@@ -60,7 +60,11 @@ receipt and the authorization packet.
 Each candidate receipt retains the actual last global-WDDM, process-WDDM,
 host, and thermal availability, timestamps, and guard values, including the
 process-bound current/peak bytes and source. A canonical last-good hash is
-sensitive to those safety fields. A separate pre-cleanup hash is passed into
+sensitive to those safety fields and always selects the most recent accepted
+guard sample: pre-context for post-context loss, post-context for watchdog
+cancellation, and the last accepted watchdog sample otherwise. The failing or
+missing guard is retained separately as canonical terminal-trigger material
+with its own verified hash. A separate pre-cleanup hash is passed into
 the session cleanup gate, while the terminal bundle hash additionally binds the
 observed failure, Job/handle/file reconciliation, final WDDM delta, and actual
 cleaned/quarantined result. Receipt validation recomputes both canonical hashes;

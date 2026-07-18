@@ -30,6 +30,8 @@ prisminfer::C2ClearanceReceipt valid_receipt() {
   receipt.lease_id = "prisminfer-gpu-00000001-00000002";
   receipt.job_identity = "job:1:2:3";
   receipt.process_wddm_source = "wddm-process";
+  receipt.last_good_stage = "watchdog";
+  receipt.terminal_trigger_canonical = "stage=none";
   receipt.pre_cleanup_evidence_sha256 = std::string(64U, '6');
   receipt.adapter_luid_high = 1;
   receipt.adapter_luid_low = 2U;
@@ -160,6 +162,20 @@ int main() {
       expect(changed_cleanup.evidence_bundle_sha256 !=
                  receipt.evidence_bundle_sha256,
              "terminal hash is sensitive to cleanup classification")) {
+    cleanup();
+    return 1;
+  }
+  auto changed_trigger = receipt;
+  changed_trigger.terminal_trigger_canonical = "stage=watchdog|thermal=missing";
+  if (expect(prisminfer::compute_c2_clearance_evidence_hashes(
+                 &changed_trigger, &error),
+             "changed terminal trigger rehashes") ||
+      expect(changed_trigger.terminal_trigger_sha256 !=
+                 receipt.terminal_trigger_sha256,
+             "trigger hash is sensitive to failing guard evidence") ||
+      expect(changed_trigger.evidence_bundle_sha256 !=
+                 receipt.evidence_bundle_sha256,
+             "terminal bundle binds the failing guard trigger")) {
     cleanup();
     return 1;
   }

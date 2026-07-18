@@ -41,6 +41,7 @@ struct LiveEvidenceCapture {
   std::mutex mutex;
   std::optional<prisminfer::PostContextAdmissionRequest> post;
   std::optional<prisminfer::SupervisorWatchdogSample> watchdog;
+  std::optional<prisminfer::ProcessDeviceMemorySample> first_process;
   std::optional<prisminfer::ProcessDeviceMemorySample> process;
   std::uint64_t process_peak_bytes{0};
 };
@@ -350,6 +351,7 @@ int main(int argc, char** argv) {
             pid, luid_high, luid_low);
         {
           std::lock_guard lock(captured.mutex);
+          if (!captured.first_process) captured.first_process = sample;
           captured.process = sample;
           captured.process_peak_bytes =
               std::max(captured.process_peak_bytes, sample.current_bytes);
@@ -360,12 +362,14 @@ int main(int argc, char** argv) {
   std::optional<prisminfer::PostContextAdmissionRequest> last_post;
   std::optional<prisminfer::SupervisorWatchdogSample> last_watchdog;
   std::optional<prisminfer::ProcessDeviceMemorySample> last_process;
+  std::optional<prisminfer::ProcessDeviceMemorySample> first_process;
   std::uint64_t process_peak_bytes = 0U;
   {
     std::lock_guard lock(captured.mutex);
     last_post = captured.post;
     last_watchdog = captured.watchdog;
     last_process = captured.process;
+    first_process = captured.first_process;
     process_peak_bytes = captured.process_peak_bytes;
   }
 
@@ -412,14 +416,6 @@ int main(int argc, char** argv) {
   receipt.cleanup_status = "pending";
   receipt.lease_id = lease_id;
   receipt.job_identity = result.job_identity;
-  if (last_process) {
-    receipt.last_process_wddm_available = last_process->available;
-    receipt.process_wddm_source = last_process->source;
-    receipt.process_wddm_sample_monotonic_milliseconds =
-        last_process->captured_monotonic_milliseconds;
-    receipt.process_wddm_current_bytes = last_process->current_bytes;
-    receipt.process_wddm_peak_bytes = process_peak_bytes;
-  }
   receipt.adapter_luid_high = pre_wddm.adapter_luid_high;
   receipt.adapter_luid_low = pre_wddm.adapter_luid_low;
   receipt.adapter_index = options.adapter_index;
@@ -436,57 +432,104 @@ int main(int argc, char** argv) {
       result.last_heartbeat_evidence.cuda_mem_info_free_bytes;
   receipt.last_heartbeat_cuda_total_bytes =
       result.last_heartbeat_evidence.cuda_mem_info_total_bytes;
-  if (last_watchdog) {
-    receipt.last_wddm_available = last_watchdog->gpu.available;
-    receipt.last_host_available = last_watchdog->host.available;
-    receipt.last_thermal_available = last_watchdog->thermal.available;
-    receipt.last_sample_monotonic_milliseconds =
-        last_watchdog->gpu.captured_monotonic_milliseconds;
-    receipt.last_sample_wddm_local_budget_bytes =
-        last_watchdog->gpu.dxgi_local_budget_bytes;
-    receipt.last_sample_wddm_local_usage_bytes =
-        last_watchdog->gpu.dxgi_local_current_usage_bytes;
-    receipt.last_host_sample_monotonic_milliseconds =
-        last_watchdog->host.captured_monotonic_milliseconds;
-    receipt.last_host_memory_available_bytes =
-        last_watchdog->host.system_memory_available_bytes;
-    receipt.last_host_commit_available_bytes =
-        last_watchdog->host.system_commit_available_bytes;
-    receipt.last_thermal_sample_monotonic_milliseconds =
-        last_watchdog->thermal.captured_monotonic_milliseconds;
-    receipt.last_gpu_temperature_celsius =
-        last_watchdog->thermal.current_celsius;
-    receipt.last_gpu_slowdown_celsius =
-        last_watchdog->thermal.reported_slowdown_celsius.value_or(0);
-    receipt.last_gpu_thermal_throttling =
-        last_watchdog->thermal.thermal_throttling;
-    receipt.last_gpu_power_brake_slowdown =
-        last_watchdog->thermal.power_brake_slowdown;
+  const auto bind_last_good =
+      [&](const std::string& stage, const prisminfer::PreContextGpuSample& gpu,
+          const prisminfer::HostTelemetrySample& host,
+          const prisminfer::GpuThermalSample& thermal,
+          const std::optional<prisminfer::ProcessDeviceMemorySample>& process) {
+        receipt.last_good_stage = stage;
+        receipt.last_wddm_available = gpu.available;
+        receipt.last_host_available = host.available;
+        receipt.last_thermal_available = thermal.available;
+        receipt.last_sample_monotonic_milliseconds =
+            gpu.captured_monotonic_milliseconds;
+        receipt.last_sample_wddm_local_budget_bytes =
+            gpu.dxgi_local_budget_bytes;
+        receipt.last_sample_wddm_local_usage_bytes =
+            gpu.dxgi_local_current_usage_bytes;
+        receipt.last_host_sample_monotonic_milliseconds =
+            host.captured_monotonic_milliseconds;
+        receipt.last_host_memory_available_bytes =
+            host.system_memory_available_bytes;
+        receipt.last_host_commit_available_bytes =
+            host.system_commit_available_bytes;
+        receipt.last_thermal_sample_monotonic_milliseconds =
+            thermal.captured_monotonic_milliseconds;
+        receipt.last_gpu_temperature_celsius = thermal.current_celsius;
+        receipt.last_gpu_slowdown_celsius =
+            thermal.reported_slowdown_celsius.value_or(0);
+        receipt.last_gpu_thermal_throttling = thermal.thermal_throttling;
+        receipt.last_gpu_power_brake_slowdown = thermal.power_brake_slowdown;
+        if (process) {
+          receipt.last_process_wddm_available = process->available;
+          receipt.process_wddm_source = process->source;
+          receipt.process_wddm_sample_monotonic_milliseconds =
+              process->captured_monotonic_milliseconds;
+          receipt.process_wddm_current_bytes = process->current_bytes;
+          receipt.process_wddm_peak_bytes = process_peak_bytes;
+        } else {
+          receipt.process_wddm_source = "not-applicable-pre-context";
+        }
+      };
+  if (options.case_name == "post-context-telemetry-loss") {
+    bind_last_good("pre-context", pre.gpu, pre.host, pre.thermal, std::nullopt);
+  } else if (options.case_name == "watchdog-cancel" && last_post) {
+    bind_last_good("post-context", last_post->gpu, last_post->host, last_post->thermal,
+                   first_process);
+  } else if (last_watchdog) {
+    bind_last_good("watchdog", last_watchdog->gpu, last_watchdog->host,
+                   last_watchdog->thermal, last_process);
   } else if (last_post) {
-    receipt.last_wddm_available = last_post->gpu.available;
-    receipt.last_host_available = last_post->host.available;
-    receipt.last_thermal_available = last_post->thermal.available;
-    receipt.last_sample_monotonic_milliseconds =
-        last_post->gpu.captured_monotonic_milliseconds;
-    receipt.last_sample_wddm_local_budget_bytes =
-        last_post->gpu.dxgi_local_budget_bytes;
-    receipt.last_sample_wddm_local_usage_bytes =
-        last_post->gpu.dxgi_local_current_usage_bytes;
-    receipt.last_host_sample_monotonic_milliseconds =
-        last_post->host.captured_monotonic_milliseconds;
-    receipt.last_host_memory_available_bytes =
-        last_post->host.system_memory_available_bytes;
-    receipt.last_host_commit_available_bytes =
-        last_post->host.system_commit_available_bytes;
-    receipt.last_thermal_sample_monotonic_milliseconds =
-        last_post->thermal.captured_monotonic_milliseconds;
-    receipt.last_gpu_temperature_celsius = last_post->thermal.current_celsius;
-    receipt.last_gpu_slowdown_celsius =
-        last_post->thermal.reported_slowdown_celsius.value_or(0);
-    receipt.last_gpu_thermal_throttling =
-        last_post->thermal.thermal_throttling;
-    receipt.last_gpu_power_brake_slowdown =
-        last_post->thermal.power_brake_slowdown;
+    bind_last_good("post-context", last_post->gpu, last_post->host, last_post->thermal,
+                   first_process);
+  } else {
+    bind_last_good("pre-context", pre.gpu, pre.host, pre.thermal, std::nullopt);
+  }
+
+  const auto trigger_material =
+      [&](const std::string& stage,
+          const prisminfer::PreContextGpuSample& gpu,
+          const prisminfer::HostTelemetrySample& host,
+          const prisminfer::GpuThermalSample& thermal) {
+        std::ostringstream out;
+        out << "c2-trigger-v1|stage=" << stage
+            << "|wddm_available=" << gpu.available
+            << "|wddm_ms=" << gpu.captured_monotonic_milliseconds
+            << "|wddm_budget=" << gpu.dxgi_local_budget_bytes
+            << "|wddm_usage=" << gpu.dxgi_local_current_usage_bytes
+            << "|host_available=" << host.available
+            << "|host_ms=" << host.captured_monotonic_milliseconds
+            << "|host_memory=" << host.system_memory_available_bytes
+            << "|host_commit=" << host.system_commit_available_bytes
+            << "|thermal_available=" << thermal.available
+            << "|thermal_ms=" << thermal.captured_monotonic_milliseconds
+            << "|temperature=" << thermal.current_celsius
+            << "|slowdown="
+            << thermal.reported_slowdown_celsius.value_or(0)
+            << "|thermal_throttling=" << thermal.thermal_throttling
+            << "|power_brake=" << thermal.power_brake_slowdown;
+        if (last_process) {
+          out << "|process_available=" << last_process->available
+              << "|process_source=" << last_process->source
+              << "|process_ms="
+              << last_process->captured_monotonic_milliseconds
+              << "|process_current=" << last_process->current_bytes;
+        }
+        return out.str();
+      };
+  if (options.case_name == "watchdog-cancel" && last_watchdog) {
+    receipt.terminal_trigger_canonical =
+        trigger_material("watchdog", last_watchdog->gpu, last_watchdog->host,
+                         last_watchdog->thermal);
+  } else if (options.case_name == "post-context-telemetry-loss" && last_post) {
+    receipt.terminal_trigger_canonical =
+        trigger_material("post-context", last_post->gpu, last_post->host,
+                         last_post->thermal);
+  } else if (options.case_name == "heartbeat-loss") {
+    receipt.terminal_trigger_canonical =
+        "c2-trigger-v1|stage=heartbeat-timeout|sample=missing";
+  } else {
+    receipt.terminal_trigger_canonical = "c2-trigger-v1|stage=none";
   }
   receipt.pre_wddm_local_usage_bytes = pre_wddm.local_current_usage_bytes;
   receipt.final_wddm_local_usage_bytes = final_wddm.local_current_usage_bytes;

@@ -26,6 +26,9 @@ struct C2ClearanceReceipt {
   std::string lease_id;
   std::string job_identity;
   std::string process_wddm_source;
+  std::string last_good_stage;
+  std::string terminal_trigger_canonical;
+  std::string terminal_trigger_sha256;
   std::string last_good_sample_sha256;
   std::string pre_cleanup_evidence_sha256;
   std::string evidence_bundle_sha256;

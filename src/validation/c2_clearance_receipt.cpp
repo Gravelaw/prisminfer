@@ -134,6 +134,7 @@ bool compute_c2_clearance_evidence_hashes(C2ClearanceReceipt* receipt,
   std::ostringstream last;
   last << "c2-last-good-v1"
        << "|case=" << receipt->case_name
+       << "|stage=" << receipt->last_good_stage
        << "|pid=" << receipt->root_process_id
        << "|luid_high=" << receipt->adapter_luid_high
        << "|luid_low=" << receipt->adapter_luid_low
@@ -162,6 +163,11 @@ bool compute_c2_clearance_evidence_hashes(C2ClearanceReceipt* receipt,
     if (error) *error = "c2_last_good_hash_failed";
     return false;
   }
+  if (!sha256_text(receipt->terminal_trigger_canonical,
+                   &receipt->terminal_trigger_sha256)) {
+    if (error) *error = "c2_terminal_trigger_hash_failed";
+    return false;
+  }
   std::ostringstream terminal;
   terminal << "c2-terminal-v1"
            << "|last_good=" << receipt->last_good_sample_sha256
@@ -169,6 +175,7 @@ bool compute_c2_clearance_evidence_hashes(C2ClearanceReceipt* receipt,
            << "|failure=" << receipt->failure_reason
            << "|cleanup=" << receipt->cleanup_status
            << "|pre_cleanup=" << receipt->pre_cleanup_evidence_sha256
+           << "|terminal_trigger=" << receipt->terminal_trigger_sha256
            << "|worker_exit=" << receipt->worker_exit_observed
            << "|job_tree_empty=" << receipt->job_tree_empty
            << "|job_accounting=" << receipt->job_accounting_reconciled
@@ -217,6 +224,11 @@ std::string serialize_c2_clearance_receipt(const C2ClearanceReceipt& receipt) {
       << "  \"job_identity\":\"" << escaped(receipt.job_identity) << "\",\n"
       << "  \"process_wddm_source\":\""
       << escaped(receipt.process_wddm_source) << "\",\n"
+      << "  \"last_good_stage\":\"" << receipt.last_good_stage << "\",\n"
+      << "  \"terminal_trigger_canonical\":\""
+      << escaped(receipt.terminal_trigger_canonical) << "\",\n"
+      << "  \"terminal_trigger_sha256\":\""
+      << receipt.terminal_trigger_sha256 << "\",\n"
       << "  \"last_good_sample_sha256\":\""
       << receipt.last_good_sample_sha256 << "\",\n"
       << "  \"pre_cleanup_evidence_sha256\":\""
@@ -334,6 +346,8 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
       "workflow_run_id", "authorization_id", "gpu_uuid", "case_name", "status", "failure_reason",
       "cleanup_status", "review_status", "claim_scope", "promotable",
       "c2_credit", "lease_id", "job_identity", "process_wddm_source",
+      "last_good_stage",
+      "terminal_trigger_canonical", "terminal_trigger_sha256",
       "last_good_sample_sha256", "pre_cleanup_evidence_sha256",
       "evidence_bundle_sha256", "adapter_luid_high", "adapter_luid_low",
       "adapter_index", "worker_timeout_milliseconds",
@@ -392,6 +406,9 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
   std::string lease_id;
   std::string job_identity;
   std::string process_source;
+  std::string last_good_stage;
+  std::string terminal_trigger;
+  std::string terminal_trigger_hash;
   std::string last_good;
   std::string pre_cleanup;
   std::string bundle;
@@ -415,6 +432,9 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
       require_string(json, "lease_id", &lease_id) &&
       require_string(json, "job_identity", &job_identity) &&
       require_string(json, "process_wddm_source", &process_source) &&
+      require_string(json, "last_good_stage", &last_good_stage) &&
+      require_string(json, "terminal_trigger_canonical", &terminal_trigger) &&
+      require_string(json, "terminal_trigger_sha256", &terminal_trigger_hash) &&
       require_string(json, "last_good_sample_sha256", &last_good) &&
       require_string(json, "pre_cleanup_evidence_sha256", &pre_cleanup) &&
       require_string(json, "evidence_bundle_sha256", &bundle);
@@ -434,6 +454,10 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
       (cleanup_status != "cleaned" && cleanup_status != "quarantined") ||
       !bounded_text(lease_id, 128U) || !bounded_text(job_identity, 256U) ||
       !bounded_text(process_source, 64U) || !lower_hex(last_good, 64U) ||
+      (last_good_stage != "pre-context" &&
+       last_good_stage != "post-context" && last_good_stage != "watchdog") ||
+      !bounded_text(terminal_trigger, 2048U) ||
+      !lower_hex(terminal_trigger_hash, 64U) ||
       !lower_hex(pre_cleanup, 64U) || !lower_hex(bundle, 64U) ||
       !require_bool(json, "promotable", false) ||
       !require_bool(json, "c2_credit", false) ||
@@ -475,6 +499,9 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
   hashed.failure_reason = failure_reason;
   hashed.cleanup_status = cleanup_status;
   hashed.process_wddm_source = process_source;
+  hashed.last_good_stage = last_good_stage;
+  hashed.terminal_trigger_canonical = terminal_trigger;
+  hashed.terminal_trigger_sha256 = terminal_trigger_hash;
   hashed.pre_cleanup_evidence_sha256 = pre_cleanup;
   const bool hash_fields_ok =
       require_integer(json, "root_process_id", &hashed.root_process_id) &&
@@ -537,7 +564,9 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
       require_bool_value(json, "last_thermal_available",
                          &hashed.last_thermal_available);
   std::string hash_error;
-  if (!hash_fields_ok ||
+  std::string recomputed_trigger;
+  if (!sha256_text(terminal_trigger, &recomputed_trigger) ||
+      recomputed_trigger != terminal_trigger_hash || !hash_fields_ok ||
       !compute_c2_clearance_evidence_hashes(&hashed, &hash_error) ||
       hashed.last_good_sample_sha256 != last_good ||
       hashed.evidence_bundle_sha256 != bundle) {
