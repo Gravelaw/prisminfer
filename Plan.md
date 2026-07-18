@@ -1,8 +1,8 @@
 # PrismInfer Final Plan
 
-Status: Adaptive Runtime V2 governance active; M0 and M1 complete. Packet B is
-implemented in binding order and remains in exact-head review; C2 is closed.
-Last reconciled: 2026-07-18 (M2 review)
+Status: Adaptive Runtime V2 governance active; M0, M1, and M2 complete. Packet
+B merged after exact-head review and hosted verification; C2 remains closed.
+Last reconciled: 2026-07-18 (M2 exit)
 Operational tracker: [GitHub Project #2](https://github.com/users/Gravelaw/projects/2)
 
 ## Authority and Change Control
@@ -97,11 +97,11 @@ changing thresholds after observing a failure.
 | Phase 6 branch | Manifest/config foundations and the completed #73 tiny synthetic CUDA launch/copy-back lane are merged. The CUDA path uses toy nibble-plus-scale semantics, not exact selected-artifact GGML quant semantics. |
 | Allocation safety | CUDA context creation precedes reservation; a rejected context reservation can be recorded without immediately ending the run. The 16 GiB value is only a policy ceiling. |
 | Backend boundary | Packet B replaces shell launch with approved-identity `CreateProcessW`, suspended Job assignment, explicit environment/handle/resource policy, bounded output/cancellation, and complete child-tree cleanup evidence. This is a CPU/static boundary and grants no model credit. |
-| Hardware safety | Packet B implements the exclusive lease, staged exact-cell admission token, WDDM/host/thermal watchdog, immediate submission blocking, bounded cooperative-cancel/Job-abort decisions, and cleanup/quarantine state machine. C2 remains closed until the exact-head review and packet exit are accepted. |
+| Hardware safety | Packet B implements the exclusive lease, staged exact-cell admission token, WDDM/host/thermal watchdog, immediate submission blocking, bounded cooperative-cancel/Job-abort decisions, and cleanup/quarantine state machine. Its CPU/source/simulation exit is accepted, but C2 remains closed because no separately authorized live hardware receipt exists. |
 | Host admission | #109's authoritative Windows physical/commit telemetry and workload-relative admission primitive are consumed by both pre/post admission and every watchdog decision. No fixed free-RAM prerequisite is valid. |
 | Model evidence | Packet A pins one approved offline Llama 3.1 8B Q4_K_M artifact identity and complete per-tensor inventory under the recorded one-time acquisition exception. Ornith remains an immutable unsupported-converter negative descriptor, and 30B/70B/90B selection remains deferred. No model execution, quality, capacity, calibration or performance evidence exists. |
 | Adaptive runtime | Actuator, recovery, optimizer and evidence contracts are documented; the in-process adapter, calibration store, selector and plan executor are proposed, not implemented. |
-| Worktree/PR | PRs #72, #104, #105, #106, #108, #110 and #113 establish the pre-M1 merged baseline. PR #111 merged Packet A for #74/#75/#80. Draft PR #112 is freshly ported onto current post-M1 `main` and contains Packet B only: reviewable #81, #82, and #103 implementation plus CPU/source/simulation evidence. Earlier Packet B head reviews are stale. |
+| Worktree/PR | PRs #72, #104, #105, #106, #108, #110 and #113 establish the pre-M1 merged baseline. PR #111 merged Packet A for #74/#75/#80. PR #112 merged Packet B for #81/#82/#103 as merge `393d1da8de780f52f4fa1b209b5a4d943baa5eef` after exact-head review and hosted Debug/Release verification. |
 
 ## Frozen Scope
 
@@ -222,8 +222,8 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 | #78 | Phase 6 evidence and claim audit. | #77. | Blocked |
 | #79 | Final council, root Plan and tracker freeze. | Current repository/session evidence. | Done |
 | #80 | Pin foundation, Ornith stress and smoke artifacts. | #79 plus Phase 6 artifact rules. | Done in Packet A PR #111 |
-| #81 | Secure native external worker/Job boundary. | #79 and pinned external executable identity. | Review in draft PR #112 |
-| #82 | Minimum live Windows/WDDM/host/file/transfer evidence. | #79; integrates #81. | Review in draft PR #112 |
+| #81 | Secure native external worker/Job boundary. | #79 and pinned external executable identity. | Done in Packet B PR #112 |
+| #82 | Minimum live Windows/WDDM/host/file/transfer evidence. | #79; integrates #81. | Done in Packet B PR #112 |
 | #83 | Pinned actuator/acknowledgement/recovery inventory. | #79 and pinned runtime source/build. | Ready |
 | #84 | Exact 8B/9B/30B/70B/90B capacity and bandwidth admission. | #74, #80, #82 and #103. | Blocked |
 | #85 | Worker-contained in-process adapter and actual-path trace. | #78, #80-#83 and #103. | Blocked |
@@ -244,7 +244,7 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 | #100 | Exact admitted 90B result/rejection. | #97 admission of that artifact. | Blocked |
 | #101 | Portability, invalidation and recalibration. | #98 plus each activated/rejected #99/#100 record. | Backlog |
 | #102 | Final security, evidence and claim audit. | #96 and #101. | Backlog |
-| #103 | Fail-closed hardware supervisor and staged admission boundary. | #79, #81, the safety subset of #82 and the #109 host-admission primitive. | Review in draft PR #112 |
+| #103 | Fail-closed hardware supervisor and staged admission boundary. | #79, #81, the safety subset of #82 and the #109 host-admission primitive. | Done in Packet B PR #112 |
 
 ## Critical Path
 
@@ -408,23 +408,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate-plan-projec
   final-freeze and integration-train evidence. Cross-cutting #109 records the
   host-admission correction and is `Done` when this contract reaches `main`.
 - #74, #75 and #80 are `Done` with Packet A's exact-head evidence and review
-  receipts. #81/#82/#103 are in `Review` in draft PR #112; C2 remains closed
-  until Packet B's final exact-head safety review and exit. #76 and #83 are `Ready`;
+  receipts. #81/#82/#103 are `Done` with merged Packet B PR #112; C2 remains
+  closed because Packet B produced no separately authorized live hardware
+  receipt. #76 and #83 are `Ready`;
   dependency-gated #77-#78 and #84-#89 are `Blocked`; later work remains
   `Backlog` except independently admission-blocked #99/#100.
-- The current Packet B review candidate closes the three prior binding
+- Merged Packet B closes the three prior binding
   implementation gaps in CPU-safe code: session-owned process/Job/control and
   cleanup authority; a nonce-bound context-ready, one-shot-token, heartbeat,
   cancellation and watchdog protocol; and an independent WDDM process-memory
   producer sampled while the retained worker is live and bound to its PID and
   DXGI adapter LUID. NVML is only a non-WDDM fallback. Llama GPU execution
-  fails closed until it speaks that protocol. This earns no live hardware,
-  model, calibration, performance, or C2 credit before fresh exact-head review.
-- PR #111 is merged Packet A history. Draft PR #112 is the freshly ported
-  Packet B integration work and remains merge-gated by final exact-head safety
-  review and hosted checks. It preserves the V2 owner documents and does not
-  restore the former V1 active directory. Every pre-port Packet B review is
-  stale.
+  fails closed until it speaks that protocol. The accepted CPU/source/simulation
+  exit earns no live hardware, model, calibration, performance, or C2 credit.
+- PR #111 is merged Packet A history. PR #112 is merged Packet B history at
+  `393d1da8de780f52f4fa1b209b5a4d943baa5eef`; its final head passed fresh
+  independent functional/safety review and hosted Ubuntu Debug plus Windows
+  Debug/Release checks. It preserves the V2 owner documents and does not restore
+  the former V1 active directory.
 - PR #72 is merged evidence/documentation history; neither its checks nor the
   later governance/tiny-lane merges grant hardware or model clearance.
 

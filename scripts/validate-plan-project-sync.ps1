@@ -66,8 +66,8 @@ $phaseStatus = [ordered]@{
     78 = "Blocked"
     79 = "Done"
     80 = "Done"
-    81 = "Review"
-    82 = "Review"
+    81 = "Done"
+    82 = "Done"
     83 = "Ready"
     84 = "Blocked"
     85 = "Blocked"
@@ -88,7 +88,7 @@ $phaseStatus = [ordered]@{
     100 = "Blocked"
     101 = "Backlog"
     102 = "Backlog"
-    103 = "Review"
+    103 = "Done"
 }
 
 $expectedTitles = @{
@@ -110,10 +110,8 @@ foreach ($entry in $phaseStatus.GetEnumerator()) {
         continue
     }
 
-    $expectedCoarse = if ($number -in @(73, 74, 75, 79, 80)) {
+    $expectedCoarse = if ($number -in @(73, 74, 75, 79, 80, 81, 82, 103)) {
         "Done"
-    } elseif ($number -in @(81, 82, 103)) {
-        "In Progress"
     } else {
         "Todo"
     }
@@ -235,4 +233,4 @@ if ($failures.Count -gt 0) {
     exit 1
 }
 
-Write-Output ("Plan/Project sync PASS: {0} items checked; #73-#103, #107/#109, Packet A/B active status, V2 authority and README contracts match." -f $items.Count)
+Write-Output ("Plan/Project sync PASS: {0} items checked; #73-#103, #107/#109, Packet A/B exit status, V2 authority and README contracts match." -f $items.Count)

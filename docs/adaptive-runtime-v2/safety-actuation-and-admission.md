@@ -235,8 +235,9 @@ artifact cleanup facts. Callers supply only independently sampled post-context
 and watchdog telemetry plus final device-resource reconciliation; they cannot
 assert containment, consume a token, or advance cancellation/Job cleanup. The
 llama GPU adapter fails closed until it speaks the context-ready protocol. This
-is still not C2 credit: Packet B remains in Review and C2 stays closed until
-fresh exact-head functional/safety review and hosted checks accept the tree.
+is still not C2 credit: Packet B's CPU/source/simulation exit is accepted, but
+C2 stays closed until a separately authorized live hardware receipt satisfies
+the exact Plan gate.
 
 ## Provider subordination
 
