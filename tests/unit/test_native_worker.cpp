@@ -179,6 +179,16 @@ int main(int argc, char** argv) {
       "test-approval"}});
   request.arguments = {L"--child"};
   request.timeout_ms = 2000U;
+  auto missing_job_limit = request;
+  missing_job_limit.max_job_memory_bytes = 0U;
+  const auto rejected_job_limit =
+      prisminfer::run_native_worker(catalog, missing_job_limit);
+  if (expect(!rejected_job_limit.ok &&
+                 rejected_job_limit.failure_reason ==
+                     "native_worker_job_resource_limit_rejected",
+             "missing Job memory limit is rejected before creation")) {
+    return 1;
+  }
   prisminfer::NativeWorkerTrustCatalog wrong_hash_catalog({{
       request.executable_path, request.executable_path.parent_path(),
       std::string(64U, '0'), "test-approval"}});
@@ -205,7 +215,10 @@ int main(int argc, char** argv) {
   if (expect(child.evidence_available &&
                   child.executable_sha256 == test_hash &&
                   child.approval_identity == "test-approval" &&
-                  child.output_limit_bytes == request.max_output_bytes,
+                  child.output_limit_bytes == request.max_output_bytes &&
+                  child.job_memory_limit_bytes ==
+                      request.max_job_memory_bytes &&
+                  child.job_cpu_time_limit_milliseconds == request.timeout_ms,
               "worker retains approval and bounded-output evidence")) return 1;
   if (expect(child.root_process_id != 0U && !child.job_identity.empty() &&
                  child.job_total_processes == 1U &&
@@ -218,6 +231,31 @@ int main(int argc, char** argv) {
                      child.root_peak_private_commit_bytes &&
                  child.tree_sample_interval_milliseconds == 10U,
              "root and complete Job process-tree memory evidence is retained")) {
+    return 1;
+  }
+  const auto hardlink_path = request.executable_path.parent_path() /
+                             L"prisminfer-native-worker-hardlink.exe";
+  std::error_code hardlink_error;
+  std::filesystem::remove(hardlink_path, hardlink_error);
+  const BOOL hardlinked =
+      CreateHardLinkW(hardlink_path.c_str(), request.executable_path.c_str(),
+                      nullptr);
+  if (expect(hardlinked != FALSE,
+             "test executable hard link is created")) {
+    return 1;
+  }
+  prisminfer::NativeWorkerTrustCatalog hardlink_catalog({{
+      hardlink_path, request.executable_path.parent_path(), test_hash,
+      "hardlink-approval"}});
+  auto hardlink_request = request;
+  hardlink_request.executable_path = hardlink_path;
+  const auto hardlink_result =
+      prisminfer::run_native_worker(hardlink_catalog, hardlink_request);
+  std::filesystem::remove(hardlink_path, hardlink_error);
+  if (expect(!hardlink_result.ok &&
+                 hardlink_result.failure_reason ==
+                     "native_worker_executable_identity_rejected",
+             "multi-link executable identity is rejected")) {
     return 1;
   }
   const auto& output_text = child.captured_output;

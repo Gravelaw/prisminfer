@@ -1,5 +1,7 @@
 #include "prisminfer/native_worker.h"
 
+#include "prisminfer/checked_arithmetic.h"
+
 
 #include <cstddef>
 #include <array>
@@ -214,6 +216,7 @@ struct TreeMemoryAccumulator {
   std::uint64_t tree_peak_working_set_bytes{0};
   std::uint32_t peak_active_processes{0};
   std::unordered_set<ULONG_PTR> observed_process_ids;
+  std::vector<UniqueHandle> observed_process_handles;
 };
 
 bool checked_add_size(std::uint64_t left, SIZE_T right,
@@ -280,7 +283,8 @@ bool sample_job_tree(HANDLE job, DWORD root_process_id,
        ++index) {
     const ULONG_PTR process_id = process_ids->ProcessIdList[index];
     if (process_id == 0U || process_id > MAXDWORD) return false;
-    UniqueHandle process(OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+    UniqueHandle process(OpenProcess(PROCESS_QUERY_INFORMATION |
+                                         PROCESS_VM_READ | SYNCHRONIZE,
                                      FALSE,
                                      static_cast<DWORD>(process_id)));
     PROCESS_MEMORY_COUNTERS_EX memory{};
@@ -293,7 +297,8 @@ bool sample_job_tree(HANDLE job, DWORD root_process_id,
                           &tree_working_set)) {
       return false;
     }
-    accumulator->observed_process_ids.insert(process_id);
+    const bool first_observation =
+        accumulator->observed_process_ids.insert(process_id).second;
     if (process_id == root_process_id) {
       accumulator->root_peak_working_set_bytes =
           std::max(accumulator->root_peak_working_set_bytes,
@@ -302,9 +307,53 @@ bool sample_job_tree(HANDLE job, DWORD root_process_id,
           std::max(accumulator->root_peak_private_commit_bytes,
                    static_cast<std::uint64_t>(memory.PeakPagefileUsage));
     }
+    if (first_observation) {
+      accumulator->observed_process_handles.push_back(std::move(process));
+    }
   }
   accumulator->tree_peak_working_set_bytes =
       std::max(accumulator->tree_peak_working_set_bytes, tree_working_set);
+  return true;
+}
+
+bool wait_for_job_empty(HANDLE job, std::uint32_t timeout_ms) {
+  if (job == nullptr || timeout_ms == 0U) return false;
+  const ULONGLONG started = GetTickCount64();
+  for (;;) {
+    JOBOBJECT_BASIC_ACCOUNTING_INFORMATION accounting{};
+    if (!QueryInformationJobObject(job, JobObjectBasicAccountingInformation,
+                                   &accounting, sizeof(accounting), nullptr)) {
+      return false;
+    }
+    if (accounting.ActiveProcesses == 0U) return true;
+    const ULONGLONG elapsed = GetTickCount64() - started;
+    if (elapsed >= timeout_ms) return false;
+    const auto remaining = static_cast<DWORD>(timeout_ms - elapsed);
+    Sleep(std::min<DWORD>(10U, remaining));
+  }
+}
+
+bool terminate_job_tree(HANDLE job, HANDLE root_process,
+                        const TreeMemoryAccumulator& accumulator,
+                        std::uint32_t timeout_ms) {
+  if (job == nullptr || root_process == nullptr || timeout_ms == 0U ||
+      !TerminateJobObject(job, 1U)) {
+    return false;
+  }
+  const ULONGLONG started = GetTickCount64();
+  if (WaitForSingleObject(root_process, timeout_ms) != WAIT_OBJECT_0 ||
+      !wait_for_job_empty(job, timeout_ms)) {
+    return false;
+  }
+  for (const auto& process : accumulator.observed_process_handles) {
+    const ULONGLONG elapsed = GetTickCount64() - started;
+    if (elapsed >= timeout_ms ||
+        WaitForSingleObject(process.get(),
+                            static_cast<DWORD>(timeout_ms - elapsed)) !=
+            WAIT_OBJECT_0) {
+      return false;
+    }
+  }
   return true;
 }
 
@@ -510,6 +559,16 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
       request.max_active_processes > 8U) {
     return fail("native_worker_process_limit_rejected");
   }
+  const auto job_time_100ns =
+      checked_multiply_u64(request.timeout_ms, 10'000U);
+  if (request.max_job_memory_bytes == 0U ||
+      request.max_job_memory_bytes >
+          static_cast<std::uint64_t>(std::numeric_limits<SIZE_T>::max()) ||
+      !job_time_100ns ||
+      *job_time_100ns >
+          static_cast<std::uint64_t>(std::numeric_limits<LONGLONG>::max())) {
+    return fail("native_worker_job_resource_limit_rejected");
+  }
   if (has_disallowed_windows_path_syntax(request.executable_path)) {
     return fail("native_worker_executable_path_syntax_rejected");
   }
@@ -575,6 +634,7 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
       !GetFileInformationByHandle(executable_handle.get(), &executable_info) ||
        (executable_info.dwFileAttributes &
         (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0U ||
+      executable_info.nNumberOfLinks != 1U ||
       final_executable.empty() ||
       !is_under_root(final_executable, final_trusted_root) ||
       !hash_open_file(executable_handle.get(), &executable_hash) ||
@@ -600,6 +660,8 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
   result.executable_sha256 = executable_hash;
   result.approval_identity = approval->approval_identity;
   result.output_limit_bytes = request.max_output_bytes;
+  result.job_memory_limit_bytes = request.max_job_memory_bytes;
+  result.job_cpu_time_limit_milliseconds = request.timeout_ms;
   SECURITY_ATTRIBUTES pipe_security{};
   pipe_security.nLength = sizeof(pipe_security);
   pipe_security.bInheritHandle = TRUE;
@@ -629,8 +691,12 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
   JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
   limits.BasicLimitInformation.LimitFlags =
       JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION |
-      JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
+      JOB_OBJECT_LIMIT_ACTIVE_PROCESS | JOB_OBJECT_LIMIT_JOB_MEMORY |
+      JOB_OBJECT_LIMIT_JOB_TIME;
   limits.BasicLimitInformation.ActiveProcessLimit = request.max_active_processes;
+  limits.BasicLimitInformation.PerJobUserTimeLimit.QuadPart =
+      static_cast<LONGLONG>(*job_time_100ns);
+  limits.JobMemoryLimit = static_cast<SIZE_T>(request.max_job_memory_bytes);
   if (!SetInformationJobObject(job.get(), JobObjectExtendedLimitInformation,
                                &limits, sizeof(limits))) {
     return fail("native_worker_job_limit_failed");
@@ -657,6 +723,8 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
     return fail("native_worker_handle_restriction_failed");
   }
   const std::uint64_t mitigation_policy =
+      PROCESS_CREATION_MITIGATION_POLICY_IMAGE_LOAD_NO_REMOTE_ALWAYS_ON |
+      PROCESS_CREATION_MITIGATION_POLICY_IMAGE_LOAD_NO_LOW_LABEL_ALWAYS_ON |
       PROCESS_CREATION_MITIGATION_POLICY_IMAGE_LOAD_PREFER_SYSTEM32_ALWAYS_ON;
   if (!UpdateProcThreadAttribute(
           attributes, 0U, PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY,
@@ -718,17 +786,15 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
   // can guarantee that even a one-shot worker is represented in tree evidence.
   if (!sample_job_tree(job.get(), process.dwProcessId,
                        request.max_active_processes, &tree_memory)) {
-    if (!TerminateJobObject(job.get(), 1U) ||
-        WaitForSingleObject(process_handle.get(), request.timeout_ms) !=
-            WAIT_OBJECT_0) {
+    if (!terminate_job_tree(job.get(), process_handle.get(), tree_memory,
+                            request.timeout_ms)) {
       return fail("native_worker_tree_sample_cleanup_failed");
     }
     return fail("native_worker_tree_sample_failed");
   }
   if (ResumeThread(thread_handle.get()) == static_cast<DWORD>(-1)) {
-    if (!TerminateJobObject(job.get(), 1U) ||
-        WaitForSingleObject(process_handle.get(), request.timeout_ms) !=
-            WAIT_OBJECT_0) {
+    if (!terminate_job_tree(job.get(), process_handle.get(), tree_memory,
+                            request.timeout_ms)) {
       return fail("native_worker_resume_cleanup_failed");
     }
     return fail("native_worker_resume_failed");
@@ -791,17 +857,15 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
     }
   }
   if (job_query_failed) {
-    if (!TerminateJobObject(job.get(), 1U) ||
-        WaitForSingleObject(process_handle.get(), request.timeout_ms) !=
-            WAIT_OBJECT_0) {
+    if (!terminate_job_tree(job.get(), process_handle.get(), tree_memory,
+                            request.timeout_ms)) {
       return fail("native_worker_job_query_cleanup_failed");
     }
     return fail("native_worker_job_query_failed");
   }
   if (output_limit_exceeded) {
-    if (!TerminateJobObject(job.get(), 1U) ||
-        WaitForSingleObject(process_handle.get(), request.timeout_ms) !=
-            WAIT_OBJECT_0) {
+    if (!terminate_job_tree(job.get(), process_handle.get(), tree_memory,
+                            request.timeout_ms)) {
       return fail("native_worker_output_limit_cleanup_failed");
     }
     result.failure_reason = "native_worker_output_limit_exceeded";
@@ -811,19 +875,18 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
   if (!tree_complete && wait != WAIT_FAILED &&
       GetTickCount64() >= deadline) {
     result.timed_out = true;
-    const BOOL terminated = request.simulate_termination_api_failure
-                                ? FALSE
-                                : TerminateJobObject(job.get(), 1U);
-    if (!terminated) job.reset();
-    const DWORD cleanup_wait =
-        WaitForSingleObject(process_handle.get(), request.timeout_ms);
-    if (!terminated || cleanup_wait != WAIT_OBJECT_0) {
+    if (request.simulate_termination_api_failure) {
+      job.reset();
+      (void)WaitForSingleObject(process_handle.get(), request.timeout_ms);
+      return fail("native_worker_timeout_cleanup_failed");
+    }
+    if (!terminate_job_tree(job.get(), process_handle.get(), tree_memory,
+                            request.timeout_ms)) {
       return fail("native_worker_timeout_cleanup_failed");
     }
   } else if (!tree_complete) {
-    if (!TerminateJobObject(job.get(), 1U) ||
-        WaitForSingleObject(process_handle.get(), request.timeout_ms) !=
-            WAIT_OBJECT_0) {
+    if (!terminate_job_tree(job.get(), process_handle.get(), tree_memory,
+                            request.timeout_ms)) {
       return fail("native_worker_wait_cleanup_failed");
     }
     return fail("native_worker_wait_failed");

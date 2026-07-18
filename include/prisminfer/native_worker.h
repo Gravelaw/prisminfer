@@ -34,6 +34,9 @@ struct NativeWorkerRequest {
   std::uint32_t timeout_ms{0};
   std::uint64_t max_output_bytes{1U * 1024U * 1024U};
   std::uint32_t max_active_processes{1U};
+  // Aggregate Job commit limit. Callers must replace this conservative
+  // CPU-baseline default with the exact admitted worker-tree bound.
+  std::uint64_t max_job_memory_bytes{8ULL * 1024ULL * 1024ULL * 1024ULL};
   // Deterministic CPU-only fault injection. It can only force fail-closed
   // cleanup behavior and never broadens launch authority.
   bool simulate_termination_api_failure{false};
@@ -64,6 +67,8 @@ struct NativeWorkerResult {
   std::uint64_t write_bytes{0};
   std::uint64_t output_bytes{0};
   std::uint64_t output_limit_bytes{0};
+  std::uint64_t job_memory_limit_bytes{0};
+  std::uint32_t job_cpu_time_limit_milliseconds{0};
   std::string executable_sha256;
   std::string approval_identity;
 };
