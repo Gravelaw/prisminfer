@@ -254,6 +254,7 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 | #101 | Portability, invalidation and recalibration. | #98 plus each activated/rejected #99/#100 record. | Backlog |
 | #102 | Final security, evidence and claim audit. | #96 and #101. | Backlog |
 | #103 | Fail-closed hardware supervisor and staged admission boundary. | #79, #81, the safety subset of #82 and the #109 host-admission primitive. | Done in Packet B PR #112 |
+| #119 | Bounded opt-in synthetic C2 supervisor lane and versioned candidate receipt. | Completed #81/#82/#103; code and workflow review grant no C2 credit, and dispatch requires a separate exact-SHA hardware authorization. | In Progress |
 
 ## Critical Path
 
@@ -421,7 +422,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate-plan-projec
 - #74, #75 and #80 are `Done` with Packet A's exact-head evidence and review
   receipts. #81/#82/#103 are `Done` with merged Packet B PR #112; C2 remains
   closed because Packet B produced no separately authorized live hardware
-  receipt. #76 and #83 are `Ready`;
+  receipt. #119 is the bounded synthetic C2 candidate implementation and is
+  `In Progress`; its code, tests, workflow, and any unreviewed artifact remain
+  non-promotable and carry zero C2 credit. #76 and #83 are `Ready`;
   dependency-gated #77-#78 and #84-#89 are `Blocked`; later work remains
   `Backlog` except independently admission-blocked #99/#100.
 - Merged Packet B closes the three prior binding

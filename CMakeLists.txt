@@ -8,9 +8,12 @@ project(PrismInfer
 option(PRISMINFER_ENABLE_CUDA_PROBE "Enable CUDA-specific probing code" OFF)
 option(PRISMINFER_ENABLE_LLAMA_BACKEND "Enable the llama.cpp backend adapter surface" OFF)
 option(PRISMINFER_ENABLE_CUDA_KERNELS "Enable guarded CUDA kernel prototypes" OFF)
+option(PRISMINFER_ENABLE_C2_SYNTHETIC "Build the reviewed synthetic C2 supervisor lane" OFF)
 option(PRISMINFER_ENABLE_CUBLASLT_BASELINE "Enable cuBLASLt baseline discovery for kernel work" ON)
 option(PRISMINFER_ENABLE_CUTLASS_BASELINE "Enable CUTLASS baseline integration for kernel work" OFF)
 set(PRISMINFER_CUDA_KERNEL_ARCHS "" CACHE STRING "Explicit CMAKE_CUDA_ARCHITECTURES list for CUDA kernel prototypes")
+set(PRISMINFER_C2_REVIEWED_SHA "" CACHE STRING "Exact reviewed main SHA bound into the synthetic C2 tools")
+set(PRISMINFER_C2_SOURCE_TREE_SHA "" CACHE STRING "Exact reviewed source tree SHA bound into the synthetic C2 tools")
 
 if(PRISMINFER_ENABLE_CUDA_PROBE)
   include(CheckLanguage)
@@ -87,9 +90,11 @@ add_library(prisminfer_core
   src/offload/offload_planner.cpp
   src/governor/cuda_context_probe.cpp
   src/validation/evidence_bundle.cpp
+  src/validation/c2_clearance_receipt.cpp
   src/validation/model_sidecar.cpp
   src/telemetry/telemetry_jsonl.cpp
   src/telemetry/telemetry_clock.cpp
+  src/telemetry/gpu_thermal.cpp
   src/telemetry/windows_evidence.cpp
   src/runtime/native_worker.cpp)
 
@@ -164,6 +169,26 @@ target_link_libraries(prism-compare-benchmark PRIVATE prisminfer_core)
 add_executable(prism-emit-benchmark tools/prism-emit-benchmark/main.cpp)
 target_link_libraries(prism-emit-benchmark PRIVATE prisminfer_core)
 
+if(PRISMINFER_ENABLE_C2_SYNTHETIC)
+  add_executable(prism-c2-synthetic-worker
+    tools/prism-c2-synthetic-worker/main.cu)
+  set_target_properties(prism-c2-synthetic-worker PROPERTIES
+    CUDA_STANDARD 17
+    CUDA_STANDARD_REQUIRED ON)
+  target_link_libraries(prism-c2-synthetic-worker PRIVATE CUDA::cudart)
+
+  add_executable(prism-c2-supervisor tools/prism-c2-supervisor/main.cpp)
+  target_link_libraries(prism-c2-supervisor PRIVATE prisminfer_core)
+  target_compile_definitions(prism-c2-supervisor PRIVATE
+    PRISMINFER_C2_REVIEWED_SHA="${PRISMINFER_C2_REVIEWED_SHA}"
+    PRISMINFER_C2_SOURCE_TREE_SHA="${PRISMINFER_C2_SOURCE_TREE_SHA}")
+  if(MSVC)
+    target_compile_options(prism-c2-supervisor PRIVATE /W4 /permissive- /sdl)
+    target_compile_options(prism-c2-synthetic-worker PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/W4>)
+  endif()
+endif()
+
 enable_testing()
 
 find_program(PRISMINFER_PYTHON_EXECUTABLE NAMES python3 python)
@@ -180,6 +205,33 @@ if(PRISMINFER_PYTHON_EXECUTABLE)
     NAME test_admit_model_artifact
     COMMAND ${PRISMINFER_PYTHON_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/test_admit_model_artifact.py)
+  add_test(
+    NAME test_c2_clearance_schema
+    COMMAND ${PRISMINFER_PYTHON_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/test_c2_clearance_schema.py)
+endif()
+
+if(PRISMINFER_ENABLE_C2_SYNTHETIC)
+  if(NOT WIN32)
+    message(FATAL_ERROR "PRISMINFER_ENABLE_C2_SYNTHETIC requires Windows/WDDM")
+  endif()
+  if(NOT PRISMINFER_ENABLE_CUDA_PROBE OR NOT PRISMINFER_CUDA_LANGUAGE_ENABLED)
+    message(FATAL_ERROR
+      "PRISMINFER_ENABLE_C2_SYNTHETIC requires PRISMINFER_ENABLE_CUDA_PROBE=ON and a CUDA language toolset")
+  endif()
+  string(LENGTH "${PRISMINFER_C2_REVIEWED_SHA}" PRISMINFER_C2_REVIEWED_SHA_LENGTH)
+  string(LENGTH "${PRISMINFER_C2_SOURCE_TREE_SHA}" PRISMINFER_C2_SOURCE_TREE_SHA_LENGTH)
+  if(NOT PRISMINFER_C2_REVIEWED_SHA MATCHES "^[0-9a-f]+$" OR
+     NOT PRISMINFER_C2_SOURCE_TREE_SHA MATCHES "^[0-9a-f]+$" OR
+     NOT PRISMINFER_C2_REVIEWED_SHA_LENGTH EQUAL 40 OR
+     NOT PRISMINFER_C2_SOURCE_TREE_SHA_LENGTH EQUAL 40)
+    message(FATAL_ERROR
+      "C2 reviewed SHA and source tree SHA must be 40 lowercase hexadecimal characters")
+  endif()
+  if(DEFINED ENV{GITHUB_ACTIONS} AND
+     NOT PRISMINFER_C2_REVIEWED_SHA STREQUAL "$ENV{GITHUB_SHA}")
+    message(FATAL_ERROR "C2 reviewed SHA must match GITHUB_SHA")
+  endif()
 endif()
 
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
@@ -265,6 +317,11 @@ add_executable(test_gpu_admission_session
   tests/unit/test_gpu_admission_session.cpp)
 target_link_libraries(test_gpu_admission_session PRIVATE prisminfer_core)
 add_test(NAME test_gpu_admission_session COMMAND test_gpu_admission_session)
+
+add_executable(test_c2_clearance_receipt
+  tests/unit/test_c2_clearance_receipt.cpp)
+target_link_libraries(test_c2_clearance_receipt PRIVATE prisminfer_core)
+add_test(NAME test_c2_clearance_receipt COMMAND test_c2_clearance_receipt)
 
 add_executable(test_allocator_tracker tests/unit/test_allocator_tracker.cpp)
 target_link_libraries(test_allocator_tracker PRIVATE prisminfer_core)

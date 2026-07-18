@@ -227,8 +227,13 @@ int main(int argc, char** argv) {
       return write_protocol("PRISMINFER/1 CANCEL_ACK " +
                             std::string(nonce) + "\n") ? 0 : 7;
     }
-    if (!write_protocol("PRISMINFER/1 CONTEXT_READY " + std::string(nonce) +
-                        "\n")) {
+    const std::string context_message =
+        mode == "--protocol-gpu-evidence"
+            ? "PRISMINFER/1 CONTEXT_READY " + std::string(nonce) +
+                  " 22 26 " + std::to_string(12U * kGiB) + " " +
+                  std::to_string(16U * kGiB) + "\n"
+            : "PRISMINFER/1 CONTEXT_READY " + std::string(nonce) + "\n";
+    if (!write_protocol(context_message)) {
       return 7;
     }
     std::string version;
@@ -252,8 +257,14 @@ int main(int argc, char** argv) {
       Sleep(1'000U);
       return 0;
     }
-    if (!write_protocol("PRISMINFER/1 HEARTBEAT " + std::string(nonce) +
-                        " 1\n")) {
+    const std::string first_heartbeat =
+        mode == "--protocol-gpu-evidence"
+            ? "PRISMINFER/1 HEARTBEAT " + std::string(nonce) + " 1 " +
+                  std::to_string(64ULL << 20U) + " " +
+                  std::to_string((12U * kGiB) - (64ULL << 20U)) + " " +
+                  std::to_string(16U * kGiB) + "\n"
+            : "PRISMINFER/1 HEARTBEAT " + std::string(nonce) + " 1\n";
+    if (!write_protocol(first_heartbeat)) {
       return 7;
     }
     if (mode == "--protocol-stale-heartbeat") {
@@ -268,8 +279,14 @@ int main(int argc, char** argv) {
                             std::string(nonce) + "\n") ? 0 : 7;
     }
     Sleep(20U);
-    return write_protocol("PRISMINFER/1 HEARTBEAT " + std::string(nonce) +
-                          " 2\n") ? 0 : 7;
+    const std::string second_heartbeat =
+        mode == "--protocol-gpu-evidence"
+            ? "PRISMINFER/1 HEARTBEAT " + std::string(nonce) + " 2 " +
+                  std::to_string(64ULL << 20U) + " " +
+                  std::to_string((12U * kGiB) - (64ULL << 20U)) + " " +
+                  std::to_string(16U * kGiB) + "\n"
+            : "PRISMINFER/1 HEARTBEAT " + std::string(nonce) + " 2\n";
+    return write_protocol(second_heartbeat) ? 0 : 7;
   }
 
   if (argc == 4 &&
@@ -358,6 +375,81 @@ int main(int argc, char** argv) {
              "production session cannot substitute simulated GPU evidence")) {
     std::cerr << "worker failure=" << worker.failure_reason << "\n";
     return 1;
+  }
+  {
+    constexpr std::uint64_t kPayload = 64ULL << 20U;
+    auto gpu_protocol =
+        prisminfer::acquire_gpu_admission_session(cell(), 22, 26U);
+    auto gpu_pre = pre_request(prisminfer::monotonic_time_milliseconds());
+    gpu_pre.gpu.adapter_luid_high = 22;
+    gpu_pre.gpu.adapter_luid_low = 26U;
+    gpu_pre.predicted_gpu.model =
+        prediction(0U, prisminfer::PredictionProvenance::ExactZeroNotApplicable);
+    gpu_pre.predicted_gpu.state =
+        prediction(0U, prisminfer::PredictionProvenance::ExactZeroNotApplicable);
+    gpu_pre.predicted_gpu.workspace =
+        prediction(0U, prisminfer::PredictionProvenance::ExactZeroNotApplicable);
+    gpu_pre.predicted_gpu.fragmentation =
+        prediction(0U, prisminfer::PredictionProvenance::ExactZeroNotApplicable);
+    gpu_pre.predicted_gpu.backend =
+        prediction(kPayload,
+                   prisminfer::PredictionProvenance::PinnedRuntimeEstimate);
+    if (expect(gpu_protocol.session.has_value() &&
+                   gpu_protocol.session->admit_pre_context(gpu_pre).admitted,
+               "GPU protocol evidence test admits Stage A")) {
+      return 1;
+    }
+    auto gpu_request = request;
+    gpu_request.arguments = {L"--protocol-gpu-evidence"};
+    gpu_request.require_gpu_protocol_evidence = true;
+    gpu_request.expected_post_admission_payload_bytes = kPayload;
+    gpu_request.maximum_post_admission_payload_bytes = kPayload;
+    const auto sample_count =
+        std::make_shared<std::atomic<std::uint32_t>>(0U);
+    const auto gpu_worker = gpu_protocol.session->run_contained_worker(
+        catalog, gpu_request, 100U,
+        [](std::stop_token, std::uint32_t pid, std::uint64_t ready) {
+          auto post = post_request(ready, pid);
+          post.gpu.adapter_luid_high = 22;
+          post.gpu.adapter_luid_low = 26U;
+          post.owned_gpu = {};
+          return post;
+        },
+        [](std::stop_token, std::uint32_t pid, std::uint64_t,
+           std::uint64_t heartbeat) {
+          auto sample = watchdog_sample(heartbeat, pid);
+          sample.gpu.adapter_luid_high = 22;
+          sample.gpu.adapter_luid_low = 26U;
+          sample.owned_gpu = {};
+          return sample;
+        },
+        [sample_count](std::stop_token, std::uint32_t pid,
+                       std::int32_t high, std::uint32_t low) {
+          prisminfer::ProcessDeviceMemorySample sample;
+          sample.available = true;
+          sample.source = "wddm-process";
+          sample.process_id = pid;
+          sample.captured_monotonic_milliseconds =
+              prisminfer::monotonic_time_milliseconds();
+          sample.adapter_luid_high = high;
+          sample.adapter_luid_low = low;
+          const auto index = sample_count->fetch_add(1U);
+          sample.current_bytes =
+              index == 0U ? (512ULL << 20U) : (512ULL << 20U) + kPayload;
+          return sample;
+        });
+    if (expect(gpu_worker.ok && gpu_worker.context_evidence.available &&
+                   gpu_worker.last_heartbeat_evidence.available &&
+                   gpu_worker.last_heartbeat_evidence
+                           .post_admission_payload_bytes == kPayload &&
+                   sample_count->load() >= 3U,
+               "extended evidence is bound to context and heartbeats")) {
+      std::cerr << "gpu protocol failure=" << gpu_worker.failure_reason
+                << " samples=" << sample_count->load() << "\n";
+      return 1;
+    }
+    std::error_code remove_error;
+    (void)std::filesystem::remove(gpu_worker.output_path, remove_error);
   }
   {
     auto live = prisminfer::acquire_gpu_admission_session(cell(), 9, 13U);

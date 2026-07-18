@@ -42,6 +42,13 @@ struct NativeWorkerRequest {
   // Deterministic CPU-only fault injection. It can only force fail-closed
   // cleanup behavior and never broadens launch authority.
   bool simulate_termination_api_failure{false};
+  // C2 synthetic workers must bind their CUDA device to the supervisor's
+  // exact DXGI LUID and report bounded CUDA capacity/payload observations on
+  // the existing nonce-bound control channel. Ordinary CPU workers leave
+  // these fields disabled.
+  bool require_gpu_protocol_evidence{false};
+  std::uint64_t expected_post_admission_payload_bytes{0};
+  std::uint64_t maximum_post_admission_payload_bytes{64ULL * 1024ULL * 1024ULL};
   struct ApprovedReadOnlyInput {
     std::filesystem::path path;
     std::filesystem::path trusted_root;
@@ -52,6 +59,21 @@ struct NativeWorkerRequest {
   // open without write/delete sharing from identity verification until the
   // contained process tree exits.
   std::vector<ApprovedReadOnlyInput> approved_read_only_inputs;
+};
+
+struct NativeWorkerContextEvidence {
+  bool available{false};
+  std::int32_t adapter_luid_high{0};
+  std::uint32_t adapter_luid_low{0};
+  std::uint64_t cuda_mem_info_free_bytes{0};
+  std::uint64_t cuda_mem_info_total_bytes{0};
+};
+
+struct NativeWorkerHeartbeatEvidence {
+  bool available{false};
+  std::uint64_t post_admission_payload_bytes{0};
+  std::uint64_t cuda_mem_info_free_bytes{0};
+  std::uint64_t cuda_mem_info_total_bytes{0};
 };
 
 struct NativeWorkerResult {
@@ -89,6 +111,10 @@ struct NativeWorkerResult {
   std::uint32_t job_cpu_time_limit_milliseconds{0};
   std::string executable_sha256;
   std::string approval_identity;
+  NativeWorkerContextEvidence context_evidence;
+  NativeWorkerHeartbeatEvidence last_heartbeat_evidence;
+  bool token_consumed_observed{false};
+  std::uint64_t heartbeat_sequence{0};
 };
 
 struct NativeWorkerContainmentIdentity {
@@ -118,11 +144,27 @@ class NativeWorkerProtocolSupervisor {
       const NativeWorkerContainmentIdentity& identity) = 0;
   virtual NativeWorkerAdmissionGrant context_ready(
       std::uint64_t now_monotonic_milliseconds) = 0;
+  virtual NativeWorkerAdmissionGrant context_ready_with_evidence(
+      std::uint64_t now_monotonic_milliseconds,
+      const NativeWorkerContextEvidence& evidence) {
+    if (evidence.available) {
+      NativeWorkerAdmissionGrant rejected;
+      rejected.failure_reason = "native_worker_context_evidence_unsupported";
+      return rejected;
+    }
+    return context_ready(now_monotonic_milliseconds);
+  }
   virtual bool token_consumed(
       std::uint64_t token_id,
       std::uint64_t now_monotonic_milliseconds) = 0;
   virtual bool heartbeat(std::uint64_t sequence,
                          std::uint64_t now_monotonic_milliseconds) = 0;
+  virtual bool heartbeat_with_evidence(
+      std::uint64_t sequence, std::uint64_t now_monotonic_milliseconds,
+      const NativeWorkerHeartbeatEvidence& evidence) {
+    return !evidence.available &&
+           heartbeat(sequence, now_monotonic_milliseconds);
+  }
   virtual void cooperative_cancel_acknowledged(
       std::uint64_t now_monotonic_milliseconds) = 0;
 };
