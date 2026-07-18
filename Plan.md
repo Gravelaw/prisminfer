@@ -22,6 +22,27 @@ file, the affected detailed contract, issue body, and Project fields in the
 same change. Project status cannot waive an `AGENTS.md` stop rule. A local or
 unmerged document is not implementation evidence.
 
+## Development-First Security Review Deferral
+
+Implementation PRs through the first usable static-runtime path prioritize
+functionality, execution, deterministic correctness, integration and packet
+completion. Dedicated security-diff scans, repository security scans and deep
+security reviews are not routine issue, PR or packet exit gates before #89.
+
+This deferral does not weaken the basic safety substrate. Applicable changes
+must still pass checked-arithmetic, bounds, containment, admission, telemetry,
+timeout, cancellation, cleanup, fault-injection, host-integrity and focused
+negative tests, plus an independent exact-head functional/safety review for T2
+work. A concrete defect in those controls blocks functional completion.
+
+An earlier dedicated security review is required only for a credible critical
+vulnerability, a new public or untrusted-user surface, secrets or privileged
+network/service integration, a material new sandbox/authorization boundary,
+or explicit user direction. The first consolidated product risk/security
+review occurs at #89 after #87/#88 produce a usable selector and contained
+deterministic replay path. #102 remains the final release/publication security,
+evidence and claim review.
+
 ## Frozen Thesis
 
 > PrismInfer is a safety-supervised, calibration-driven control plane and plan
@@ -179,7 +200,7 @@ reservation ends the transition immediately.
 | C3 supervised model-evidence run | C2 plus #74/#75/#76 tooling, #80 artifact pin and #84 exact admission. | The short attended #77 foundation warmup/baseline only, under its exact one-shot admission token; #77 owns the resulting evidence. |
 | C4 calibration readiness | #78 Phase 6 audit, #83 actuator inventory, #85 actual-path adapter, #86 frozen sample plans and drift rules. | Designed supervised foundation calibration. |
 | C5 calibrated static replay | #87 selector/oracle gates and #88 immutable acknowledged replay/recovery tests. | First safe calibrated static foundation replay. |
-| C6 Phase 7 exact-cell clearance | #89 fresh confirmation and security/evidence/claim audit. | Exact foundation result; Ornith only as its separately admitted stress cell. |
+| C6 usable static-runtime clearance | #89 fresh confirmation plus the first consolidated product risk/security/evidence/claim review after #87/#88 establish usable contained replay. | Exact foundation result; Ornith only as its separately admitted stress cell. |
 | C7 30B static truth | #84 exact 30B admission and accepted #90 result or rejection. | Independent issue-specific #91–#95 optional-mechanism entries; no joint work. |
 | C8 optional-mechanism decisions | #90 plus each mechanism's own #91–#95 entry and evidence gate; #96 audit. | Packet G refreshed admission and only separately admitted dynamic, joint, or scale cells. |
 | C9 final program classification | #97 refreshed admission, conditional #98–#100, #101 and #102. | Publication of the retained final classifications; no new hardware/model clearance. |
@@ -209,7 +230,7 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 | #86 | Fingerprint, immutable calibration store and metric sample plans. | #84, #85 and #103. | Blocked |
 | #87 | Static resource-DAG selector and feasible-oracle comparison. | #83 and #86. | Blocked |
 | #88 | Immutable acknowledged plan replay and R0/R1/R2 recovery. | #83, #87 and #103. | Blocked |
-| #89 | Foundation confirmation, Ornith stress and Phase 7 audit. | #78, #80, #84, #88 and #103. | Blocked |
+| #89 | Usable-runtime confirmation, Ornith stress and first consolidated product risk/security/evidence/claim review. | #78, #80, #84, #88 and #103. | Blocked |
 | #90 | Exact 30B static heterogeneous placement or rejection. | #84 and #89. | Backlog |
 | #91 | Optional kernel dispatch and bounded staging hypotheses. | #90 and #88. | Backlog |
 | #92 | Optional KV/architecture-state policy. | #90 and approved #76 offline evidence. | Backlog |
@@ -223,7 +244,7 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 | #100 | Exact admitted 90B result/rejection. | #97 admission of that artifact. | Blocked |
 | #101 | Portability, invalidation and recalibration. | #98 plus each activated/rejected #99/#100 record. | Backlog |
 | #102 | Final security, evidence and claim audit. | #96 and #101. | Backlog |
-| #103 | Fail-closed hardware supervisor and staged admission boundary. | #79, #81, the safety subset of #82 and the #109 host-admission primitive. | In Progress provisionally in draft PR #112 |
+| #103 | Fail-closed hardware supervisor and staged admission boundary. | #79, #81, the safety subset of #82 and the #109 host-admission primitive. | Review in draft PR #112 |
 
 ## Critical Path
 
@@ -301,7 +322,11 @@ the final packet head, while focused deterministic checks run at checkpoints.
 
 Risk-tier minimums are defined in `AGENTS.md`: T0 documentation/tracker, T1
 ordinary CPU, T2 safety-critical code/governance and T3 hardware/model evidence.
-Deep phase security/evidence/claim audits occur at #78, #89, #96 and #102.
+Before #89, #78 and packet/phase reviews are functional, safety, evidence and
+claim audits; they do not require dedicated security scans. The first
+consolidated product risk/security review occurs at #89 once the static runtime
+is usable. #96 remains an optional-mechanism evidence/claim audit, and #102 is
+the final release/publication security, evidence and claim audit.
 No packet or program-level prompt authorizes a self-hosted workflow, CUDA/model
 execution, download, calibration, benchmark or sustained hardware run.
 
@@ -324,6 +349,9 @@ execution, download, calibration, benchmark or sustained hardware run.
 - Ornith is attempted only as a separate hybrid stress cell.
 - Safe selection of the upstream winner is controller success but not an
   optimization-benefit claim.
+- After the usable selector and contained replay path exist, #89 runs the first
+  consolidated product risk/security review; earlier implementation PRs are not
+  retroactively blocked by the absence of per-PR security scans.
 
 ### Phase 8: 30B static truth and optional mechanisms
 
@@ -352,6 +380,11 @@ Every implementation issue must include, as applicable:
 - documentation, risk register, issue dependency and Project field updates;
 - no performance promotion from stale, mismatched or pre-policy CI artifacts.
 
+Before #89, a dedicated security scan is not part of ordinary issue or packet
+Definition of Done unless an early-trigger condition in `AGENTS.md` applies.
+The basic safety floor and T2 independent functional/safety review remain part
+of Definition of Done wherever applicable.
+
 An issue is not Done merely because code exists locally. Its required tests and
 evidence must pass, its PR must be reviewable/merged as appropriate, and Project
 #2 must read back the status and fields declared here.
@@ -375,8 +408,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate-plan-projec
   final-freeze and integration-train evidence. Cross-cutting #109 records the
   host-admission correction and is `Done` when this contract reaches `main`.
 - #74, #75 and #80 are `Done` with Packet A's exact-head evidence and review
-  receipts. #81/#82 are in `Review` and #103 is provisionally `In Progress` in
-  draft PR #112. #76 and #83 are `Ready`;
+  receipts. #81/#82/#103 are in `Review` in draft PR #112. #76 and #83 are `Ready`;
   dependency-gated #77-#78 and #84-#89 are `Blocked`; later work remains
   `Backlog` except independently admission-blocked #99/#100.
 - PR #111 is the Packet A integration PR. Draft PR #112 is retained
