@@ -531,7 +531,8 @@ bool write_probe_manifest(const std::filesystem::path& path,
         << json_escape(file.final_path) << "\", \"volume_serial_hex\": \""
         << json_escape(file.volume_serial_hex) << "\", \"file_id_hex\": \""
         << json_escape(file.file_id_hex)
-        << "\", \"size_bytes\": " << file.size_bytes
+        << "\", \"hard_link_count\": " << file.hard_link_count
+        << ", \"size_bytes\": " << file.size_bytes
         << ", \"mapped_bytes\": " << file.mapped_bytes
         << ", \"resident_proxy_available\": "
         << (file.resident_proxy_available ? "true" : "false")

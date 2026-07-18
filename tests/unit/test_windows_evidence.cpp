@@ -16,6 +16,8 @@ int expect(bool condition, const char* message) {
 prisminfer::WindowsEvidenceBundle valid_owned() {
   prisminfer::WindowsEvidenceBundle evidence;
   evidence.real_execution = true;
+  evidence.evaluation_monotonic_milliseconds = 250;
+  evidence.maximum_host_sample_age_milliseconds = 500;
   evidence.gpu.available = true;
   evidence.gpu.reconciled = true;
   evidence.gpu.process_device_corroboration_available = true;
@@ -51,6 +53,7 @@ prisminfer::FileIoEvidence valid_source_file() {
   file.final_path = R"(C:\model.gguf)";
   file.volume_serial_hex = "0123456789abcdef";
   file.file_id_hex = "0123456789abcdef0123456789abcdef";
+  file.hard_link_count = 1;
   file.size_bytes = 4096;
   file.identity_aware_io_available = true;
   file.observed_read_bytes = 4096;
@@ -130,6 +133,22 @@ int main() {
     return 1;
   }
 
+  auto stale_host = valid_owned();
+  stale_host.evaluation_monotonic_milliseconds = 701;
+  if (expect_downgrade(stale_host,
+                       "authoritative_system_host_evidence_required",
+                       "stale host evidence fails closed")) {
+    return 1;
+  }
+
+  auto invalid_host_age_policy = valid_owned();
+  invalid_host_age_policy.maximum_host_sample_age_milliseconds = 501;
+  if (expect_downgrade(invalid_host_age_policy,
+                       "authoritative_system_host_evidence_required",
+                       "host freshness cannot exceed T-103")) {
+    return 1;
+  }
+
   auto invalid_tree = valid_owned();
   invalid_tree.process_tree.parent_working_set_peak_bytes = 1;
   if (expect_downgrade(invalid_tree, "process_tree_host_counters_invalid",
@@ -155,6 +174,8 @@ int main() {
   auto physical = valid_owned();
   physical.claim_scope = "physical-residency";
   physical.evaluation_monotonic_milliseconds = 1000;
+  physical.system_host_pre.captured_monotonic_milliseconds = 900;
+  physical.system_host_post.captured_monotonic_milliseconds = 950;
   physical.maximum_wddm_sample_age_milliseconds = 100;
   physical.wddm.available = true;
   physical.wddm.captured_monotonic_milliseconds = 950;
@@ -246,6 +267,13 @@ int main() {
     return 1;
   }
   storage.files.front().observed_read_bytes = 4096;
+
+  storage.files.front().hard_link_count = 2;
+  if (expect_downgrade(storage, "opened_handle_file_identity_required",
+                       "multi-link file identity remains ambiguous")) {
+    return 1;
+  }
+  storage.files.front().hard_link_count = 1;
 
   storage.files.front().mapped_bytes = 4096;
   storage.files.front().resident_proxy_available = true;
@@ -347,6 +375,7 @@ int main() {
   std::filesystem::remove(temporary, remove_error);
   if (expect(identity.identity_available && identity.size_bytes == 4U &&
                  identity.file_id_hex.size() == 32U &&
+                 identity.hard_link_count == 1U &&
                  identity.volume_serial_hex.size() == 16U &&
                  !identity.final_path.empty(),
              "opened-handle file identity is stable and complete")) {

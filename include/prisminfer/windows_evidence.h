@@ -35,6 +35,7 @@ struct FileIoEvidence {
   std::string final_path;
   std::string volume_serial_hex;
   std::string file_id_hex;
+  std::uint32_t hard_link_count{0};
   std::uint64_t size_bytes{0};
   std::uint64_t mapped_bytes{0};
   bool resident_proxy_available{false};
@@ -117,6 +118,7 @@ struct WindowsEvidenceBundle {
   std::string instrumentation_mode{"ordinary"};
   bool real_execution{false};
   std::uint64_t evaluation_monotonic_milliseconds{0};
+  std::uint64_t maximum_host_sample_age_milliseconds{0};
   std::uint64_t maximum_wddm_sample_age_milliseconds{0};
   OwnedGpuMemoryEvidence gpu;
   WddmMemorySample wddm;

@@ -122,6 +122,7 @@ int main() {
   file.final_path = R"(C:\model.gguf)";
   file.volume_serial_hex = "0123456789abcdef";
   file.file_id_hex = "0123456789abcdef0123456789abcdef";
+  file.hard_link_count = 1;
   file.size_bytes = 4096;
   file.mapped_bytes = 1024;
 
@@ -299,7 +300,9 @@ int main() {
                  content.find("\"file_id_hex\": "
                               "\"0123456789abcdef0123456789abcdef\"") !=
                      std::string::npos &&
-                 content.find("\"mapped_bytes\": 1024") != std::string::npos &&
+                  content.find("\"hard_link_count\": 1") !=
+                      std::string::npos &&
+                  content.find("\"mapped_bytes\": 1024") != std::string::npos &&
                  content.find("\"identity_aware_io_available\": false") !=
                      std::string::npos &&
                  content.find("\"pagefile_io_available\": false") !=

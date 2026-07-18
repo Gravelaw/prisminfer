@@ -150,6 +150,10 @@ WddmMemorySample sample_wddm_memory(std::uint32_t adapter_index) {
     sample.unavailable_reason = "dxgi_adapter_description_unavailable";
     return sample;
   }
+  if ((description.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) != 0U) {
+    sample.unavailable_reason = "dxgi_software_adapter_rejected";
+    return sample;
+  }
   ComPtr<IDXGIAdapter3> adapter3;
   if (FAILED(adapter.get()->QueryInterface(
           __uuidof(IDXGIAdapter3), reinterpret_cast<void**>(adapter3.put())))) {
@@ -184,7 +188,8 @@ WddmMemorySample sample_wddm_memory(std::uint32_t adapter_index) {
   sample.nonlocal_available_for_reservation_bytes =
       nonlocal.AvailableForReservation;
   if (sample.local_budget_bytes == 0U ||
-      sample.local_current_usage_bytes > sample.local_budget_bytes) {
+      sample.local_current_usage_bytes > sample.local_budget_bytes ||
+      sample.nonlocal_current_usage_bytes > sample.nonlocal_budget_bytes) {
     sample.unavailable_reason = "dxgi_video_memory_counters_contradictory";
     return sample;
   }
@@ -240,6 +245,7 @@ FileIoEvidence sample_file_identity(const std::filesystem::path& path,
   evidence.volume_serial_hex = volume.str();
   evidence.file_id_hex =
       hex_bytes(identity.FileId.Identifier, sizeof(identity.FileId.Identifier));
+  evidence.hard_link_count = basic.nNumberOfLinks;
   evidence.size_bytes = static_cast<std::uint64_t>(size.QuadPart);
   if (evidence.final_path.empty() || evidence.file_id_hex.size() != 32U) {
     evidence.unavailable_reason = "file_identity_encoding_failed";
@@ -262,7 +268,8 @@ FileEvidenceValidationResult validate_file_io_evidence(
   if (!role_valid) return {false, "file_role_invalid"};
   if (!evidence.identity_available || evidence.final_path.empty() ||
       !exact_lower_hex(evidence.volume_serial_hex, 16U) ||
-      !exact_lower_hex(evidence.file_id_hex, 32U)) {
+      !exact_lower_hex(evidence.file_id_hex, 32U) ||
+      evidence.hard_link_count != 1U) {
     return {false, "opened_handle_file_identity_required"};
   }
   if (evidence.dropped_trace_records != 0U) {
@@ -346,7 +353,14 @@ WindowsEvidenceDecision classify_windows_evidence(
           evidence.system_host_post.process_image_path ||
       evidence.system_host_pre.captured_monotonic_milliseconds == 0U ||
       evidence.system_host_pre.captured_monotonic_milliseconds >
-          evidence.system_host_post.captured_monotonic_milliseconds) {
+          evidence.system_host_post.captured_monotonic_milliseconds ||
+      evidence.maximum_host_sample_age_milliseconds == 0U ||
+      evidence.maximum_host_sample_age_milliseconds > 500U ||
+      evidence.evaluation_monotonic_milliseconds <
+          evidence.system_host_post.captured_monotonic_milliseconds ||
+      evidence.evaluation_monotonic_milliseconds -
+              evidence.system_host_post.captured_monotonic_milliseconds >
+          evidence.maximum_host_sample_age_milliseconds) {
     return downgrade("authoritative_system_host_evidence_required");
   }
   if (!evidence.gpu.available || !evidence.gpu.reconciled ||

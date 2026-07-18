@@ -359,7 +359,7 @@
         "type": "object",
         "required": [
           "identity_available", "role", "final_path", "volume_serial_hex",
-          "file_id_hex", "size_bytes", "mapped_bytes",
+          "file_id_hex", "hard_link_count", "size_bytes", "mapped_bytes",
           "resident_proxy_available", "resident_proxy_bytes",
           "identity_aware_io_available", "observed_read_bytes",
           "observed_write_bytes", "pagefile_io_available",
@@ -374,6 +374,7 @@
           "final_path": { "type": "string" },
           "volume_serial_hex": { "type": "string" },
           "file_id_hex": { "type": "string" },
+          "hard_link_count": { "type": "integer", "minimum": 1 },
           "size_bytes": { "type": "integer", "minimum": 0 },
           "mapped_bytes": { "type": "integer", "minimum": 0 },
           "resident_proxy_available": { "type": "boolean" },
