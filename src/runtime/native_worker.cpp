@@ -1040,11 +1040,6 @@ NativeWorkerResult run_native_worker_impl(
       begin_authority_callback();
       const auto grant = protocol_supervisor->context_ready(now);
       end_authority_callback();
-      if (emergency_job_abort.load(std::memory_order_acquire)) {
-        request_protocol_cancel(
-            "native_worker_protocol_authority_callback_timeout");
-        return;
-      }
       if (!grant.admitted || grant.token_id == 0U ||
           grant.effective_cap_bytes == 0U ||
           grant.expires_monotonic_milliseconds <= now) {
@@ -1053,6 +1048,11 @@ NativeWorkerResult run_native_worker_impl(
                 ? "native_worker_protocol_admission_rejected"
                 : "native_worker_protocol_admission_rejected:" +
                       grant.failure_reason);
+        return;
+      }
+      if (emergency_job_abort.load(std::memory_order_acquire)) {
+        request_protocol_cancel(
+            "native_worker_protocol_authority_callback_timeout");
         return;
       }
       protocol_token_id = grant.token_id;

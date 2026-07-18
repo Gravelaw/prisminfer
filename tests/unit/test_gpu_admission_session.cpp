@@ -310,12 +310,23 @@ int main(int argc, char** argv) {
         [](std::uint32_t pid, std::uint64_t, std::uint64_t heartbeat) {
           return watchdog_sample(heartbeat, pid);
         });
-    if (expect(!timed_out.ok && timed_out.worker_exit_observed &&
-                   timed_out.job_tree_empty &&
-                   timed_out.failure_reason ==
-                       "native_worker_protocol_admission_rejected:"
-                       "post_context_evidence_timeout" &&
-                   GetTickCount64() - started < 1'500U,
+    const auto elapsed = GetTickCount64() - started;
+    const bool bounded_abort =
+        !timed_out.ok && timed_out.worker_exit_observed &&
+        timed_out.job_tree_empty &&
+        timed_out.failure_reason ==
+            "native_worker_protocol_admission_rejected:"
+            "post_context_evidence_timeout" &&
+        elapsed < 1'500U;
+    if (!bounded_abort) {
+      std::cerr << "bounded abort details: ok=" << timed_out.ok
+                << " worker_exit_observed="
+                << timed_out.worker_exit_observed
+                << " job_tree_empty=" << timed_out.job_tree_empty
+                << " elapsed_ms=" << elapsed
+                << " failure_reason=" << timed_out.failure_reason << "\n";
+    }
+    if (expect(bounded_abort,
                "blocked evidence producer cannot block bounded Job abort")) {
       return 1;
     }
