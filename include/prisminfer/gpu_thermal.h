@@ -13,7 +13,7 @@ namespace prisminfer {
 [[nodiscard]] std::optional<GpuThermalSample>
 make_ada_tlimit_thermal_sample(std::uint32_t current_celsius,
                                std::uint32_t target_celsius,
-                               std::uint32_t raw_slowdown_tlimit,
+                               std::int32_t raw_slowdown_tlimit,
                                std::uint64_t captured_monotonic_milliseconds,
                                bool thermal_throttling,
                                bool power_brake_slowdown);

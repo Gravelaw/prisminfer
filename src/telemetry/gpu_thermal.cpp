@@ -12,12 +12,11 @@ namespace prisminfer {
 
 std::optional<GpuThermalSample> make_ada_tlimit_thermal_sample(
     std::uint32_t current_celsius, std::uint32_t target_celsius,
-    std::uint32_t raw_slowdown_tlimit,
+    std::int32_t raw_slowdown_tlimit,
     std::uint64_t captured_monotonic_milliseconds, bool thermal_throttling,
     bool power_brake_slowdown) {
-  const auto slowdown_offset = static_cast<std::int32_t>(raw_slowdown_tlimit);
   const auto slowdown_absolute = static_cast<std::int64_t>(target_celsius) -
-                                 static_cast<std::int64_t>(slowdown_offset);
+                                 static_cast<std::int64_t>(raw_slowdown_tlimit);
   if (captured_monotonic_milliseconds == 0U || current_celsius > 200U ||
       target_celsius > 200U || slowdown_absolute < 0 ||
       slowdown_absolute > 200) {
@@ -45,23 +44,18 @@ GpuThermalSample sample_nvml_gpu_thermal(const std::string& gpu_uuid) {
                                  : nvmlDeviceGetHandleByUUID(
                                        gpu_uuid.c_str(), &device);
   unsigned int temperature = 0U;
-  unsigned int target = 0U;
-  nvmlFieldValue_t slowdown_tlimit{};
-  slowdown_tlimit.fieldId = NVML_FI_DEV_TEMPERATURE_SLOWDOWN_TLIMIT;
+  nvmlFieldValue_t tlimits[2]{};
+  tlimits[0].fieldId = NVML_FI_DEV_TEMPERATURE_GPU_MAX_TLIMIT;
+  tlimits[1].fieldId = NVML_FI_DEV_TEMPERATURE_SLOWDOWN_TLIMIT;
   unsigned long long throttle_reasons = 0ULL;
   const auto temperature_status =
       handle_status == NVML_SUCCESS
           ? nvmlDeviceGetTemperature(device, NVML_TEMPERATURE_GPU,
                                      &temperature)
           : NVML_ERROR_UNKNOWN;
-  const auto target_status =
-      handle_status == NVML_SUCCESS
-          ? nvmlDeviceGetTemperatureThreshold(
-                device, NVML_TEMPERATURE_THRESHOLD_GPU_MAX, &target)
-          : NVML_ERROR_UNKNOWN;
   const auto field_status = handle_status == NVML_SUCCESS
                                 ? nvmlDeviceGetFieldValues(
-                                      device, 1, &slowdown_tlimit)
+                                      device, 2, tlimits)
                                 : NVML_ERROR_UNKNOWN;
   const auto throttle_status =
       handle_status == NVML_SUCCESS
@@ -70,15 +64,19 @@ GpuThermalSample sample_nvml_gpu_thermal(const std::string& gpu_uuid) {
           : NVML_ERROR_UNKNOWN;
   (void)nvmlShutdown();
   const auto captured = monotonic_time_milliseconds();
-  if (temperature_status != NVML_SUCCESS || target_status != NVML_SUCCESS ||
-      field_status != NVML_SUCCESS ||
-      slowdown_tlimit.nvmlReturn != NVML_SUCCESS ||
+  if (temperature_status != NVML_SUCCESS || field_status != NVML_SUCCESS ||
+      tlimits[0].nvmlReturn != NVML_SUCCESS ||
+      tlimits[1].nvmlReturn != NVML_SUCCESS ||
+      tlimits[0].valueType != NVML_VALUE_TYPE_UNSIGNED_INT ||
+      tlimits[1].valueType != NVML_VALUE_TYPE_SIGNED_INT ||
+      tlimits[0].timestamp == 0 || tlimits[1].timestamp == 0 ||
+      tlimits[0].timestamp != tlimits[1].timestamp ||
       throttle_status != NVML_SUCCESS ||
       captured == 0U) {
     return sample;
   }
   const auto converted = make_ada_tlimit_thermal_sample(
-      temperature, target, slowdown_tlimit.value.uiVal, captured,
+      temperature, tlimits[0].value.uiVal, tlimits[1].value.siVal, captured,
       (throttle_reasons & nvmlClocksThrottleReasonHwThermalSlowdown) != 0ULL,
       (throttle_reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) != 0ULL);
   if (converted) sample = *converted;

@@ -14,7 +14,7 @@ bool expect(bool condition, const char* message) {
 
 int main() {
   const auto converted = prisminfer::make_ada_tlimit_thermal_sample(
-      66U, 87U, static_cast<std::uint32_t>(-2), 100U, false, false);
+      66U, 87U, -2, 100U, false, false);
   if (!expect(converted.has_value(), "signed T.Limit offset converts") ||
       !expect(converted->reported_slowdown_celsius == 89,
               "negative offset raises absolute slowdown bound") ||
