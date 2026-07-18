@@ -491,7 +491,7 @@ int main(int argc, char** argv) {
   }
   {
     const auto temporary_outputs_before = temporary_output_artifacts();
-    bool all_fail_stops_verified = true;
+    bool all_fail_stops_safely_contained = true;
     for (std::uint32_t attempt = 0U; attempt < 3U; ++attempt) {
       const auto luid_high = static_cast<std::int32_t>(10U + attempt);
       const auto luid_low = 14U + attempt;
@@ -510,15 +510,25 @@ int main(int argc, char** argv) {
           fail_stopped, luid_high, luid_low, elapsed, 1'500U);
       const auto retry =
           prisminfer::acquire_exclusive_gpu_lease(luid_high, luid_low);
-      const bool verified =
-          receipt.accepted && receipt.non_promotable &&
-          receipt.quarantined && receipt.retry_prohibited &&
-          fail_stopped.evidence_available &&
-          fail_stopped.output_path.empty() &&
+      const bool accepted_receipt_has_exact_evidence =
+          !receipt.accepted ||
+          (!fail_stopped.ok && !fail_stopped.timed_out &&
+           fail_stopped.exit_code ==
+               prisminfer::kEvidenceProviderFailStopExitCode &&
+           fail_stopped.worker_exit_observed && fail_stopped.job_tree_empty &&
+           fail_stopped.job_accounting_reconciled &&
+           fail_stopped.artifact_handles_closed &&
+           fail_stopped.temporary_files_reconciled &&
+           fail_stopped.output_path.empty());
+      const bool safely_contained =
+          receipt.non_promotable && receipt.quarantined &&
+          receipt.retry_prohibited && fail_stopped.output_path.empty() &&
+          accepted_receipt_has_exact_evidence &&
           retry.status ==
               prisminfer::ExclusiveGpuLeaseStatus::AlreadyHeldInProcess;
-      all_fail_stops_verified = all_fail_stops_verified && verified;
-      if (!verified) {
+      all_fail_stops_safely_contained =
+          all_fail_stops_safely_contained && safely_contained;
+      if (!safely_contained) {
         std::cerr << "fail-stop details: attempt=" << attempt
                   << " exit=" << fail_stopped.exit_code
                   << " elapsed_ms=" << elapsed
@@ -541,8 +551,28 @@ int main(int argc, char** argv) {
         incomplete_receipt.retry_prohibited &&
         incomplete_retry.status ==
             prisminfer::ExclusiveGpuLeaseStatus::AlreadyHeldInProcess;
+    prisminfer::NativeWorkerResult exact_outer_evidence;
+    exact_outer_evidence.exit_code =
+        prisminfer::kEvidenceProviderFailStopExitCode;
+    exact_outer_evidence.worker_exit_observed = true;
+    exact_outer_evidence.job_tree_empty = true;
+    exact_outer_evidence.job_accounting_reconciled = true;
+    exact_outer_evidence.artifact_handles_closed = true;
+    exact_outer_evidence.temporary_files_reconciled = true;
+    const auto exact_receipt =
+        prisminfer::record_evidence_provider_fail_stop(
+            exact_outer_evidence, 21, 25U, 100U, 1'500U);
+    const auto exact_retry =
+        prisminfer::acquire_exclusive_gpu_lease(21, 25U);
+    const bool exact_fail_stop_accepted =
+        exact_receipt.accepted && exact_receipt.non_promotable &&
+        exact_receipt.quarantined && exact_receipt.retry_prohibited &&
+        exact_retry.status ==
+            prisminfer::ExclusiveGpuLeaseStatus::AlreadyHeldInProcess;
     const auto temporary_outputs_after = temporary_output_artifacts();
-    if (expect(all_fail_stops_verified && incomplete_fail_stop_quarantined &&
+    if (expect(all_fail_stops_safely_contained &&
+                   incomplete_fail_stop_quarantined &&
+                   exact_fail_stop_accepted &&
                    temporary_outputs_after == temporary_outputs_before,
                "uncooperative producer fail-stops under parent receipt and "
                "durable quarantine")) {
@@ -552,6 +582,9 @@ int main(int argc, char** argv) {
                 << " incomplete_receipt=" << incomplete_receipt.reason
                 << " incomplete_retry_status="
                 << static_cast<int>(incomplete_retry.status)
+                << " exact_receipt=" << exact_receipt.reason
+                << " exact_retry_status="
+                << static_cast<int>(exact_retry.status)
                 << "\n";
       return 1;
     }
