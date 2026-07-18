@@ -3,6 +3,7 @@
 #include <fstream>
 
 #include "prisminfer/backend.h"
+#include "prisminfer/native_worker.h"
 #include "prisminfer/backend_memory_observer.h"
 #include "prisminfer/memory_ledger.h"
 
@@ -18,7 +19,15 @@ int expect(bool condition, const char* message) {
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+#if defined(_WIN32)
+  if (argc > 2 && std::string(argv[1]) == "cli" &&
+      std::string(argv[2]) == "--model") {
+    std::cout << "llama_kv_cache: size = 1.00 MiB\n"
+              << "llama_context: CPU compute buffer size = 2.00 MiB\n";
+    return 0;
+  }
+#endif
   {
     prisminfer::RuntimeConfig config;
     config.backend = prisminfer::BackendKind::Null;
@@ -89,6 +98,15 @@ int main() {
     prisminfer::RuntimeConfig config;
     config.backend = prisminfer::BackendKind::Llama;
     prisminfer::CappedAllocatorTracker allocator(config.hard_cap_bytes);
+    config.gpu_layers = 1U;
+    const auto unsupervised_gpu = backend->warmup(config, allocator);
+    if (expect(!unsupervised_gpu.ok &&
+                   unsupervised_gpu.failure_reason ==
+                       "llama_gpu_requires_supervised_context_protocol",
+               "GPU-capable llama cannot bypass staged supervision")) {
+      return 1;
+    }
+    config.gpu_layers = 0U;
     const auto warmup = backend->warmup(config, allocator);
     if (expect(!warmup.ok, "llama backend requires executable")) return 1;
     if (expect(warmup.failure_reason == "llama_executable_required",
@@ -116,46 +134,19 @@ int main() {
                "llama missing executable reason")) {
       return 1;
     }
-    const auto script_path =
-        std::filesystem::temp_directory_path()
-#if defined(_WIN32)
-        / "prisminfer-llama-test.cmd";
-#else
-        / "prisminfer-llama-test.sh";
-#endif
-    {
-      std::ofstream script(script_path, std::ios::out | std::ios::trunc);
-#if defined(_WIN32)
-      script << "@echo off\n"
-             << "echo llama_kv_cache: size = 1.00 MiB\n"
-             << "echo llama_context: CPU compute buffer size = 2.00 MiB\n"
-             << "exit /b 0\n";
-#else
-      script << "#!/usr/bin/env sh\n"
-             << "echo 'llama_kv_cache: size = 1.00 MiB'\n"
-             << "echo 'llama_context: CPU compute buffer size = 2.00 MiB'\n";
-#endif
-    }
-#if !defined(_WIN32)
-    std::filesystem::permissions(
-        script_path, std::filesystem::perms::owner_exec,
-        std::filesystem::perm_options::add);
-#endif
     config.run_id = "backend-adapter-test";
-    config.llama_executable_path = script_path;
+    config.llama_executable_path = std::filesystem::absolute(argv[0]);
     {
       std::ofstream out(config.model_path, std::ios::out | std::ios::binary);
       out << "GGUF";
     }
     const auto scripted_warmup = backend->warmup(config, allocator);
     std::filesystem::remove(config.model_path, remove_error);
-    std::filesystem::remove(script_path, remove_error);
-    if (expect(scripted_warmup.ok, "llama script warmup succeeds")) return 1;
-    if (expect(scripted_warmup.backend_external_peak_bytes ==
-                   3ULL * 1024ULL * 1024ULL,
-               "llama script allocation evidence parsed")) {
-      return 1;
-    }
+    if (expect(!scripted_warmup.ok,
+               "unapproved executable cannot cross native worker boundary")) return 1;
+    if (expect(scripted_warmup.failure_reason ==
+                   "llama_native_worker_executable_not_approved",
+               "runtime executable outside immutable approval fails closed")) return 1;
 #else
     if (expect(backend == nullptr, "llama backend disabled by default")) {
       return 1;

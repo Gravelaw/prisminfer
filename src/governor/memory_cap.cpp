@@ -33,6 +33,9 @@ CapCertificationResult certify_cap(const MemorySample& sample,
   if (sample.process_gpu_peak_bytes > hard_cap_bytes) {
     return {false, "process_gpu_peak_exceeded_cap"};
   }
+  if (sample.device_delta_bytes > hard_cap_bytes) {
+    return {false, "device_delta_exceeded_cap"};
+  }
   if (sample.warmup_peak_bytes > hard_cap_bytes) {
     return {false, "warmup_peak_exceeded_cap"};
   }
@@ -46,10 +49,9 @@ CapCertificationResult certify_cap(const MemorySample& sample,
       tolerances.allocator_process_tolerance_bytes) {
     return {false, "allocator_process_peak_disagreement"};
   }
-  if (sample.device_delta_bytes >
-          sample.process_gpu_peak_bytes +
-              tolerances.device_delta_tolerance_bytes &&
-      sample.process_gpu_peak_bytes > 0) {
+  if (sample.device_delta_bytes > sample.process_gpu_peak_bytes &&
+      sample.device_delta_bytes - sample.process_gpu_peak_bytes >
+          tolerances.device_delta_tolerance_bytes) {
     return {false, "device_delta_process_disagreement"};
   }
   return {true, ""};

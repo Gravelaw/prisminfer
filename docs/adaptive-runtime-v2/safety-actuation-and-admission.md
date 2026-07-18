@@ -183,6 +183,61 @@ context is prohibited. Cleanup reconciles:
 Another hardware run requires a fresh preflight and the threshold-owned restart
 conditions.
 
+Packet B implements this boundary as supervisor-owned state rather than worker
+advice. The contained-worker receipt is mandatory before post-context
+admission; the exact Stage-B receipt and admission token are one-shot; watchdog
+evaluation continuously reuses the authoritative #109 host physical/commit
+decision. The Stage-A receipt fixes one absolute run deadline, the exact
+workload-relative resident/commit/pinned host envelope, and the admitted
+device-specific warning/stop temperatures; Stage B and the watchdog may only
+retain or tighten those values. The one-shot token is also bound to the exact
+root PID, Job identity, and approved executable identity. Owned-allocation
+evidence requires an independently timestamped, process- and adapter-bound
+WDDM/NVML measurement whose bytes exactly reconcile with supervisor-owned
+categories; a generic telemetry-present flag has no evidentiary value. Any
+stale, contradictory, resource, thermal, heartbeat, deadline,
+or context-fatal sample immediately blocks submissions. Cancellation retains
+the T-105 acknowledgement, exit, Job-abort, and cleanup deadlines, and cleanup
+cannot release the lease as `Cleaned` when the Job tree or resources remain
+unreconciled. Normal cleanup requires an observed worker exit and empty Job
+tree plus reconciled Job accounting, device resources, artifact handles, and
+temporary files. It retains the terminal reason and canonical hashes for the
+last good sample and terminal evidence bundle. Any premature destruction or
+unreconciled terminal path quarantines the adapter lease until the supervisor
+process exits.
+
+Evidence collection has its own terminal rule. Cooperative providers receive
+a stop token and are joined before the session returns. If a provider remains
+stuck after the evidence deadline and fixed stop grace, the trusted supervisor
+fail-stops with a dedicated exit code; it never detaches or returns past the
+provider lifetime. The independent parent must observe the exact exit, bounded
+elapsed time, empty Job tree, reconciled Job accounting, and removed temporary
+output before it records a non-promotable receipt and reacquires the adapter
+lease in process-lifetime quarantine. That path is not `Cleaned`, cannot
+publish success evidence, and prohibits automatic same-cell retry. A future
+contained evidence-helper process may replace this last-resort supervisor
+fail-stop without weakening the parent receipt.
+Incomplete outer accounting still forces quarantine and prohibits retry even
+though the receipt remains unaccepted. Job assignment and aggregate accounting
+are recorded separately from per-process memory reconciliation: incomplete
+per-process memory rejects every successful worker, while a dedicated nonzero
+fail-stop receipt may retain authoritative Job aggregates only and remains
+explicitly non-promotable.
+
+The native worker additionally retains approved read-only artifact root and
+leaf handles without write/delete sharing from byte-hash verification through
+complete Job-tree exit. The production llama adapter accepts only the Packet A
+artifact record's exact filename, byte count, and SHA-256, plus a sidecar whose
+digest is recomputed from the model bytes. The production session now owns the
+live native-worker Job/process authority, dedicated bidirectional control
+handles, cooperative cancel signal, abort action, and OS-derived process/Job/
+artifact cleanup facts. Callers supply only independently sampled post-context
+and watchdog telemetry plus final device-resource reconciliation; they cannot
+assert containment, consume a token, or advance cancellation/Job cleanup. The
+llama GPU adapter fails closed until it speaks the context-ready protocol. This
+is still not C2 credit: Packet B remains in Review and C2 stays closed until
+fresh exact-head functional/safety review and hosted checks accept the tree.
+
 ## Provider subordination
 
 An optional provider:

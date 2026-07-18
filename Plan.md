@@ -1,8 +1,8 @@
 # PrismInfer Final Plan
 
 Status: Adaptive Runtime V2 governance active; M0 and M1 complete. Packet B is
-the next implementation packet under the conservative packet order.
-Last reconciled: 2026-07-18 (M1)
+implemented in binding order and remains in exact-head review; C2 is closed.
+Last reconciled: 2026-07-18 (M2 review)
 Operational tracker: [GitHub Project #2](https://github.com/users/Gravelaw/projects/2)
 
 ## Authority and Change Control
@@ -96,12 +96,12 @@ changing thresholds after observing a failure.
 | Phases 0–5 | Governance, telemetry, lifecycle, manifests, fake/process backend scaffolding, KV/quality/offload policies, claim taxonomy, comparator and a toy q4 CPU/CUDA scaffold exist. Historical milestone closure does not imply production readiness. |
 | Phase 6 branch | Manifest/config foundations and the completed #73 tiny synthetic CUDA launch/copy-back lane are merged. The CUDA path uses toy nibble-plus-scale semantics, not exact selected-artifact GGML quant semantics. |
 | Allocation safety | CUDA context creation precedes reservation; a rejected context reservation can be recorded without immediately ending the run. The 16 GiB value is only a policy ceiling. |
-| Backend boundary | The llama adapter invokes a shell command through `std::system`; there is no native Job-contained worker, bounded cancellation, or child-tree evidence. |
-| Hardware safety | No exclusive GPU lease, staged admission token, live WDDM/host/thermal watchdog, or atomic abort/cleanup state exists. |
-| Host admission | #109 supplies authoritative Windows physical/commit telemetry and a pure workload-relative admission primitive. #103 must still integrate it into staged tokens, the watchdog and cancellation before C2. No fixed free-RAM prerequisite is valid. |
+| Backend boundary | Packet B replaces shell launch with approved-identity `CreateProcessW`, suspended Job assignment, explicit environment/handle/resource policy, bounded output/cancellation, and complete child-tree cleanup evidence. This is a CPU/static boundary and grants no model credit. |
+| Hardware safety | Packet B implements the exclusive lease, staged exact-cell admission token, WDDM/host/thermal watchdog, immediate submission blocking, bounded cooperative-cancel/Job-abort decisions, and cleanup/quarantine state machine. C2 remains closed until the exact-head review and packet exit are accepted. |
+| Host admission | #109's authoritative Windows physical/commit telemetry and workload-relative admission primitive are consumed by both pre/post admission and every watchdog decision. No fixed free-RAM prerequisite is valid. |
 | Model evidence | Packet A pins one approved offline Llama 3.1 8B Q4_K_M artifact identity and complete per-tensor inventory under the recorded one-time acquisition exception. Ornith remains an immutable unsupported-converter negative descriptor, and 30B/70B/90B selection remains deferred. No model execution, quality, capacity, calibration or performance evidence exists. |
 | Adaptive runtime | Actuator, recovery, optimizer and evidence contracts are documented; the in-process adapter, calibration store, selector and plan executor are proposed, not implemented. |
-| Worktree/PR | PRs #72, #104, #105, #106, #108, #110 and #113 establish the pre-M1 merged baseline. PR #111 carries the exact-head-reviewed Packet A closeout for #74/#75/#80; its merge makes M1 repository evidence. Draft PR #112 remains the separate Packet B branch with reviewable #81/#82 work and provisional #103 supervisor/admission work. Packet A grants no model execution, calibration, performance, C2 or sustained-hardware clearance. |
+| Worktree/PR | PRs #72, #104, #105, #106, #108, #110 and #113 establish the pre-M1 merged baseline. PR #111 merged Packet A for #74/#75/#80. Draft PR #112 is freshly ported onto current post-M1 `main` and contains Packet B only: reviewable #81, #82, and #103 implementation plus CPU/source/simulation evidence. Earlier Packet B head reviews are stale. |
 
 ## Frozen Scope
 
@@ -408,14 +408,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate-plan-projec
   final-freeze and integration-train evidence. Cross-cutting #109 records the
   host-admission correction and is `Done` when this contract reaches `main`.
 - #74, #75 and #80 are `Done` with Packet A's exact-head evidence and review
-  receipts. #81/#82/#103 are in `Review` in draft PR #112. #76 and #83 are `Ready`;
+  receipts. #81/#82/#103 are in `Review` in draft PR #112; C2 remains closed
+  until Packet B's final exact-head safety review and exit. #76 and #83 are `Ready`;
   dependency-gated #77-#78 and #84-#89 are `Blocked`; later work remains
   `Backlog` except independently admission-blocked #99/#100.
-- PR #111 is the Packet A integration PR. Draft PR #112 is retained
-  Packet B review work and remains merge-gated by the conservative packet order.
-  Both must rebase after M0, must not restore the former V1 active directory,
-  and require new independent exact-head review because the prior tree and
-  documentation paths will have changed.
+- The current Packet B review candidate closes the three prior binding
+  implementation gaps in CPU-safe code: session-owned process/Job/control and
+  cleanup authority; a nonce-bound context-ready, one-shot-token, heartbeat,
+  cancellation and watchdog protocol; and an independent WDDM process-memory
+  producer sampled while the retained worker is live and bound to its PID and
+  DXGI adapter LUID. NVML is only a non-WDDM fallback. Llama GPU execution
+  fails closed until it speaks that protocol. This earns no live hardware,
+  model, calibration, performance, or C2 credit before fresh exact-head review.
+- PR #111 is merged Packet A history. Draft PR #112 is the freshly ported
+  Packet B integration work and remains merge-gated by final exact-head safety
+  review and hosted checks. It preserves the V2 owner documents and does not
+  restore the former V1 active directory. Every pre-port Packet B review is
+  stale.
 - PR #72 is merged evidence/documentation history; neither its checks nor the
   later governance/tiny-lane merges grant hardware or model clearance.
 

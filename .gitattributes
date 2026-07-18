@@ -2,3 +2,7 @@
 tests/fixtures/kernel-manifests/raw-trials*.jsonl text eol=lf
 tests/fixtures/kernel-manifests/failure-record*.jsonl text eol=lf
 tests/fixtures/model-cells/*.txt text eol=lf
+# Packet A provenance JSON is byte-identified by SHA-256. Keep checkout bytes
+# identical on Windows so local verification observes the committed identity.
+configs/ggml-tensor-eligibility.json text eol=lf
+configs/model-artifacts/llama-3.1-8b-instruct-q4-k-m/*.json text eol=lf

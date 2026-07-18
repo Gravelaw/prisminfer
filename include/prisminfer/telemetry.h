@@ -12,6 +12,7 @@
 namespace prisminfer {
 
 std::uint64_t monotonic_time_ns();
+std::uint64_t monotonic_time_milliseconds();
 std::string json_escape(const std::string& value);
 std::string utc_timestamp();
 

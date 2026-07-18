@@ -38,6 +38,14 @@ int main() {
     std::ofstream output(outside / "outside.txt", std::ios::binary);
     output << "outside";
   }
+  {
+    std::ofstream output(root / "million-a.bin", std::ios::binary);
+    const std::string chunk(10'000U, 'a');
+    for (int index = 0; index < 100; ++index) output << chunk;
+  }
+  {
+    std::ofstream output(root / "empty.bin", std::ios::binary);
+  }
 
   std::string digest;
   std::string error;
@@ -51,6 +59,26 @@ int main() {
   if (expect(digest ==
                  "106b086224a4d945eae25f7be3805a931a873270326dd868b0e41f71ee9fff72",
              "trusted file digest matches")) {
+    std::filesystem::remove_all(temporary, error_code);
+    return 1;
+  }
+  error.clear();
+  if (expect(prisminfer::sha256_trusted_regular_file_bounded(
+                 root, root / "million-a.bin", 1'000'000U, &digest, &error),
+             "streaming trusted hash accepts a bounded multi-block file") ||
+      expect(digest ==
+                 "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0",
+             "streaming trusted hash matches the million-a vector")) {
+    std::filesystem::remove_all(temporary, error_code);
+    return 1;
+  }
+  error.clear();
+  if (expect(prisminfer::sha256_trusted_regular_file_bounded(
+                 root, root / "empty.bin", 0U, &digest, &error),
+             "streaming trusted hash accepts an empty bounded file") ||
+      expect(digest ==
+                 "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+             "streaming trusted hash matches the empty vector")) {
     std::filesystem::remove_all(temporary, error_code);
     return 1;
   }

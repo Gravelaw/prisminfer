@@ -1,0 +1,17 @@
+{
+  "schema_version": "0.1",
+  "approval_status": "approved",
+  "approval_identity": "prisminfer-cpu-static-ef2d770-vs2026-release-20260713",
+  "source_commit": "ef2d770117db45b05aa7ecd1b0acca36370c5470",
+  "build_configuration": "cpu-static-vs2026-release",
+  "shared_libraries": "disabled",
+  "dynamic_backend_loading": "disabled",
+  "cuda": "disabled",
+  "openssl": "disabled",
+  "command_prefix": "cli",
+  "workspace_relative_executable": "tools/llama.cpp/ef2d770117db45b05aa7ecd1b0acca36370c5470/build-prisminfer-static-vs2026/bin/Release/llama.exe",
+  "sha256": "f31fd598048c5773c304ef6d8b3225569091399de17cb9f34d0ab385519e0be8",
+  "dependency_count": 0,
+  "pe_import_policy": "system-dlls-only",
+  "build_receipt": "third_party/llama.cpp-static-build-receipt.md"
+}

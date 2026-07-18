@@ -7,6 +7,8 @@
 #include <set>
 #include <sstream>
 
+#include "prisminfer/sha256.h"
+
 namespace prisminfer {
 
 namespace {
@@ -23,7 +25,7 @@ std::filesystem::path normalize_path(const std::filesystem::path& path) {
 bool is_hex_sha256(const std::string& value) {
   return value.size() == 64 &&
          std::all_of(value.begin(), value.end(), [](unsigned char ch) {
-           return std::isxdigit(ch) != 0;
+           return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f');
          });
 }
 
@@ -252,7 +254,22 @@ ModelSidecarValidationResult validate_model_sidecar(
     result.failure_reason = "sidecar_model_sha256_invalid";
     return result;
   }
-  result.model_sha256 = hash->second;
+  std::string actual_hash;
+  std::string hash_error;
+  if (!sha256_trusted_regular_file_bounded(
+          result.normalized_model_path.parent_path(),
+          result.normalized_model_path, request.max_model_bytes, &actual_hash,
+          &hash_error)) {
+    result.valid = false;
+    result.failure_reason = "model_sha256_unavailable";
+    return result;
+  }
+  if (actual_hash != hash->second) {
+    result.valid = false;
+    result.failure_reason = "sidecar_model_sha256_mismatch";
+    return result;
+  }
+  result.model_sha256 = actual_hash;
   return result;
 }
 

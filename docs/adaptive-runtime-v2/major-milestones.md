@@ -191,8 +191,48 @@ C1 tiny attended fixture may touch CUDA before C2 closes.
 Failure to observe or control the worker/device blocks C2 and all model work; it
 does not justify bypassing the supervisor.
 
-**Review tier.** T2 exact-head safety/security review; any tiny live hardware
+**Review tier.** T2 exact-head functional/safety review; any tiny live hardware
 evidence is T3 and separately authorized.
+
+**M2 implementation receipt (2026-07-18, review state).** Packet B is ported
+onto the post-M1 `main` base without restoring the archived V1 packet. The
+retained CPU/source/simulation implementation binds approved executable
+identity to suspended non-breakaway Job containment, explicit process/memory/
+time limits, exact child-tree cleanup, fresh independent Windows evidence,
+workload-relative #109 host admission, exclusive device lease, staged one-shot
+tokens, watchdog submission blocking, cooperative-cancel/Job-abort deadlines,
+and receipt-bound cleanup quarantine. Owned-GPU and WDDM evidence carry bounded
+capture freshness, and executable approval rejects unheld intermediate path
+components. This receipt is not the packet exit: C2 stays closed
+until final hosted checks and a fresh independent exact-head functional/safety
+review accept the complete tree. No CUDA, model, calibration, capacity, or
+performance evidence was produced.
+
+The first fresh review of head `2effb8497c2b44328faeb7c8f93e1fcc0ea4deed`
+rejected packet exit. The CPU-safe follow-up now removes caller-assembled
+containment, token-consumption, cancellation, and Job-cleanup transitions from
+the production session API. `GpuAdmissionSession` launches the approved image,
+retains the process/Job/control authority through exit, derives protocol
+deadlines from the immutable Stage-A receipt, and owns one-shot token delivery,
+heartbeat rejection, cooperative cancellation, Job termination, and cleanup
+facts. The raw runner requires a session-private capability; evidence callbacks
+and live process-memory sampling are bounded independently, with an emergency
+Job watchdog retained while they execute. Token delivery also has an explicit
+consumption timeout. A dedicated nonce-bound control pipe is separate from worker output.
+Evidence providers are stop-token-aware and session-owned. A provider that
+misses both its deadline and fixed stop grace forces a dedicated supervisor
+fail-stop; the independent parent accepts only the exact fail-stop exit plus
+bounded complete Job/accounting/temporary-output evidence, then holds the
+adapter lease in process-lifetime quarantine. This negative path is never
+`Cleaned`, promotable, C2-positive, or automatically retried.
+Duplicate consumption, missing context readiness, heartbeat loss, and cleanup
+are covered by contained CPU worker tests. The production llama GPU path fails
+closed until it implements this context-ready protocol. The Windows evidence
+producer samples WDDM GPU Process Memory while the retained process is live,
+binds PID plus DXGI LUID, and uses NVML only as a non-WDDM fallback. Missing,
+stale, mismatched, duplicate, or contradictory reports fail closed. This remains review-state
+implementation only: no tracker state or clearance changes occur until fresh
+exact-head review and hosted checks accept the final tree.
 
 ## M3: Packet C - exact admission and supervised foundation evidence
 

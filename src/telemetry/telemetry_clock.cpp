@@ -13,6 +13,12 @@ std::uint64_t monotonic_time_ns() {
       std::chrono::duration_cast<std::chrono::nanoseconds>(now).count());
 }
 
+std::uint64_t monotonic_time_milliseconds() {
+  const auto now = std::chrono::steady_clock::now().time_since_epoch();
+  return static_cast<std::uint64_t>(
+      std::chrono::duration_cast<std::chrono::milliseconds>(now).count());
+}
+
 std::string utc_timestamp() {
   const auto now = std::chrono::system_clock::now();
   const std::time_t now_time = std::chrono::system_clock::to_time_t(now);

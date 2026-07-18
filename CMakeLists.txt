@@ -69,7 +69,11 @@ add_library(prisminfer_core
   src/kv/kv_compression_policy.cpp
   src/quality/quality_gate.cpp
   src/governor/allocator_tracker.cpp
+  src/governor/admission_token.cpp
   src/governor/backend_memory_observer.cpp
+  src/governor/checked_arithmetic.cpp
+  src/governor/exclusive_gpu_lease.cpp
+  src/governor/gpu_admission_session.cpp
   src/governor/gpu_cap_policy.cpp
   src/governor/host_admission.cpp
   src/governor/host_memory_tracker.cpp
@@ -77,13 +81,17 @@ add_library(prisminfer_core
   src/governor/memory_cap.cpp
   src/governor/claim_taxonomy.cpp
   src/governor/profitability_policy.cpp
+  src/governor/supervisor_admission.cpp
+  src/governor/supervisor_watchdog.cpp
   src/governor/usability_policy.cpp
   src/offload/offload_planner.cpp
   src/governor/cuda_context_probe.cpp
   src/validation/evidence_bundle.cpp
   src/validation/model_sidecar.cpp
   src/telemetry/telemetry_jsonl.cpp
-  src/telemetry/telemetry_clock.cpp)
+  src/telemetry/telemetry_clock.cpp
+  src/telemetry/windows_evidence.cpp
+  src/runtime/native_worker.cpp)
 
 target_include_directories(prisminfer_core
   PUBLIC
@@ -93,6 +101,7 @@ target_compile_definitions(prisminfer_core
   PUBLIC
     PRISMINFER_CMAKE_VERSION="${CMAKE_VERSION}"
     PRISMINFER_VERSION="${PROJECT_VERSION}"
+    PRISMINFER_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
     PRISMINFER_BUILD_CONFIG="$<CONFIG>"
     PRISMINFER_CUDA_KERNEL_ARCHS="${PRISMINFER_CUDA_KERNEL_ARCHS}"
     $<$<BOOL:${PRISMINFER_ENABLE_CUBLASLT_BASELINE}>:PRISMINFER_ENABLE_CUBLASLT_BASELINE=1>
@@ -125,7 +134,7 @@ if(PRISMINFER_ENABLE_CUDA_KERNELS)
 endif()
 
 if(WIN32)
-  target_link_libraries(prisminfer_core PUBLIC psapi)
+  target_link_libraries(prisminfer_core PUBLIC psapi bcrypt dxgi pdh)
 endif()
 
 if(MSVC)
@@ -240,6 +249,23 @@ add_executable(test_cap_semantics tests/unit/test_cap_semantics.cpp)
 target_link_libraries(test_cap_semantics PRIVATE prisminfer_core)
 add_test(NAME test_cap_semantics COMMAND test_cap_semantics)
 
+add_executable(test_checked_arithmetic tests/unit/test_checked_arithmetic.cpp)
+target_link_libraries(test_checked_arithmetic PRIVATE prisminfer_core)
+add_test(NAME test_checked_arithmetic COMMAND test_checked_arithmetic)
+
+add_executable(test_admission_token tests/unit/test_admission_token.cpp)
+target_link_libraries(test_admission_token PRIVATE prisminfer_core)
+add_test(NAME test_admission_token COMMAND test_admission_token)
+
+add_executable(test_exclusive_gpu_lease tests/unit/test_exclusive_gpu_lease.cpp)
+target_link_libraries(test_exclusive_gpu_lease PRIVATE prisminfer_core)
+add_test(NAME test_exclusive_gpu_lease COMMAND test_exclusive_gpu_lease)
+
+add_executable(test_gpu_admission_session
+  tests/unit/test_gpu_admission_session.cpp)
+target_link_libraries(test_gpu_admission_session PRIVATE prisminfer_core)
+add_test(NAME test_gpu_admission_session COMMAND test_gpu_admission_session)
+
 add_executable(test_allocator_tracker tests/unit/test_allocator_tracker.cpp)
 target_link_libraries(test_allocator_tracker PRIVATE prisminfer_core)
 add_test(NAME test_allocator_tracker COMMAND test_allocator_tracker)
@@ -271,6 +297,14 @@ add_test(NAME test_host_memory_tracker COMMAND test_host_memory_tracker)
 add_executable(test_host_admission tests/unit/test_host_admission.cpp)
 target_link_libraries(test_host_admission PRIVATE prisminfer_core)
 add_test(NAME test_host_admission COMMAND test_host_admission)
+
+add_executable(test_supervisor_admission tests/unit/test_supervisor_admission.cpp)
+target_link_libraries(test_supervisor_admission PRIVATE prisminfer_core)
+add_test(NAME test_supervisor_admission COMMAND test_supervisor_admission)
+
+add_executable(test_windows_evidence tests/unit/test_windows_evidence.cpp)
+target_link_libraries(test_windows_evidence PRIVATE prisminfer_core)
+add_test(NAME test_windows_evidence COMMAND test_windows_evidence)
 
 add_executable(test_kv_cache_ledger tests/unit/test_kv_cache_ledger.cpp)
 target_link_libraries(test_kv_cache_ledger PRIVATE prisminfer_core)
@@ -341,6 +375,13 @@ string(SHA256 PRISMINFER_REAL_SLICE_DECODER_ID
   "${PRISMINFER_SLICE_TEST_SHA}:${PRISMINFER_SLICE_HEADER_SHA}:${PRISMINFER_SLICE_IMPL_SHA}")
 target_compile_definitions(test_real_gguf_slices PRIVATE
   PRISMINFER_REAL_SLICE_DECODER_ID="${PRISMINFER_REAL_SLICE_DECODER_ID}")
+
+add_executable(test_native_worker tests/unit/test_native_worker.cpp)
+target_link_libraries(test_native_worker PRIVATE prisminfer_core)
+if(WIN32)
+  target_link_libraries(test_native_worker PRIVATE shell32)
+endif()
+add_test(NAME test_native_worker COMMAND test_native_worker)
 
 add_test(NAME prism_compare_benchmark_manifest_same
   COMMAND prism-compare-benchmark

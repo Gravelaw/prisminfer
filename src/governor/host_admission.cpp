@@ -1,7 +1,8 @@
 #include "prisminfer/host_admission.h"
 
 #include <algorithm>
-#include <limits>
+
+#include "prisminfer/checked_arithmetic.h"
 
 namespace prisminfer {
 
@@ -9,38 +10,7 @@ namespace {
 
 constexpr std::uint64_t kGiB = 1ULL << 30;
 constexpr std::uint64_t kMiB = 1ULL << 20;
-constexpr std::uint32_t kBasisPointDenominator = 10'000;
 constexpr std::uint64_t kMaximumTelemetryAgeMilliseconds = 500;
-
-bool checked_add(std::uint64_t left, std::uint64_t right,
-                 std::uint64_t* result) {
-  if (result == nullptr ||
-      left > std::numeric_limits<std::uint64_t>::max() - right) {
-    return false;
-  }
-  *result = left + right;
-  return true;
-}
-
-bool checked_ratio(std::uint64_t value, std::uint32_t basis_points,
-                   bool round_up, std::uint64_t* result) {
-  if (result == nullptr || basis_points > kBasisPointDenominator) {
-    return false;
-  }
-  const auto quotient = value / kBasisPointDenominator;
-  const auto remainder = value % kBasisPointDenominator;
-  if (basis_points != 0 &&
-      quotient > std::numeric_limits<std::uint64_t>::max() / basis_points) {
-    return false;
-  }
-  const auto base = quotient * basis_points;
-  const auto remainder_product = remainder * basis_points;
-  const auto extra = round_up
-                         ? (remainder_product + kBasisPointDenominator - 1) /
-                               kBasisPointDenominator
-                         : remainder_product / kBasisPointDenominator;
-  return checked_add(base, extra, result);
-}
 
 HostAdmissionDecision reject(HostAdmissionDecision decision,
                              const char* reason) {
@@ -126,27 +96,28 @@ HostAdmissionDecision evaluate_host_admission(
       std::max(canonical_policy.commit_physical_reserve_basis_points,
                policy.commit_physical_reserve_basis_points);
 
-  std::uint64_t physical_fraction = 0;
-  std::uint64_t commit_limit_fraction = 0;
-  std::uint64_t commit_physical_fraction = 0;
-  if (!checked_ratio(sample.system_memory_total_bytes, physical_basis_points,
-                     true, &physical_fraction) ||
-      !checked_ratio(sample.system_commit_limit_bytes,
-                     commit_limit_basis_points, true, &commit_limit_fraction) ||
-      !checked_ratio(sample.system_memory_total_bytes,
-                     commit_physical_basis_points, true,
-                     &commit_physical_fraction)) {
+  const auto physical_fraction =
+      checked_basis_points_u64(sample.system_memory_total_bytes,
+                               physical_basis_points, RatioRounding::Up);
+  const auto commit_limit_fraction =
+      checked_basis_points_u64(sample.system_commit_limit_bytes,
+                               commit_limit_basis_points, RatioRounding::Up);
+  const auto commit_physical_fraction =
+      checked_basis_points_u64(sample.system_memory_total_bytes,
+                               commit_physical_basis_points, RatioRounding::Up);
+  if (!physical_fraction || !commit_limit_fraction ||
+      !commit_physical_fraction) {
     return reject(decision, "host_reserve_policy_invalid_or_overflowed");
   }
 
   decision.physical_reserve_bytes =
       std::max({canonical_policy.physical_reserve_floor_bytes,
-                policy.physical_reserve_floor_bytes, physical_fraction,
+                policy.physical_reserve_floor_bytes, *physical_fraction,
                 request.explicit_physical_reserve_bytes});
   decision.commit_reserve_bytes = std::max(
       {canonical_policy.commit_reserve_floor_bytes,
-       policy.commit_reserve_floor_bytes, commit_limit_fraction,
-       commit_physical_fraction, request.explicit_commit_reserve_bytes});
+       policy.commit_reserve_floor_bytes, *commit_limit_fraction,
+       *commit_physical_fraction, request.explicit_commit_reserve_bytes});
 
   if (sample.system_memory_available_bytes < decision.physical_reserve_bytes) {
     return reject(decision, "host_physical_reserve_unavailable");
@@ -162,32 +133,39 @@ HostAdmissionDecision evaluate_host_admission(
   decision.effective_payload_bytes =
       std::min(decision.physical_payload_bytes, decision.commit_payload_bytes);
 
-  std::uint64_t pinned_cap = 0;
-  if (!checked_ratio(sample.system_memory_total_bytes, 200, false,
-                     &pinned_cap)) {
+  const auto pinned_cap = checked_basis_points_u64(
+      sample.system_memory_total_bytes, 200, RatioRounding::Down);
+  if (!pinned_cap) {
     return reject(decision, "pinned_host_cap_overflowed");
   }
-  decision.pinned_host_cap_bytes = std::min(512 * kMiB, pinned_cap);
+  decision.pinned_host_cap_bytes = std::min(512 * kMiB, *pinned_cap);
   if (request.pinned_host_bytes > decision.pinned_host_cap_bytes) {
     return reject(decision, "pinned_host_cap_exceeded");
   }
 
-  std::uint64_t resident_without_pinned = 0;
-  if (!checked_add(request.planned_incremental_resident_bytes,
-                   request.resident_uncertainty_bytes,
-                   &resident_without_pinned) ||
-      !checked_add(resident_without_pinned, request.pinned_host_bytes,
-                   &decision.required_resident_bytes)) {
+  const auto resident_without_pinned =
+      checked_add_u64(request.planned_incremental_resident_bytes,
+                      request.resident_uncertainty_bytes);
+  const auto required_resident =
+      resident_without_pinned
+          ? checked_add_u64(*resident_without_pinned, request.pinned_host_bytes)
+          : std::nullopt;
+  if (!required_resident) {
     return reject(decision, "required_resident_bytes_overflowed");
   }
+  decision.required_resident_bytes = *required_resident;
 
-  std::uint64_t commit_without_pinned = 0;
-  if (!checked_add(request.planned_incremental_commit_bytes,
-                   request.commit_uncertainty_bytes, &commit_without_pinned) ||
-      !checked_add(commit_without_pinned, request.pinned_host_bytes,
-                   &decision.required_commit_bytes)) {
+  const auto commit_without_pinned =
+      checked_add_u64(request.planned_incremental_commit_bytes,
+                      request.commit_uncertainty_bytes);
+  const auto required_commit =
+      commit_without_pinned
+          ? checked_add_u64(*commit_without_pinned, request.pinned_host_bytes)
+          : std::nullopt;
+  if (!required_commit) {
     return reject(decision, "required_commit_bytes_overflowed");
   }
+  decision.required_commit_bytes = *required_commit;
 
   if (decision.required_resident_bytes > decision.physical_payload_bytes) {
     return reject(decision, "planned_resident_peak_exceeds_payload");

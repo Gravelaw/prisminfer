@@ -233,6 +233,29 @@ Terminal evidence is written by the supervisor to a trusted bounded temporary
 artifact and atomically published after cleanup. A worker-written success
 record is never by itself terminal evidence.
 
+### Packet B implementation binding
+
+The CPU-only implementation binds the normative states through
+`GpuAdmissionSession`: an owned OS-wide lease precedes Stage A, then the
+session itself launches the approved image suspended, assigns the non-
+breakaway kill-on-close Job, retains the process/Job/control handles, and only
+then resumes it. A nonce-bound `CONTEXT_READY` message permits Stage B; the
+session delivers one exact-cell token once and requires one matching
+`TOKEN_CONSUMED` acknowledgement before accepting monotonic heartbeats.
+The raw supervised runner additionally requires a session-private access
+capability, so another caller cannot substitute an always-admit protocol
+authority. Context evidence, watchdog evidence, and the live WDDM process
+sample run under the receipt's maximum-age bound; timeout terminates the Job
+even when an evidence provider is stuck. Token consumption has the same
+explicit bound and an unconsumed token enters cancellation. Protocol deadlines
+come from the immutable receipt. Every rejected or stale
+watchdog sample blocks submissions and causes `CANCEL`, a bounded
+`CANCEL_ACK`, and Job termination when the worker does not exit. Only the
+runner's observed process exit, empty Job tree, accounting, and closed artifact
+handles can permit final cleanup; caller booleans cannot advance those states.
+These are CPU/simulation contracts and do not themselves record live device or
+model evidence.
+
 ## Clearance Binding
 
 The runtime accepts only the exact clearance and workload scope permitted by
