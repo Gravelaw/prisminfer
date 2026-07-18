@@ -40,6 +40,16 @@ struct NativeWorkerRequest {
   // Deterministic CPU-only fault injection. It can only force fail-closed
   // cleanup behavior and never broadens launch authority.
   bool simulate_termination_api_failure{false};
+  struct ApprovedReadOnlyInput {
+    std::filesystem::path path;
+    std::filesystem::path trusted_root;
+    std::string expected_sha256;
+    std::string approval_identity;
+  };
+  // Every worker-readable artifact must be independently approved and held
+  // open without write/delete sharing from identity verification until the
+  // contained process tree exits.
+  std::vector<ApprovedReadOnlyInput> approved_read_only_inputs;
 };
 
 struct NativeWorkerResult {

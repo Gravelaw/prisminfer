@@ -642,6 +642,63 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
       lowercase(executable_hash) != lowercase(approval->expected_executable_sha256)) {
     return fail("native_worker_executable_identity_rejected");
   }
+  if (request.approved_read_only_inputs.size() > 8U) {
+    return fail("native_worker_input_approval_count_rejected");
+  }
+  std::vector<UniqueHandle> retained_input_roots;
+  std::vector<UniqueHandle> retained_inputs;
+  retained_input_roots.reserve(request.approved_read_only_inputs.size());
+  retained_inputs.reserve(request.approved_read_only_inputs.size());
+  for (const auto& input : request.approved_read_only_inputs) {
+    if (input.path.empty() || input.trusted_root.empty() ||
+        !is_sha256(input.expected_sha256) ||
+        !is_approval_identity(input.approval_identity) ||
+        has_disallowed_windows_path_syntax(input.path)) {
+      return fail("native_worker_input_approval_invalid");
+    }
+    auto input_root = canonical_policy_path(input.trusted_root, canonical_error);
+    auto input_path = canonical_policy_path(input.path, canonical_error);
+    if (canonical_error || input_root.empty() || input_path.empty() ||
+        input_path.parent_path() != input_root) {
+      return fail("native_worker_input_path_rejected");
+    }
+    UniqueHandle input_root_handle(CreateFileW(
+        input_root.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
+    UniqueHandle input_handle(CreateFileW(
+        input_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+        OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
+    BY_HANDLE_FILE_INFORMATION input_root_info{};
+    BY_HANDLE_FILE_INFORMATION input_info{};
+    const auto final_input_root =
+        input_root_handle.get() == INVALID_HANDLE_VALUE
+            ? std::filesystem::path{}
+            : final_path_from_handle(input_root_handle.get());
+    const auto final_input =
+        input_handle.get() == INVALID_HANDLE_VALUE
+            ? std::filesystem::path{}
+            : final_path_from_handle(input_handle.get());
+    std::string input_hash;
+    if (input_root_handle.get() == INVALID_HANDLE_VALUE ||
+        input_handle.get() == INVALID_HANDLE_VALUE ||
+        !GetFileInformationByHandle(input_root_handle.get(),
+                                    &input_root_info) ||
+        !GetFileInformationByHandle(input_handle.get(), &input_info) ||
+        (input_root_info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0U ||
+        (input_root_info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) !=
+            0U ||
+        (input_info.dwFileAttributes &
+         (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0U ||
+        input_info.nNumberOfLinks != 1U || final_input_root.empty() ||
+        final_input.empty() || final_input.parent_path() != final_input_root ||
+        !hash_open_file(input_handle.get(), &input_hash) ||
+        lowercase(input_hash) != lowercase(input.expected_sha256)) {
+      return fail("native_worker_input_identity_rejected");
+    }
+    retained_input_roots.push_back(std::move(input_root_handle));
+    retained_inputs.push_back(std::move(input_handle));
+  }
   const auto environment = minimal_environment();
   if (environment.empty()) {
     return fail("native_worker_environment_or_dll_policy_failed");

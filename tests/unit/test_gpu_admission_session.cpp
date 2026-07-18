@@ -104,11 +104,17 @@ prisminfer::PostContextAdmissionRequest post_request(
       request.gpu.captured_monotonic_milliseconds;
   request.owned_gpu.reconciled = true;
   request.owned_gpu.process_device_corroboration_available = true;
+  request.owned_gpu.process_device_source = "wddm-process";
+  request.owned_gpu.process_id = 42;
+  request.owned_gpu.process_device_captured_monotonic_milliseconds =
+      request.owned_gpu.captured_monotonic_milliseconds;
   request.owned_gpu.adapter_identity_available = true;
   request.owned_gpu.adapter_luid_high = 7;
   request.owned_gpu.adapter_luid_low = 11;
   request.owned_gpu.hard_cap_bytes = 8 * kGiB;
   request.owned_gpu.owned_current_bytes = 512ULL << 20;
+  request.owned_gpu.process_device_current_bytes =
+      request.owned_gpu.owned_current_bytes;
   request.owned_gpu.owned_peak_bytes = 512ULL << 20;
   request.owned_gpu.cuda_context_runtime_current_bytes = 512ULL << 20;
   request.owned_gpu.cuda_context_runtime_at_owned_peak_bytes = 512ULL << 20;
@@ -157,7 +163,7 @@ prisminfer::SupervisorWatchdogSample watchdog_sample() {
   const auto base = pre_request();
   prisminfer::SupervisorWatchdogSample sample;
   sample.evaluated_monotonic_milliseconds = 10'400;
-  sample.run_deadline_monotonic_milliseconds = 20'000;
+  sample.run_deadline_monotonic_milliseconds = 70'100;
   sample.worker_heartbeat_monotonic_milliseconds = 10'300;
   sample.worker_alive = true;
   sample.gpu = base.gpu;
@@ -169,11 +175,17 @@ prisminfer::SupervisorWatchdogSample watchdog_sample() {
       sample.gpu.captured_monotonic_milliseconds;
   sample.owned_gpu.reconciled = true;
   sample.owned_gpu.process_device_corroboration_available = true;
+  sample.owned_gpu.process_device_source = "wddm-process";
+  sample.owned_gpu.process_id = 42;
+  sample.owned_gpu.process_device_captured_monotonic_milliseconds =
+      sample.owned_gpu.captured_monotonic_milliseconds;
   sample.owned_gpu.adapter_identity_available = true;
   sample.owned_gpu.adapter_luid_high = 7;
   sample.owned_gpu.adapter_luid_low = 11;
   sample.owned_gpu.hard_cap_bytes = 8 * kGiB;
   sample.owned_gpu.owned_current_bytes = 512ULL << 20;
+  sample.owned_gpu.process_device_current_bytes =
+      sample.owned_gpu.owned_current_bytes;
   sample.owned_gpu.owned_peak_bytes = 512ULL << 20;
   sample.owned_gpu.cuda_context_runtime_current_bytes = 512ULL << 20;
   sample.owned_gpu.cuda_context_runtime_at_owned_peak_bytes = 512ULL << 20;

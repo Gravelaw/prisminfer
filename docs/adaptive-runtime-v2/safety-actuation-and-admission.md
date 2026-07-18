@@ -187,7 +187,15 @@ Packet B implements this boundary as supervisor-owned state rather than worker
 advice. The contained-worker receipt is mandatory before post-context
 admission; the exact Stage-B receipt and admission token are one-shot; watchdog
 evaluation continuously reuses the authoritative #109 host physical/commit
-decision; and any stale, contradictory, resource, thermal, heartbeat, deadline,
+decision. The Stage-A receipt fixes one absolute run deadline, the exact
+workload-relative resident/commit/pinned host envelope, and the admitted
+device-specific warning/stop temperatures; Stage B and the watchdog may only
+retain or tighten those values. The one-shot token is also bound to the exact
+root PID, Job identity, and approved executable identity. Owned-allocation
+evidence requires an independently timestamped, process- and adapter-bound
+WDDM/NVML measurement whose bytes exactly reconcile with supervisor-owned
+categories; a generic telemetry-present flag has no evidentiary value. Any
+stale, contradictory, resource, thermal, heartbeat, deadline,
 or context-fatal sample immediately blocks submissions. Cancellation retains
 the T-105 acknowledgement, exit, Job-abort, and cleanup deadlines, and cleanup
 cannot release the lease as `Cleaned` when the Job tree or resources remain
@@ -197,6 +205,17 @@ temporary files. It retains the terminal reason and canonical hashes for the
 last good sample and terminal evidence bundle. Any premature destruction or
 unreconciled terminal path quarantines the adapter lease until the supervisor
 process exits.
+
+The native worker additionally retains approved read-only artifact root and
+leaf handles without write/delete sharing from byte-hash verification through
+complete Job-tree exit. The production llama adapter accepts only the Packet A
+artifact record's exact filename, byte count, and SHA-256, plus a sidecar whose
+digest is recomputed from the model bytes. This is still not C2 credit: the
+session must own the live native-worker Job/process authority, cooperative
+cancel signal, abort action, and OS-derived cleanup receipt rather than accept
+caller-assembled containment or cleanup booleans. Until that end-to-end
+lifecycle is implemented and reviewed, Packet B remains in Review and C2 stays
+closed.
 
 ## Provider subordination
 

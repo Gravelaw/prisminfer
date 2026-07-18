@@ -468,6 +468,15 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << (inputs.owned_gpu.process_device_corroboration_available ? "true"
                                                                   : "false")
       << ",\n"
+      << "  \"owned_gpu_process_device_source\": \""
+      << json_escape(inputs.owned_gpu.process_device_source) << "\",\n"
+      << "  \"owned_gpu_process_id\": " << inputs.owned_gpu.process_id
+      << ",\n"
+      << "  \"owned_gpu_process_device_captured_monotonic_milliseconds\": "
+      << inputs.owned_gpu.process_device_captured_monotonic_milliseconds
+      << ",\n"
+      << "  \"owned_gpu_process_device_current_bytes\": "
+      << inputs.owned_gpu.process_device_current_bytes << ",\n"
       << "  \"owned_gpu_adapter_identity_available\": "
       << (inputs.owned_gpu.adapter_identity_available ? "true" : "false")
       << ",\n"

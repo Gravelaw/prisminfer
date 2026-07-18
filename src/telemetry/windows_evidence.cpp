@@ -8,6 +8,8 @@
 #include <sstream>
 #include <vector>
 
+#include "prisminfer/gpu_cap_policy.h"
+
 #if defined(_WIN32)
 #define NOMINMAX
 #include <dxgi1_4.h>
@@ -365,6 +367,14 @@ WindowsEvidenceDecision classify_windows_evidence(
   }
   if (!evidence.gpu.available || !evidence.gpu.reconciled ||
       !evidence.gpu.process_device_corroboration_available ||
+      (evidence.gpu.process_device_source != "nvml-process" &&
+       evidence.gpu.process_device_source != "wddm-process") ||
+      evidence.gpu.process_id == 0U ||
+      evidence.gpu.process_device_captured_monotonic_milliseconds !=
+          evidence.gpu.captured_monotonic_milliseconds ||
+      evidence.gpu.process_device_current_bytes !=
+          evidence.gpu.owned_current_bytes ||
+      !evidence.gpu.adapter_identity_available ||
       evidence.gpu.captured_monotonic_milliseconds == 0U ||
       evidence.maximum_owned_gpu_sample_age_milliseconds == 0U ||
       evidence.maximum_owned_gpu_sample_age_milliseconds > 500U ||
@@ -388,7 +398,7 @@ WindowsEvidenceDecision classify_windows_evidence(
       evidence.gpu.owned_current_bytes > evidence.gpu.owned_peak_bytes) {
     return downgrade("owned_gpu_category_reconciliation_failed");
   }
-  if (evidence.gpu.hard_cap_bytes == 0U ||
+  if (!validate_gpu_hard_cap(evidence.gpu.hard_cap_bytes).accepted ||
       evidence.gpu.owned_current_bytes > evidence.gpu.hard_cap_bytes ||
       evidence.gpu.owned_peak_bytes > evidence.gpu.hard_cap_bytes) {
     return downgrade("owned_gpu_cap_exceeded", "rejected");

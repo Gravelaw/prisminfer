@@ -92,6 +92,12 @@ class PreContextAdmissionReceipt {
   [[nodiscard]] std::uint64_t predicted_gpu_peak_bytes() const;
   [[nodiscard]] std::uint64_t pre_context_gpu_reserve_bytes() const;
   [[nodiscard]] std::uint64_t pre_context_effective_cap_bytes() const;
+  [[nodiscard]] std::uint64_t run_started_monotonic_milliseconds() const;
+  [[nodiscard]] std::uint64_t run_deadline_monotonic_milliseconds() const;
+  [[nodiscard]] const HostReservePolicy& host_policy() const;
+  [[nodiscard]] const HostAdmissionRequest& host_request() const;
+  [[nodiscard]] std::int32_t gpu_warning_celsius() const;
+  [[nodiscard]] std::int32_t gpu_stop_celsius() const;
   [[nodiscard]] const AdmissionCellIdentity& cell() const;
 
  private:
@@ -106,6 +112,12 @@ class PreContextAdmissionReceipt {
                              std::uint64_t predicted_gpu_peak_bytes,
                              std::uint64_t pre_context_gpu_reserve_bytes,
                              std::uint64_t pre_context_effective_cap_bytes,
+                             std::uint64_t run_started_monotonic_milliseconds,
+                             std::uint64_t run_deadline_monotonic_milliseconds,
+                             HostReservePolicy host_policy,
+                             HostAdmissionRequest host_request,
+                             std::int32_t gpu_warning_celsius,
+                             std::int32_t gpu_stop_celsius,
                              AdmissionCellIdentity cell);
 
   std::uint64_t policy_ceiling_bytes_{0};
@@ -116,6 +128,12 @@ class PreContextAdmissionReceipt {
   std::uint64_t predicted_gpu_peak_bytes_{0};
   std::uint64_t pre_context_gpu_reserve_bytes_{0};
   std::uint64_t pre_context_effective_cap_bytes_{0};
+  std::uint64_t run_started_monotonic_milliseconds_{0};
+  std::uint64_t run_deadline_monotonic_milliseconds_{0};
+  HostReservePolicy host_policy_;
+  HostAdmissionRequest host_request_;
+  std::int32_t gpu_warning_celsius_{0};
+  std::int32_t gpu_stop_celsius_{0};
   AdmissionCellIdentity cell_;
 };
 
@@ -197,6 +215,12 @@ class PostContextAdmissionReceipt {
   [[nodiscard]] std::uint64_t gpu_reserve_bytes() const;
   [[nodiscard]] std::uint64_t effective_cap_bytes() const;
   [[nodiscard]] std::uint64_t evaluation_monotonic_milliseconds() const;
+  [[nodiscard]] std::uint64_t run_started_monotonic_milliseconds() const;
+  [[nodiscard]] std::uint64_t run_deadline_monotonic_milliseconds() const;
+  [[nodiscard]] const HostReservePolicy& host_policy() const;
+  [[nodiscard]] const HostAdmissionRequest& host_request() const;
+  [[nodiscard]] std::int32_t gpu_warning_celsius() const;
+  [[nodiscard]] std::int32_t gpu_stop_celsius() const;
   [[nodiscard]] const AdmissionCellIdentity& cell() const;
 
  private:
@@ -211,6 +235,10 @@ class PostContextAdmissionReceipt {
       std::uint64_t predicted_gpu_peak_bytes, std::uint64_t gpu_reserve_bytes,
       std::uint64_t effective_cap_bytes,
       std::uint64_t evaluation_monotonic_milliseconds,
+      std::uint64_t run_started_monotonic_milliseconds,
+      std::uint64_t run_deadline_monotonic_milliseconds,
+      HostReservePolicy host_policy, HostAdmissionRequest host_request,
+      std::int32_t gpu_warning_celsius, std::int32_t gpu_stop_celsius,
       AdmissionCellIdentity cell);
   [[nodiscard]] bool consume_for_token() const;
 
@@ -224,6 +252,12 @@ class PostContextAdmissionReceipt {
   std::uint64_t gpu_reserve_bytes_{0};
   std::uint64_t effective_cap_bytes_{0};
   std::uint64_t evaluation_monotonic_milliseconds_{0};
+  std::uint64_t run_started_monotonic_milliseconds_{0};
+  std::uint64_t run_deadline_monotonic_milliseconds_{0};
+  HostReservePolicy host_policy_;
+  HostAdmissionRequest host_request_;
+  std::int32_t gpu_warning_celsius_{0};
+  std::int32_t gpu_stop_celsius_{0};
   AdmissionCellIdentity cell_;
   std::shared_ptr<std::atomic<bool>> token_consumed_;
 };

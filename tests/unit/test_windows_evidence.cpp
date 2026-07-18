@@ -23,7 +23,14 @@ prisminfer::WindowsEvidenceBundle valid_owned() {
   evidence.gpu.captured_monotonic_milliseconds = 200;
   evidence.gpu.reconciled = true;
   evidence.gpu.process_device_corroboration_available = true;
-  evidence.gpu.hard_cap_bytes = 1024;
+  evidence.gpu.process_device_source = "wddm-process";
+  evidence.gpu.process_id = 42;
+  evidence.gpu.process_device_captured_monotonic_milliseconds = 200;
+  evidence.gpu.process_device_current_bytes = 512;
+  evidence.gpu.adapter_identity_available = true;
+  evidence.gpu.adapter_luid_high = 1;
+  evidence.gpu.adapter_luid_low = 2;
+  evidence.gpu.hard_cap_bytes = 16ULL << 30;
   evidence.gpu.owned_current_bytes = 512;
   evidence.gpu.owned_peak_bytes = 768;
   evidence.gpu.backend_buffer_current_bytes = 512;
@@ -135,6 +142,28 @@ int main() {
     return 1;
   }
 
+  auto missing_adapter = valid_owned();
+  missing_adapter.gpu.adapter_identity_available = false;
+  if (expect_downgrade(missing_adapter, "owned_gpu_reconciliation_required",
+                       "owned-allocation certification requires adapter identity")) {
+    return 1;
+  }
+
+  auto forged_process_measurement = valid_owned();
+  forged_process_measurement.gpu.process_device_current_bytes += 1;
+  if (expect_downgrade(forged_process_measurement,
+                       "owned_gpu_reconciliation_required",
+                       "process-device bytes must reconcile independently")) {
+    return 1;
+  }
+
+  auto invalid_policy_cap = valid_owned();
+  invalid_policy_cap.gpu.hard_cap_bytes = 17ULL << 30;
+  if (expect_downgrade(invalid_policy_cap, "owned_gpu_cap_exceeded",
+                       "owned-allocation cap must be a valid policy tier")) {
+    return 1;
+  }
+
   auto stale_host = valid_owned();
   stale_host.evaluation_monotonic_milliseconds = 701;
   if (expect_downgrade(stale_host,
@@ -179,6 +208,7 @@ int main() {
   physical.system_host_pre.captured_monotonic_milliseconds = 900;
   physical.system_host_post.captured_monotonic_milliseconds = 950;
   physical.gpu.captured_monotonic_milliseconds = 950;
+  physical.gpu.process_device_captured_monotonic_milliseconds = 950;
   physical.maximum_owned_gpu_sample_age_milliseconds = 100;
   physical.maximum_wddm_sample_age_milliseconds = 100;
   physical.wddm.available = true;
@@ -240,6 +270,7 @@ int main() {
   physical.instrumentation_mode = "ordinary";
   physical.evaluation_monotonic_milliseconds = 1100;
   physical.gpu.captured_monotonic_milliseconds = 1100;
+  physical.gpu.process_device_captured_monotonic_milliseconds = 1100;
   const auto stale = prisminfer::classify_windows_evidence(physical);
   if (expect(
           !stale.promotable && stale.reason == "fresh_wddm_evidence_required",

@@ -32,6 +32,11 @@ prisminfer::PredictedBytes prediction(
 
 prisminfer::AdmissionCellIdentity cell(std::uint8_t seed = 1);
 
+prisminfer::AdmissionWorkerIdentity worker_identity(
+    std::uint32_t process_id = 42) {
+  return {process_id, "job-42", "approved-worker"};
+}
+
 prisminfer::PreContextAdmissionRequest pre_request() {
   prisminfer::PreContextAdmissionRequest request;
   request.requested_tier_bytes = 8 * kGiB;
@@ -63,8 +68,8 @@ prisminfer::PreContextAdmissionRequest pre_request() {
   request.thermal.available = true;
   request.thermal.captured_monotonic_milliseconds = 10'000;
   request.thermal.current_celsius = 55;
-  request.thermal.reported_target_celsius = 90;
-  request.thermal.reported_slowdown_celsius = 92;
+  request.thermal.reported_target_celsius = 75;
+  request.thermal.reported_slowdown_celsius = 80;
   request.storage.available = true;
   request.storage.free_bytes = 100 * kGiB;
   request.storage.reserve_bytes = 10 * kGiB;
@@ -105,11 +110,17 @@ prisminfer::PostContextAdmissionReceipt post_receipt() {
       request.gpu.captured_monotonic_milliseconds;
   request.owned_gpu.reconciled = true;
   request.owned_gpu.process_device_corroboration_available = true;
+  request.owned_gpu.process_device_source = "wddm-process";
+  request.owned_gpu.process_id = 42;
+  request.owned_gpu.process_device_captured_monotonic_milliseconds =
+      request.owned_gpu.captured_monotonic_milliseconds;
   request.owned_gpu.adapter_identity_available = true;
   request.owned_gpu.adapter_luid_high = request.gpu.adapter_luid_high;
   request.owned_gpu.adapter_luid_low = request.gpu.adapter_luid_low;
   request.owned_gpu.hard_cap_bytes = pre.pre_context_effective_cap_bytes;
   request.owned_gpu.owned_current_bytes = 512 * (1ULL << 20);
+  request.owned_gpu.process_device_current_bytes =
+      request.owned_gpu.owned_current_bytes;
   request.owned_gpu.owned_peak_bytes = 512 * (1ULL << 20);
   request.owned_gpu.cuda_context_runtime_current_bytes = 512 * (1ULL << 20);
   request.owned_gpu.cuda_context_runtime_at_owned_peak_bytes =
@@ -141,7 +152,7 @@ prisminfer::SupervisorWatchdogSample watchdog_sample() {
   const auto base = pre_request();
   prisminfer::SupervisorWatchdogSample sample;
   sample.evaluated_monotonic_milliseconds = 10'400;
-  sample.run_deadline_monotonic_milliseconds = 20'000;
+  sample.run_deadline_monotonic_milliseconds = 70'100;
   sample.worker_heartbeat_monotonic_milliseconds = 10'300;
   sample.worker_alive = true;
   sample.gpu = base.gpu;
@@ -153,11 +164,17 @@ prisminfer::SupervisorWatchdogSample watchdog_sample() {
       sample.gpu.captured_monotonic_milliseconds;
   sample.owned_gpu.reconciled = true;
   sample.owned_gpu.process_device_corroboration_available = true;
+  sample.owned_gpu.process_device_source = "wddm-process";
+  sample.owned_gpu.process_id = 42;
+  sample.owned_gpu.process_device_captured_monotonic_milliseconds =
+      sample.owned_gpu.captured_monotonic_milliseconds;
   sample.owned_gpu.adapter_identity_available = true;
   sample.owned_gpu.adapter_luid_high = 7;
   sample.owned_gpu.adapter_luid_low = 11;
   sample.owned_gpu.hard_cap_bytes = 8 * kGiB;
   sample.owned_gpu.owned_current_bytes = 512ULL << 20;
+  sample.owned_gpu.process_device_current_bytes =
+      sample.owned_gpu.owned_current_bytes;
   sample.owned_gpu.owned_peak_bytes = 512ULL << 20;
   sample.owned_gpu.cuda_context_runtime_current_bytes = 512ULL << 20;
   sample.owned_gpu.cuda_context_runtime_at_owned_peak_bytes = 512ULL << 20;
@@ -180,7 +197,8 @@ int main() {
   {
     const auto receipt = post_receipt();
     prisminfer::AdmissionTokenIssuer issuer;
-    auto issued = issuer.issue(receipt, cell(), 10'400, 100);
+    auto issued =
+        issuer.issue(receipt, cell(), worker_identity(), 10'400, 100);
     if (expect(issued.status == AdmissionTokenStatus::Issued && issued.token &&
                    issued.token->active(),
                "valid exact cell receives an active token") ||
@@ -188,17 +206,20 @@ int main() {
                "token carries the post-context cap")) {
       return 1;
     }
-    const auto consumed = issuer.consume(*issued.token, cell(), 10'450);
+    const auto consumed =
+        issuer.consume(*issued.token, cell(), worker_identity(), 10'450);
     if (expect(consumed.status == AdmissionTokenStatus::Consumed &&
                    consumed.effective_cap_bytes == 8 * kGiB &&
                    !issued.token->active(),
                "token is consumed exactly once")) {
       return 1;
     }
-    if (expect(issuer.consume(*issued.token, cell(), 10'450).status ==
+    if (expect(issuer.consume(*issued.token, cell(), worker_identity(),
+                              10'450).status ==
                    AdmissionTokenStatus::TokenAlreadyConsumed,
                "consumed token cannot replay") ||
-        expect(issuer.issue(receipt, cell(), 10'450, 50).status ==
+        expect(issuer.issue(receipt, cell(), worker_identity(), 10'450,
+                            50).status ==
                    AdmissionTokenStatus::ReceiptAlreadyUsed,
                "one Stage-B receipt cannot mint multiple tokens")) {
       return 1;
@@ -209,7 +230,8 @@ int main() {
     auto invalid_cell = cell();
     invalid_cell.artifact_identity_hash.fill(0);
     prisminfer::AdmissionTokenIssuer issuer;
-    if (expect(issuer.issue(post_receipt(), invalid_cell, 10'400, 100).status ==
+    if (expect(issuer.issue(post_receipt(), invalid_cell, worker_identity(),
+                            10'400, 100).status ==
                    AdmissionTokenStatus::InvalidCellIdentity,
                "missing exact-cell hash rejects")) {
       return 1;
@@ -218,7 +240,8 @@ int main() {
 
   {
     prisminfer::AdmissionTokenIssuer issuer;
-    if (expect(issuer.issue(post_receipt(), cell(2), 10'400, 100).status ==
+    if (expect(issuer.issue(post_receipt(), cell(2), worker_identity(),
+                            10'400, 100).status ==
                    AdmissionTokenStatus::InvalidCellIdentity,
                "Stage-B receipt cannot mint for another valid cell")) {
       return 1;
@@ -256,6 +279,7 @@ int main() {
     sample.gpu.dxgi_local_budget_bytes = 8 * kGiB;
     sample.gpu.dxgi_local_current_usage_bytes = 7 * kGiB;
     sample.owned_gpu.owned_current_bytes = 7 * kGiB;
+    sample.owned_gpu.process_device_current_bytes = 7 * kGiB;
     sample.owned_gpu.owned_peak_bytes = 7 * kGiB;
     sample.owned_gpu.cuda_context_runtime_current_bytes = 7 * kGiB;
     sample.owned_gpu.cuda_context_runtime_at_owned_peak_bytes = 7 * kGiB;
@@ -303,6 +327,7 @@ int main() {
     }
     sample = watchdog_sample();
     sample.owned_gpu.owned_current_bytes = 0;
+    sample.owned_gpu.process_device_current_bytes = 0;
     sample.owned_gpu.owned_peak_bytes = 0;
     sample.owned_gpu.cuda_context_runtime_current_bytes = 0;
     sample.owned_gpu.cuda_context_runtime_at_owned_peak_bytes = 0;
@@ -363,12 +388,14 @@ int main() {
     std::thread first_issue([&] {
       ready.fetch_add(1, std::memory_order_release);
       while (!go.load(std::memory_order_acquire)) std::this_thread::yield();
-      statuses[0] = first.issue(receipt, cell(), 10'400, 100).status;
+      statuses[0] =
+          first.issue(receipt, cell(), worker_identity(), 10'400, 100).status;
     });
     std::thread second_issue([&] {
       ready.fetch_add(1, std::memory_order_release);
       while (!go.load(std::memory_order_acquire)) std::this_thread::yield();
-      statuses[1] = second.issue(receipt, cell(), 10'400, 100).status;
+      statuses[1] =
+          second.issue(receipt, cell(), worker_identity(), 10'400, 100).status;
     });
     while (ready.load(std::memory_order_acquire) != 2) {
       std::this_thread::yield();
@@ -390,13 +417,16 @@ int main() {
   {
     const auto receipt = post_receipt();
     prisminfer::AdmissionTokenIssuer issuer;
-    if (expect(issuer.issue(receipt, cell(), 10'801, 100).status ==
+    if (expect(issuer.issue(receipt, cell(), worker_identity(), 10'801,
+                            100).status ==
                    AdmissionTokenStatus::InvalidTime,
                "stale Stage-B receipt cannot mint a token") ||
-        expect(issuer.issue(receipt, cell(), 10'800, 1).status ==
+        expect(issuer.issue(receipt, cell(), worker_identity(), 10'800,
+                            1).status ==
                    AdmissionTokenStatus::InvalidTime,
                "receipt cannot mint at its guard-age deadline") ||
-        expect(issuer.issue(receipt, cell(), 10'400, 501).status ==
+        expect(issuer.issue(receipt, cell(), worker_identity(), 10'400,
+                            501).status ==
                    AdmissionTokenStatus::InvalidTime,
                "token validity cannot exceed the guard age")) {
       return 1;
@@ -405,10 +435,12 @@ int main() {
 
   {
     prisminfer::AdmissionTokenIssuer issuer;
-    auto issued = issuer.issue(post_receipt(), cell(), 10'750, 100);
+    auto issued = issuer.issue(post_receipt(), cell(), worker_identity(),
+                               10'750, 100);
     if (expect(issued.status == AdmissionTokenStatus::Issued,
                "late issue is bounded by remaining evidence lifetime") ||
-        expect(issuer.consume(*issued.token, cell(), 10'801).status ==
+        expect(issuer.consume(*issued.token, cell(), worker_identity(),
+                              10'801).status ==
                    AdmissionTokenStatus::TokenExpired,
                "token cannot outlive its Stage-B guard evidence")) {
       return 1;
@@ -417,7 +449,8 @@ int main() {
 
   {
     prisminfer::AdmissionTokenIssuer issuer;
-    auto issued = issuer.issue(post_receipt(), cell(), 10'400, 100);
+    auto issued = issuer.issue(post_receipt(), cell(), worker_identity(),
+                               10'400, 100);
     std::atomic<unsigned> ready{0};
     std::atomic<bool> go{false};
     std::array<AdmissionTokenStatus, 8> statuses{};
@@ -429,7 +462,8 @@ int main() {
           std::this_thread::yield();
         }
         statuses[index] =
-            issuer.consume(*issued.token, cell(), 10'450).status;
+            issuer.consume(*issued.token, cell(), worker_identity(),
+                           10'450).status;
       });
     }
     while (ready.load(std::memory_order_acquire) != consumers.size()) {
@@ -450,12 +484,15 @@ int main() {
 
   {
     prisminfer::AdmissionTokenIssuer issuer;
-    auto issued = issuer.issue(post_receipt(), cell(), 10'400, 100);
-    const auto mismatch = issuer.consume(*issued.token, cell(2), 10'450);
+    auto issued = issuer.issue(post_receipt(), cell(), worker_identity(),
+                               10'400, 100);
+    const auto mismatch = issuer.consume(*issued.token, cell(2),
+                                         worker_identity(), 10'450);
     if (expect(mismatch.status == AdmissionTokenStatus::TokenCellMismatch &&
                    !issued.token->active(),
                "cell mismatch invalidates the token") ||
-        expect(issuer.consume(*issued.token, cell(), 10'450).status ==
+        expect(issuer.consume(*issued.token, cell(), worker_identity(),
+                              10'450).status ==
                    AdmissionTokenStatus::TokenAlreadyConsumed,
                "mismatched token cannot be retried with another cell")) {
       return 1;
@@ -464,8 +501,10 @@ int main() {
 
   {
     prisminfer::AdmissionTokenIssuer issuer;
-    auto issued = issuer.issue(post_receipt(), cell(), 10'400, 100);
-    if (expect(issuer.consume(*issued.token, cell(), 10'501).status ==
+    auto issued = issuer.issue(post_receipt(), cell(), worker_identity(),
+                               10'400, 100);
+    if (expect(issuer.consume(*issued.token, cell(), worker_identity(),
+                              10'501).status ==
                    AdmissionTokenStatus::TokenExpired,
                "expired token rejects and invalidates")) {
       return 1;
@@ -475,11 +514,14 @@ int main() {
   {
     prisminfer::AdmissionTokenIssuer issuer;
     prisminfer::AdmissionTokenIssuer other;
-    auto issued = issuer.issue(post_receipt(), cell(), 10'400, 100);
-    if (expect(other.consume(*issued.token, cell(), 10'450).status ==
+    auto issued = issuer.issue(post_receipt(), cell(), worker_identity(),
+                               10'400, 100);
+    if (expect(other.consume(*issued.token, cell(), worker_identity(),
+                             10'450).status ==
                    AdmissionTokenStatus::ForeignIssuer,
                "another supervisor cannot consume the token") ||
-        expect(issuer.consume(*issued.token, cell(), 10'500).status ==
+        expect(issuer.consume(*issued.token, cell(), worker_identity(),
+                              10'500).status ==
                    AdmissionTokenStatus::Consumed,
                "exact expiry boundary remains valid")) {
       return 1;
@@ -488,11 +530,12 @@ int main() {
 
   {
     prisminfer::AdmissionTokenIssuer issuer;
-    auto issued = issuer.issue(post_receipt(), cell(), 10'400, 100);
+    auto issued = issuer.issue(post_receipt(), cell(), worker_identity(),
+                               10'400, 100);
     auto token = std::move(*issued.token);
     if (expect(!issued.token->active() && token.active(),
                "move transfers token authority and invalidates the source") ||
-        expect(issuer.consume(token, cell(), 10'450).status ==
+        expect(issuer.consume(token, cell(), worker_identity(), 10'450).status ==
                    AdmissionTokenStatus::Consumed,
                "moved token remains single-use")) {
       return 1;
@@ -503,15 +546,60 @@ int main() {
     prisminfer::AdmissionTokenIssuer issuer;
     for (std::size_t index = 0;
          index < prisminfer::AdmissionTokenIssuer::kMaximumReceipts; ++index) {
-      const auto issued = issuer.issue(post_receipt(), cell(), 10'400, 100);
+      const auto issued = issuer.issue(post_receipt(), cell(),
+                                       worker_identity(), 10'400, 100);
       if (expect(issued.status == AdmissionTokenStatus::Issued,
                  "bounded issuer slot accepts a unique receipt")) {
         return 1;
       }
     }
-    if (expect(issuer.issue(post_receipt(), cell(), 10'400, 100).status ==
+    if (expect(issuer.issue(post_receipt(), cell(), worker_identity(),
+                            10'400, 100).status ==
                    AdmissionTokenStatus::IssuerCapacityExhausted,
                "bounded issuer fails closed at fixed capacity")) {
+      return 1;
+    }
+  }
+
+  {
+    prisminfer::AdmissionTokenIssuer issuer;
+    auto issued = issuer.issue(post_receipt(), cell(), worker_identity(),
+                               10'400, 100);
+    const auto mismatch = issuer.consume(*issued.token, cell(),
+                                         worker_identity(43), 10'450);
+    if (expect(mismatch.status == AdmissionTokenStatus::TokenWorkerMismatch &&
+                   !issued.token->active(),
+               "worker identity mismatch invalidates the one-shot token")) {
+      return 1;
+    }
+  }
+
+  {
+    const auto receipt = post_receipt();
+    auto sample = watchdog_sample();
+    sample.run_deadline_monotonic_milliseconds += 1;
+    if (expect(prisminfer::evaluate_supervisor_watchdog(receipt, sample)
+                       .reason == prisminfer::WatchdogReason::DeadlineReached,
+               "watchdog cannot extend the receipt-bound deadline")) {
+      return 1;
+    }
+    sample = watchdog_sample();
+    sample.host.system_memory_available_bytes = 3 * kGiB;
+    sample.host_request = {};
+    sample.host_policy = {};
+    if (expect(prisminfer::evaluate_supervisor_watchdog(receipt, sample)
+                       .reason ==
+                   prisminfer::WatchdogReason::HostReserveBreached,
+               "watchdog uses the receipt-bound host envelope")) {
+      return 1;
+    }
+    sample = watchdog_sample();
+    sample.thermal.reported_target_celsius.reset();
+    sample.thermal.reported_slowdown_celsius.reset();
+    if (expect(prisminfer::evaluate_supervisor_watchdog(receipt, sample)
+                       .reason ==
+                   prisminfer::WatchdogReason::ThermalTelemetryInvalidOrStale,
+               "watchdog cannot discard tighter admitted thermal limits")) {
       return 1;
     }
   }

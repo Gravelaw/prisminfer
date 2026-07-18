@@ -70,6 +70,10 @@ struct OwnedGpuMemoryEvidence {
   std::uint64_t captured_monotonic_milliseconds{0};
   bool reconciled{false};
   bool process_device_corroboration_available{false};
+  std::string process_device_source;
+  std::uint32_t process_id{0};
+  std::uint64_t process_device_captured_monotonic_milliseconds{0};
+  std::uint64_t process_device_current_bytes{0};
   bool adapter_identity_available{false};
   std::int32_t adapter_luid_high{0};
   std::uint32_t adapter_luid_low{0};

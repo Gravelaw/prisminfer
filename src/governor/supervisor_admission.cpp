@@ -16,6 +16,10 @@ PreContextAdmissionReceipt::PreContextAdmissionReceipt(
     std::uint32_t adapter_luid_low, std::uint64_t predicted_gpu_peak_bytes,
     std::uint64_t pre_context_gpu_reserve_bytes,
     std::uint64_t pre_context_effective_cap_bytes,
+    std::uint64_t run_started_monotonic_milliseconds,
+    std::uint64_t run_deadline_monotonic_milliseconds,
+    HostReservePolicy host_policy, HostAdmissionRequest host_request,
+    std::int32_t gpu_warning_celsius, std::int32_t gpu_stop_celsius,
     AdmissionCellIdentity cell)
     : policy_ceiling_bytes_(policy_ceiling_bytes),
       requested_tier_bytes_(requested_tier_bytes),
@@ -25,6 +29,12 @@ PreContextAdmissionReceipt::PreContextAdmissionReceipt(
       predicted_gpu_peak_bytes_(predicted_gpu_peak_bytes),
       pre_context_gpu_reserve_bytes_(pre_context_gpu_reserve_bytes),
       pre_context_effective_cap_bytes_(pre_context_effective_cap_bytes),
+      run_started_monotonic_milliseconds_(run_started_monotonic_milliseconds),
+      run_deadline_monotonic_milliseconds_(run_deadline_monotonic_milliseconds),
+      host_policy_(host_policy),
+      host_request_(host_request),
+      gpu_warning_celsius_(gpu_warning_celsius),
+      gpu_stop_celsius_(gpu_stop_celsius),
       cell_(std::move(cell)) {}
 
 std::uint64_t PreContextAdmissionReceipt::policy_ceiling_bytes() const {
@@ -61,6 +71,32 @@ std::uint64_t PreContextAdmissionReceipt::pre_context_effective_cap_bytes()
   return pre_context_effective_cap_bytes_;
 }
 
+std::uint64_t PreContextAdmissionReceipt::run_started_monotonic_milliseconds()
+    const {
+  return run_started_monotonic_milliseconds_;
+}
+
+std::uint64_t PreContextAdmissionReceipt::run_deadline_monotonic_milliseconds()
+    const {
+  return run_deadline_monotonic_milliseconds_;
+}
+
+const HostReservePolicy& PreContextAdmissionReceipt::host_policy() const {
+  return host_policy_;
+}
+
+const HostAdmissionRequest& PreContextAdmissionReceipt::host_request() const {
+  return host_request_;
+}
+
+std::int32_t PreContextAdmissionReceipt::gpu_warning_celsius() const {
+  return gpu_warning_celsius_;
+}
+
+std::int32_t PreContextAdmissionReceipt::gpu_stop_celsius() const {
+  return gpu_stop_celsius_;
+}
+
 const AdmissionCellIdentity& PreContextAdmissionReceipt::cell() const {
   return cell_;
 }
@@ -72,6 +108,10 @@ PostContextAdmissionReceipt::PostContextAdmissionReceipt(
     std::uint64_t predicted_gpu_peak_bytes, std::uint64_t gpu_reserve_bytes,
     std::uint64_t effective_cap_bytes,
     std::uint64_t evaluation_monotonic_milliseconds,
+    std::uint64_t run_started_monotonic_milliseconds,
+    std::uint64_t run_deadline_monotonic_milliseconds,
+    HostReservePolicy host_policy, HostAdmissionRequest host_request,
+    std::int32_t gpu_warning_celsius, std::int32_t gpu_stop_celsius,
     AdmissionCellIdentity cell)
     : receipt_id_(receipt_id),
       policy_ceiling_bytes_(policy_ceiling_bytes),
@@ -83,6 +123,12 @@ PostContextAdmissionReceipt::PostContextAdmissionReceipt(
       gpu_reserve_bytes_(gpu_reserve_bytes),
       effective_cap_bytes_(effective_cap_bytes),
       evaluation_monotonic_milliseconds_(evaluation_monotonic_milliseconds),
+      run_started_monotonic_milliseconds_(run_started_monotonic_milliseconds),
+      run_deadline_monotonic_milliseconds_(run_deadline_monotonic_milliseconds),
+      host_policy_(host_policy),
+      host_request_(host_request),
+      gpu_warning_celsius_(gpu_warning_celsius),
+      gpu_stop_celsius_(gpu_stop_celsius),
       cell_(std::move(cell)),
       token_consumed_(std::make_shared<std::atomic<bool>>(false)) {}
 
@@ -125,6 +171,32 @@ std::uint64_t PostContextAdmissionReceipt::effective_cap_bytes() const {
 std::uint64_t PostContextAdmissionReceipt::evaluation_monotonic_milliseconds()
     const {
   return evaluation_monotonic_milliseconds_;
+}
+
+std::uint64_t PostContextAdmissionReceipt::run_started_monotonic_milliseconds()
+    const {
+  return run_started_monotonic_milliseconds_;
+}
+
+std::uint64_t PostContextAdmissionReceipt::run_deadline_monotonic_milliseconds()
+    const {
+  return run_deadline_monotonic_milliseconds_;
+}
+
+const HostReservePolicy& PostContextAdmissionReceipt::host_policy() const {
+  return host_policy_;
+}
+
+const HostAdmissionRequest& PostContextAdmissionReceipt::host_request() const {
+  return host_request_;
+}
+
+std::int32_t PostContextAdmissionReceipt::gpu_warning_celsius() const {
+  return gpu_warning_celsius_;
+}
+
+std::int32_t PostContextAdmissionReceipt::gpu_stop_celsius() const {
+  return gpu_stop_celsius_;
 }
 
 const AdmissionCellIdentity& PostContextAdmissionReceipt::cell() const {
@@ -192,6 +264,36 @@ bool same_timing_policy(const SupervisorTimingPolicy& left,
              right.declared_dispatch_bound_milliseconds &&
          left.automatic_same_context_retry_count ==
              right.automatic_same_context_retry_count;
+}
+
+bool same_host_policy(const HostReservePolicy& left,
+                      const HostReservePolicy& right) {
+  return left.lane == right.lane &&
+         left.physical_reserve_floor_bytes ==
+             right.physical_reserve_floor_bytes &&
+         left.physical_reserve_basis_points ==
+             right.physical_reserve_basis_points &&
+         left.commit_reserve_floor_bytes == right.commit_reserve_floor_bytes &&
+         left.commit_limit_reserve_basis_points ==
+             right.commit_limit_reserve_basis_points &&
+         left.commit_physical_reserve_basis_points ==
+             right.commit_physical_reserve_basis_points;
+}
+
+bool same_host_workload(const HostAdmissionRequest& left,
+                        const HostAdmissionRequest& right) {
+  return left.planned_incremental_resident_bytes ==
+             right.planned_incremental_resident_bytes &&
+         left.planned_incremental_commit_bytes ==
+             right.planned_incremental_commit_bytes &&
+         left.resident_uncertainty_bytes == right.resident_uncertainty_bytes &&
+         left.commit_uncertainty_bytes == right.commit_uncertainty_bytes &&
+         left.pinned_host_bytes == right.pinned_host_bytes &&
+         left.explicit_physical_reserve_bytes ==
+             right.explicit_physical_reserve_bytes &&
+         left.explicit_commit_reserve_bytes ==
+             right.explicit_commit_reserve_bytes &&
+         left.promotion_requested == right.promotion_requested;
 }
 
 bool sample_is_fresh(std::uint64_t captured, std::uint64_t evaluated,
@@ -327,6 +429,14 @@ PreContextAdmissionDecision evaluate_pre_context_admission(
       request.run_deadline_milliseconds == 0) {
     return reject(decision, "pre_context_run_deadline_invalid");
   }
+  const auto absolute_run_deadline = checked_add_u64(
+      request.evaluation_monotonic_milliseconds,
+      request.run_deadline_milliseconds);
+  if (request.evaluation_monotonic_milliseconds == 0 ||
+      !absolute_run_deadline ||
+      *absolute_run_deadline <= request.evaluation_monotonic_milliseconds) {
+    return reject(decision, "pre_context_run_deadline_overflowed");
+  }
 
   const auto& timing = request.timing;
   if (!valid_bounded_period(timing.supervisor_sample_period_milliseconds,
@@ -460,7 +570,10 @@ PreContextAdmissionDecision evaluate_pre_context_admission(
       decision.policy_ceiling_bytes, decision.requested_tier_bytes,
       decision.timing, decision.adapter_luid_high, decision.adapter_luid_low,
       decision.predicted_gpu_peak_bytes, decision.pre_context_gpu_reserve_bytes,
-      decision.pre_context_effective_cap_bytes, request.cell);
+      decision.pre_context_effective_cap_bytes,
+      request.evaluation_monotonic_milliseconds, *absolute_run_deadline,
+      request.host_policy, host_request, decision.gpu_warning_celsius,
+      decision.gpu_stop_celsius, request.cell);
   return decision;
 }
 
@@ -488,6 +601,12 @@ PostContextAdmissionDecision evaluate_post_context_admission(
   if (request.policy_ceiling_bytes != pre.policy_ceiling_bytes() ||
       request.requested_tier_bytes != pre.requested_tier_bytes() ||
       !same_timing_policy(request.timing, pre.timing()) ||
+      !same_host_policy(request.host_policy, pre.host_policy()) ||
+      !same_host_workload(request.host_request, pre.host_request()) ||
+      request.evaluation_monotonic_milliseconds <
+          pre.run_started_monotonic_milliseconds() ||
+      request.evaluation_monotonic_milliseconds >=
+          pre.run_deadline_monotonic_milliseconds() ||
       pre.pre_context_gpu_reserve_bytes() < kOneGiB ||
       pre.pre_context_effective_cap_bytes() == 0 ||
       pre.pre_context_effective_cap_bytes() > pre.requested_tier_bytes() ||
@@ -515,6 +634,12 @@ PostContextAdmissionDecision evaluate_post_context_admission(
   const auto reconciled = reconcile_owned_current(owned);
   if (!owned.available || !owned.reconciled ||
       !owned.process_device_corroboration_available ||
+      (owned.process_device_source != "nvml-process" &&
+       owned.process_device_source != "wddm-process") ||
+      owned.process_id == 0 ||
+      owned.process_device_captured_monotonic_milliseconds !=
+          owned.captured_monotonic_milliseconds ||
+      owned.process_device_current_bytes != owned.owned_current_bytes ||
       !owned.adapter_identity_available ||
       owned.captured_monotonic_milliseconds !=
           request.gpu.captured_monotonic_milliseconds ||
@@ -526,6 +651,12 @@ PostContextAdmissionDecision evaluate_post_context_admission(
       owned.unknown_unreconciled_bytes != 0 || !reconciled ||
       *reconciled != owned.owned_current_bytes ||
       owned.cuda_context_runtime_current_bytes == 0 ||
+      owned.backend_buffer_current_bytes != 0 ||
+      owned.backend_pool_current_bytes != 0 ||
+      owned.kernel_workspace_current_bytes != 0 ||
+      owned.activation_current_bytes != 0 ||
+      owned.kv_current_bytes != 0 || owned.graph_current_bytes != 0 ||
+      owned.profiler_workspace_current_bytes != 0 ||
       owned.owned_current_bytes > owned.owned_peak_bytes ||
       owned.hard_cap_bytes != pre.pre_context_effective_cap_bytes() ||
       owned.owned_peak_bytes > owned.hard_cap_bytes ||
@@ -587,6 +718,8 @@ PostContextAdmissionDecision evaluate_post_context_admission(
   }
   if (thermal->warning_celsius <= 0 || thermal->stop_celsius <= 0 ||
       thermal->warning_celsius >= thermal->stop_celsius ||
+      thermal->warning_celsius > pre.gpu_warning_celsius() ||
+      thermal->stop_celsius > pre.gpu_stop_celsius() ||
       !thermal->safe_for_admission) {
     decision.reason = "post_context_gpu_thermal_state_unsafe";
     return decision;
@@ -616,7 +749,11 @@ PostContextAdmissionDecision evaluate_post_context_admission(
       request.timing, request.gpu.adapter_luid_high,
       request.gpu.adapter_luid_low, pre.predicted_gpu_peak_bytes(),
       decision.gpu_reserve_bytes, decision.post_context_effective_cap_bytes,
-      request.evaluation_monotonic_milliseconds, request.cell);
+      request.evaluation_monotonic_milliseconds,
+      pre.run_started_monotonic_milliseconds(),
+      pre.run_deadline_monotonic_milliseconds(), pre.host_policy(),
+      pre.host_request(), pre.gpu_warning_celsius(), pre.gpu_stop_celsius(),
+      request.cell);
   return decision;
 }
 

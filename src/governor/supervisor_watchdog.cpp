@@ -83,6 +83,8 @@ SupervisorWatchdogDecision evaluate_supervisor_watchdog(
   if (sample.context_fatal_error) return cancel(WatchdogReason::ContextFatal);
   if (sample.evaluated_monotonic_milliseconds == 0 ||
       sample.run_deadline_monotonic_milliseconds == 0 ||
+      sample.run_deadline_monotonic_milliseconds !=
+          admission.run_deadline_monotonic_milliseconds() ||
       sample.evaluated_monotonic_milliseconds >=
           sample.run_deadline_monotonic_milliseconds) {
     return cancel(WatchdogReason::DeadlineReached);
@@ -107,6 +109,13 @@ SupervisorWatchdogDecision evaluate_supervisor_watchdog(
   const auto owned_total = reconciled_owned_current(sample.owned_gpu);
   if (!sample.owned_gpu.available || !sample.owned_gpu.reconciled ||
       !sample.owned_gpu.process_device_corroboration_available ||
+      (sample.owned_gpu.process_device_source != "nvml-process" &&
+       sample.owned_gpu.process_device_source != "wddm-process") ||
+      sample.owned_gpu.process_id == 0 ||
+      sample.owned_gpu.process_device_captured_monotonic_milliseconds !=
+          sample.owned_gpu.captured_monotonic_milliseconds ||
+      sample.owned_gpu.process_device_current_bytes !=
+          sample.owned_gpu.owned_current_bytes ||
       !sample.owned_gpu.adapter_identity_available || !owned_total ||
       sample.owned_gpu.captured_monotonic_milliseconds !=
           sample.gpu.captured_monotonic_milliseconds ||
@@ -173,18 +182,24 @@ SupervisorWatchdogDecision evaluate_supervisor_watchdog(
     decision.reason = WatchdogReason::ThermalTelemetryInvalidOrStale;
     return decision;
   }
-  if (sample.thermal.current_celsius >= bounds->stop ||
+  if (bounds->warning > admission.gpu_warning_celsius() ||
+      bounds->stop > admission.gpu_stop_celsius()) {
+    decision.reason = WatchdogReason::ThermalTelemetryInvalidOrStale;
+    return decision;
+  }
+  if (sample.thermal.current_celsius >= admission.gpu_stop_celsius() ||
       sample.thermal.thermal_throttling ||
       sample.thermal.power_brake_slowdown) {
     decision.reason = WatchdogReason::ThermalStop;
     return decision;
   }
-  auto host_request = sample.host_request;
+  auto host_request = admission.host_request();
   host_request.evaluation_monotonic_milliseconds =
       sample.evaluated_monotonic_milliseconds;
   host_request.max_telemetry_age_milliseconds = maximum_age;
   decision.host_decision =
-      evaluate_host_admission(sample.host, sample.host_policy, host_request);
+      evaluate_host_admission(sample.host, admission.host_policy(),
+                              host_request);
   if (!decision.host_decision.admitted) {
     decision.reason = WatchdogReason::HostReserveBreached;
     return decision;

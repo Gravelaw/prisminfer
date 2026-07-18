@@ -1,6 +1,7 @@
 #include "prisminfer/backend.h"
 #include "prisminfer/flat_json.h"
 #include "prisminfer/native_worker.h"
+#include "prisminfer/model_sidecar.h"
 
 #include <filesystem>
 #include <fstream>
@@ -78,6 +79,49 @@ std::optional<NativeWorkerTrustCatalog> load_llama_approval_catalog() {
   return NativeWorkerTrustCatalog({{
       executable_path, executable_path.parent_path(), hash->second.text,
       identity->second.text}});
+}
+
+struct PacketAArtifactApproval {
+  std::string filename;
+  std::string sha256;
+  std::uint64_t bytes{0};
+  std::string identity;
+};
+
+std::optional<PacketAArtifactApproval> load_packet_a_artifact_approval() {
+  const auto record_path = std::filesystem::path(PRISMINFER_SOURCE_DIR) /
+      "configs" / "model-artifacts" /
+      "llama-3.1-8b-instruct-q4-k-m" / "artifact-record.json";
+  const auto record = read_flat_json_file(record_path, 64U * 1024U);
+  const auto version = record.fields.find("record_version");
+  const auto kind = record.fields.find("artifact_kind");
+  const auto filename = record.fields.find("artifact_filename");
+  const auto sha256 = record.fields.find("artifact_sha256");
+  const auto bytes = record.fields.find("artifact_bytes");
+  const auto license = record.fields.find("license_status");
+  const auto claim = record.fields.find("claim_boundary");
+  if (!record.ok || version == record.fields.end() ||
+      version->second.text != "packet-a-artifact-v2" ||
+      kind == record.fields.end() || kind->second.text != "gguf" ||
+      filename == record.fields.end() || filename->second.text.empty() ||
+      sha256 == record.fields.end() || sha256->second.text.size() != 64U ||
+      bytes == record.fields.end() ||
+      bytes->second.kind != FlatJsonValue::Kind::Number ||
+      license == record.fields.end() || license->second.text != "accepted" ||
+      claim == record.fields.end() ||
+      claim->second.text !=
+          "CPU/offline artifact admission only; no inference, CUDA, calibration, benchmark, or performance claim") {
+    return std::nullopt;
+  }
+  try {
+    const auto approved_bytes = std::stoull(bytes->second.text);
+    if (approved_bytes == 0U) return std::nullopt;
+    return PacketAArtifactApproval{
+        filename->second.text, sha256->second.text, approved_bytes,
+        "packet-a:llama-3.1-8b-instruct-q4-k-m:" + sha256->second.text};
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
 }
 
 std::uint64_t parse_bytes(double value, const std::string& unit) {
@@ -213,6 +257,26 @@ class LlamaBackendAdapter final : public BackendAdapter {
       result.failure_reason = "llama_model_not_found";
       return result;
     }
+    const auto artifact_approval = load_packet_a_artifact_approval();
+    if (!artifact_approval) {
+      result.ok = false;
+      result.failure_reason = "packet_a_artifact_approval_unavailable";
+      return result;
+    }
+    const ModelSidecarValidationRequest model_validation_request{
+        config.model_path, config.sidecar_path, config.max_model_bytes,
+        config.max_sidecar_bytes};
+    const auto model_validation =
+        validate_model_sidecar(model_validation_request);
+    if (!model_validation.valid || model_validation.skipped ||
+        model_validation.model_sha256 != artifact_approval->sha256 ||
+        model_validation.model_size_bytes != artifact_approval->bytes ||
+        model_validation.normalized_model_path.filename().string() !=
+            artifact_approval->filename) {
+      result.ok = false;
+      result.failure_reason = "packet_a_artifact_identity_mismatch";
+      return result;
+    }
     if (path_has_directory(executable) && !std::filesystem::exists(executable)) {
       result.ok = false;
       result.failure_reason = "llama_executable_not_found";
@@ -239,6 +303,10 @@ class LlamaBackendAdapter final : public BackendAdapter {
     request.executable_path = executable;
     request.arguments = std::move(arguments);
     request.timeout_ms = 60'000U;
+    request.approved_read_only_inputs.push_back({
+        model_validation.normalized_model_path,
+        model_validation.normalized_model_path.parent_path(),
+        artifact_approval->sha256, artifact_approval->identity});
     const auto worker = run_native_worker(*catalog, request);
     result.worker_evidence_available = worker.evidence_available;
     result.worker_executable_sha256 = worker.executable_sha256;

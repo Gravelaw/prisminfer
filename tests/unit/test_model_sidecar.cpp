@@ -31,7 +31,8 @@ int main() {
 
   const auto model = root / "tiny.gguf";
   const auto sidecar = root / "tiny.gguf.prism.json";
-  const std::string hash(64, 'a');
+  const std::string hash =
+      "357e5d6fafa34d27360fec24b4326d3534905e33c6acdee60198fb078b7b79e5";
   write_text(model, "model-bytes");
   write_text(sidecar,
              "{\"schema_version\":\"0.1\",\"model_sha256\":\"" + hash +
@@ -42,6 +43,23 @@ int main() {
     const auto result = prisminfer::validate_model_sidecar(request);
     if (expect(result.skipped, "empty request skips validation")) return 1;
     if (expect(result.valid, "empty request is valid")) return 1;
+  }
+  {
+    const auto mismatched = root / "mismatched.prism.json";
+    write_text(mismatched,
+               "{\"schema_version\":\"0.1\",\"model_sha256\":\"" +
+                   std::string(64, 'a') + "\"}");
+    prisminfer::ModelSidecarValidationRequest request;
+    request.model_path = model;
+    request.sidecar_path = mismatched;
+    const auto result = prisminfer::validate_model_sidecar(request);
+    if (expect(!result.valid, "sidecar digest must bind the model bytes")) {
+      return 1;
+    }
+    if (expect(result.failure_reason == "sidecar_model_sha256_mismatch",
+               "digest mismatch reason is specific")) {
+      return 1;
+    }
   }
   {
     prisminfer::ModelSidecarValidationRequest request;

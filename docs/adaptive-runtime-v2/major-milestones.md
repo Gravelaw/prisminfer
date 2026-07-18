@@ -208,6 +208,15 @@ until final hosted checks and a fresh independent exact-head safety/security
 review accept the complete tree. No CUDA, model, calibration, capacity, or
 performance evidence was produced.
 
+The first fresh review of head `2effb8497c2b44328faeb7c8f93e1fcc0ea4deed`
+rejected packet exit. It found mutable deadline, host-envelope and thermal
+state; an unbound worker token; asserted process/device corroboration; missing
+Packet A model-byte binding; and a deeper lifecycle gap in which
+`GpuAdmissionSession` did not own the live Job/process/cancel/cleanup
+authority. The CPU-safe follow-up binds the immutable receipt/token/evidence
+and artifact fields, but the live native-worker lifecycle finding remains a
+packet-exit blocker. No tracker state or clearance changes on this receipt.
+
 ## M3: Packet C - exact admission and supervised foundation evidence
 
 **Outcome.** Exact capacity/bandwidth lower bounds, frozen quality fixtures, one

@@ -71,8 +71,8 @@ prisminfer::PreContextAdmissionRequest valid_request() {
   request.thermal.available = true;
   request.thermal.captured_monotonic_milliseconds = 10'000;
   request.thermal.current_celsius = 55;
-  request.thermal.reported_target_celsius = 90;
-  request.thermal.reported_slowdown_celsius = 92;
+  request.thermal.reported_target_celsius = 75;
+  request.thermal.reported_slowdown_celsius = 80;
 
   request.storage.available = true;
   request.storage.free_bytes = 100 * kGiB;
@@ -117,11 +117,17 @@ prisminfer::PostContextAdmissionRequest valid_post_request() {
       request.gpu.captured_monotonic_milliseconds;
   request.owned_gpu.reconciled = true;
   request.owned_gpu.process_device_corroboration_available = true;
+  request.owned_gpu.process_device_source = "wddm-process";
+  request.owned_gpu.process_id = 42;
+  request.owned_gpu.process_device_captured_monotonic_milliseconds =
+      request.owned_gpu.captured_monotonic_milliseconds;
   request.owned_gpu.adapter_identity_available = true;
   request.owned_gpu.adapter_luid_high = request.gpu.adapter_luid_high;
   request.owned_gpu.adapter_luid_low = request.gpu.adapter_luid_low;
   request.owned_gpu.hard_cap_bytes = pre.pre_context_effective_cap_bytes;
   request.owned_gpu.owned_current_bytes = 512 * (1ULL << 20);
+  request.owned_gpu.process_device_current_bytes =
+      request.owned_gpu.owned_current_bytes;
   request.owned_gpu.owned_peak_bytes = 512 * (1ULL << 20);
   request.owned_gpu.cuda_context_runtime_current_bytes = 512 * (1ULL << 20);
   request.owned_gpu.cuda_context_runtime_at_owned_peak_bytes =
@@ -164,8 +170,8 @@ int main() {
                "GPU reserve is exact ten-percent ceiling") ||
         expect(decision.pre_context_effective_cap_bytes == 8 * kGiB,
                "requested tier bounds the live cap") ||
-        expect(decision.gpu_warning_celsius == 78 &&
-                   decision.gpu_stop_celsius == 82,
+        expect(decision.gpu_warning_celsius == 67 &&
+                   decision.gpu_stop_celsius == 70,
                "thermal limits apply all available bounds") ||
         expect(decision.storage_payload_bytes == 90 * kGiB,
                "storage reserve is not payload") ||
@@ -618,6 +624,42 @@ int main() {
     if (expect(!pressure.admitted && pressure.host_decision.reason ==
                                          "planned_commit_peak_exceeds_payload",
                "commit pressure rejects independently")) {
+      return 1;
+    }
+  }
+
+  {
+    const auto pre_input = valid_request();
+    const auto pre = prisminfer::evaluate_pre_context_admission(pre_input);
+    if (expect(pre.receipt &&
+                   pre.receipt->run_started_monotonic_milliseconds() ==
+                       pre_input.evaluation_monotonic_milliseconds &&
+                   pre.receipt->run_deadline_monotonic_milliseconds() ==
+                       70'100,
+               "Stage A binds one absolute run deadline")) {
+      return 1;
+    }
+    auto post = valid_post_request();
+    post.host_request.planned_incremental_commit_bytes += 1;
+    if (expect(prisminfer::evaluate_post_context_admission(post).reason ==
+                   "post_context_pre_admission_invalid_or_mismatched",
+               "Stage B cannot loosen or replace the admitted host workload")) {
+      return 1;
+    }
+    post = valid_post_request();
+    post.host_policy.lane =
+        prisminfer::HostAdmissionLane::EvidencePromotable;
+    if (expect(prisminfer::evaluate_post_context_admission(post).reason ==
+                   "post_context_pre_admission_invalid_or_mismatched",
+               "Stage B cannot replace the admitted host policy")) {
+      return 1;
+    }
+    post = valid_post_request();
+    post.thermal.reported_target_celsius.reset();
+    post.thermal.reported_slowdown_celsius.reset();
+    if (expect(prisminfer::evaluate_post_context_admission(post).reason ==
+                   "post_context_gpu_thermal_state_unsafe",
+               "Stage B cannot discard tighter device thermal bounds")) {
       return 1;
     }
   }

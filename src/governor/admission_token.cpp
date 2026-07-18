@@ -33,6 +33,7 @@ std::uint64_t next_issuer_id() {
 AdmissionToken::AdmissionToken(std::uint64_t issuer_id, std::uint64_t token_id,
                                std::uint64_t receipt_id,
                                AdmissionCellIdentity cell,
+                               AdmissionWorkerIdentity worker,
                                std::uint64_t issued_monotonic_milliseconds,
                                std::uint64_t expires_monotonic_milliseconds,
                                std::uint64_t effective_cap_bytes)
@@ -40,6 +41,7 @@ AdmissionToken::AdmissionToken(std::uint64_t issuer_id, std::uint64_t token_id,
       token_id_(token_id),
       receipt_id_(receipt_id),
       cell_(std::move(cell)),
+      worker_(std::move(worker)),
       issued_monotonic_milliseconds_(issued_monotonic_milliseconds),
       expires_monotonic_milliseconds_(expires_monotonic_milliseconds),
       effective_cap_bytes_(effective_cap_bytes),
@@ -55,6 +57,7 @@ AdmissionToken& AdmissionToken::operator=(AdmissionToken&& other) noexcept {
   token_id_ = other.token_id_;
   receipt_id_ = other.receipt_id_;
   cell_ = other.cell_;
+  worker_ = other.worker_;
   issued_monotonic_milliseconds_ = other.issued_monotonic_milliseconds_;
   expires_monotonic_milliseconds_ = other.expires_monotonic_milliseconds_;
   effective_cap_bytes_ = other.effective_cap_bytes_;
@@ -79,6 +82,7 @@ void AdmissionToken::invalidate() {
   token_id_ = 0;
   receipt_id_ = 0;
   cell_ = {};
+  worker_ = {};
   issued_monotonic_milliseconds_ = 0;
   expires_monotonic_milliseconds_ = 0;
   effective_cap_bytes_ = 0;
@@ -89,7 +93,8 @@ AdmissionTokenIssuer::AdmissionTokenIssuer() : issuer_id_(next_issuer_id()) {}
 
 AdmissionTokenIssueResult AdmissionTokenIssuer::issue(
     const PostContextAdmissionReceipt& receipt,
-    const AdmissionCellIdentity& cell, std::uint64_t now_monotonic_milliseconds,
+    const AdmissionCellIdentity& cell, const AdmissionWorkerIdentity& worker,
+    std::uint64_t now_monotonic_milliseconds,
     std::uint64_t validity_milliseconds) {
   AdmissionTokenIssueResult result;
   std::lock_guard lock(mutex_);
@@ -104,6 +109,11 @@ AdmissionTokenIssueResult AdmissionTokenIssuer::issue(
   }
   if (!admission_cell_identity_valid(cell) || receipt.cell() != cell) {
     result.status = AdmissionTokenStatus::InvalidCellIdentity;
+    return result;
+  }
+  if (worker.root_process_id == 0 || worker.job_identity.empty() ||
+      worker.executable_identity.empty()) {
+    result.status = AdmissionTokenStatus::InvalidWorkerIdentity;
     return result;
   }
   if (now_monotonic_milliseconds == 0 ||
@@ -150,7 +160,7 @@ AdmissionTokenIssueResult AdmissionTokenIssuer::issue(
   const auto token_id = next_token_id_++;
   used_receipt_ids_[used_receipt_count_++] = receipt.receipt_id();
   result.token = AdmissionToken(issuer_id_, token_id, receipt.receipt_id(),
-                                cell, now_monotonic_milliseconds, expires,
+                                cell, worker, now_monotonic_milliseconds, expires,
                                 receipt.effective_cap_bytes());
   result.status = AdmissionTokenStatus::Issued;
   return result;
@@ -158,6 +168,7 @@ AdmissionTokenIssueResult AdmissionTokenIssuer::issue(
 
 AdmissionTokenConsumeResult AdmissionTokenIssuer::consume(
     AdmissionToken& token, const AdmissionCellIdentity& cell,
+    const AdmissionWorkerIdentity& worker,
     std::uint64_t now_monotonic_milliseconds) {
   AdmissionTokenConsumeResult result;
   if (!token.active_.load(std::memory_order_acquire)) {
@@ -171,6 +182,10 @@ AdmissionTokenConsumeResult AdmissionTokenIssuer::consume(
   AdmissionTokenStatus terminal_status = AdmissionTokenStatus::Consumed;
   if (!admission_cell_identity_valid(cell) || token.cell_ != cell) {
     terminal_status = AdmissionTokenStatus::TokenCellMismatch;
+  } else if (worker.root_process_id == 0 || worker.job_identity.empty() ||
+             worker.executable_identity.empty() ||
+             token.worker_ != worker) {
+    terminal_status = AdmissionTokenStatus::TokenWorkerMismatch;
   } else if (now_monotonic_milliseconds <
                  token.issued_monotonic_milliseconds_ ||
              now_monotonic_milliseconds >
@@ -186,6 +201,10 @@ AdmissionTokenConsumeResult AdmissionTokenIssuer::consume(
   }
   if (terminal_status == AdmissionTokenStatus::TokenCellMismatch) {
     result.status = AdmissionTokenStatus::TokenCellMismatch;
+    return result;
+  }
+  if (terminal_status == AdmissionTokenStatus::TokenWorkerMismatch) {
+    result.status = AdmissionTokenStatus::TokenWorkerMismatch;
     return result;
   }
   if (terminal_status == AdmissionTokenStatus::TokenExpired) {

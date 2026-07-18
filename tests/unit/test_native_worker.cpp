@@ -233,6 +233,37 @@ int main(int argc, char** argv) {
              "root and complete Job process-tree memory evidence is retained")) {
     return 1;
   }
+  const auto approved_input_path =
+      request.executable_path.parent_path() / "approved-worker-input.gguf";
+  {
+    std::ofstream approved_input(approved_input_path,
+                                 std::ios::binary | std::ios::trunc);
+    approved_input << "approved-model-bytes";
+  }
+  const auto approved_input_hash =
+      prisminfer::sha256_regular_file(approved_input_path);
+  auto approved_input_request = request;
+  approved_input_request.approved_read_only_inputs.push_back(
+      {approved_input_path, approved_input_path.parent_path(),
+       approved_input_hash, "packet-a-test-input"});
+  const auto approved_input_worker =
+      prisminfer::run_native_worker(catalog, approved_input_request);
+  if (expect(approved_input_worker.ok,
+             "approved read-only input remains identity-bound through exit")) {
+    return 1;
+  }
+  approved_input_request.approved_read_only_inputs.front().expected_sha256 =
+      std::string(64U, '0');
+  const auto rejected_input_worker =
+      prisminfer::run_native_worker(catalog, approved_input_request);
+  std::error_code approved_input_remove_error;
+  std::filesystem::remove(approved_input_path, approved_input_remove_error);
+  if (expect(!rejected_input_worker.ok &&
+                 rejected_input_worker.failure_reason ==
+                     "native_worker_input_identity_rejected",
+             "mismatched approved input is rejected before worker resume")) {
+    return 1;
+  }
   const auto hardlink_path = request.executable_path.parent_path() /
                              L"prisminfer-native-worker-hardlink.exe";
   std::error_code hardlink_error;

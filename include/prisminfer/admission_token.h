@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <mutex>
 #include <optional>
+#include <string>
 
 #include "prisminfer/admission_cell_identity.h"
 #include "prisminfer/supervisor_admission.h"
@@ -24,8 +25,18 @@ enum class AdmissionTokenStatus {
   ForeignIssuer,
   TokenAlreadyConsumed,
   TokenCellMismatch,
+  InvalidWorkerIdentity,
+  TokenWorkerMismatch,
   TokenExpired,
   SupervisorStateInvalid,
+};
+
+struct AdmissionWorkerIdentity {
+  std::uint32_t root_process_id{0};
+  std::string job_identity;
+  std::string executable_identity;
+
+  bool operator==(const AdmissionWorkerIdentity&) const = default;
 };
 
 class AdmissionToken {
@@ -44,6 +55,7 @@ class AdmissionToken {
 
   AdmissionToken(std::uint64_t issuer_id, std::uint64_t token_id,
                  std::uint64_t receipt_id, AdmissionCellIdentity cell,
+                 AdmissionWorkerIdentity worker,
                  std::uint64_t issued_monotonic_milliseconds,
                  std::uint64_t expires_monotonic_milliseconds,
                  std::uint64_t effective_cap_bytes);
@@ -53,6 +65,7 @@ class AdmissionToken {
   std::uint64_t token_id_{0};
   std::uint64_t receipt_id_{0};
   AdmissionCellIdentity cell_;
+  AdmissionWorkerIdentity worker_;
   std::uint64_t issued_monotonic_milliseconds_{0};
   std::uint64_t expires_monotonic_milliseconds_{0};
   std::uint64_t effective_cap_bytes_{0};
@@ -80,10 +93,12 @@ class AdmissionTokenIssuer {
   [[nodiscard]] AdmissionTokenIssueResult issue(
       const PostContextAdmissionReceipt& receipt,
       const AdmissionCellIdentity& cell,
+      const AdmissionWorkerIdentity& worker,
       std::uint64_t now_monotonic_milliseconds,
       std::uint64_t validity_milliseconds);
   [[nodiscard]] AdmissionTokenConsumeResult consume(
       AdmissionToken& token, const AdmissionCellIdentity& cell,
+      const AdmissionWorkerIdentity& worker,
       std::uint64_t now_monotonic_milliseconds);
 
  private:

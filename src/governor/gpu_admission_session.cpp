@@ -151,7 +151,11 @@ AdmissionTokenIssueResult GpuAdmissionSession::issue_token(
     if (impl_) impl_->state = GpuAdmissionSessionState::FailedClosed;
     return rejected;
   }
+  const AdmissionWorkerIdentity worker_identity{
+      impl_->worker->root_process_id, impl_->worker->job_identity,
+      impl_->worker->executable_identity};
   auto issued = impl_->token_issuer.issue(*impl_->post_receipt, impl_->cell,
+                                          worker_identity,
                                           now_monotonic_milliseconds,
                                           validity_milliseconds);
   if (issued.status != AdmissionTokenStatus::Issued || !issued.token) {
@@ -172,8 +176,15 @@ AdmissionTokenConsumeResult GpuAdmissionSession::consume_token(
     if (impl_) impl_->state = GpuAdmissionSessionState::FailedClosed;
     return rejected;
   }
+  if (!impl_->worker) {
+    impl_->state = GpuAdmissionSessionState::FailedClosed;
+    return rejected;
+  }
+  const AdmissionWorkerIdentity worker_identity{
+      impl_->worker->root_process_id, impl_->worker->job_identity,
+      impl_->worker->executable_identity};
   auto consumed =
-      impl_->token_issuer.consume(token, impl_->cell,
+      impl_->token_issuer.consume(token, impl_->cell, worker_identity,
                                   now_monotonic_milliseconds);
   if (consumed.status != AdmissionTokenStatus::Consumed) {
     impl_->state = GpuAdmissionSessionState::FailedClosed;
