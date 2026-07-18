@@ -165,6 +165,12 @@ class NativeWorkerProtocolSupervisor {
     return !evidence.available &&
            heartbeat(sequence, now_monotonic_milliseconds);
   }
+  virtual void cooperative_cancel_requested(
+      const std::string& reason,
+      std::uint64_t now_monotonic_milliseconds) {
+    (void)reason;
+    (void)now_monotonic_milliseconds;
+  }
   virtual void cooperative_cancel_acknowledged(
       std::uint64_t now_monotonic_milliseconds) = 0;
 };

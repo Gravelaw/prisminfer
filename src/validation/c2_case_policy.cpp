@@ -21,7 +21,7 @@ bool c2_case_result_matches_contract(
   if (case_name == "heartbeat-loss") {
     return !result.ok &&
            result.failure_reason.find("heartbeat_timeout") != std::string::npos &&
-           cleanup == GpuAdmissionSessionState::Quarantined;
+           cleanup == GpuAdmissionSessionState::Cleaned;
   }
   if (case_name == "post-context-telemetry-loss") {
     return !result.ok &&

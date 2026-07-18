@@ -1106,6 +1106,8 @@ NativeWorkerResult run_native_worker_impl(
       return;
     }
     protocol_failure = reason;
+    protocol_supervisor->cooperative_cancel_requested(
+        reason, monotonic_time_milliseconds());
     const std::string message = "PRISMINFER/1 CANCEL " + protocol_nonce + "\n";
     if (!write_protocol(message) && protocol_failure.empty()) {
       protocol_failure = "native_worker_protocol_cancel_write_failed";

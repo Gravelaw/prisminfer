@@ -38,8 +38,8 @@ int main() {
       expect(prisminfer::c2_case_result_matches_contract(
                  "heartbeat-loss",
                  contained_result("native_worker_protocol_heartbeat_timeout"),
-                 State::Quarantined, true),
-             "heartbeat loss has the typed fail-closed result") ||
+                 State::Cleaned, true),
+             "heartbeat loss requires reconciled cleanup") ||
       expect(prisminfer::c2_case_result_matches_contract(
                  "post-context-telemetry-loss",
                  contained_result("native_worker_protocol_admission_rejected:telemetry"),

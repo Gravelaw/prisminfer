@@ -229,9 +229,13 @@ int main(int argc, char** argv) {
     }
     const bool gpu_evidence_mode =
         mode == "--protocol-gpu-evidence" ||
-        mode == "--protocol-gpu-evidence-cancel";
+        mode == "--protocol-gpu-evidence-cancel" ||
+        mode == "--protocol-gpu-evidence-heartbeat-loss";
     const std::string evidence_luid =
-        mode == "--protocol-gpu-evidence-cancel" ? "23 27 " : "22 26 ";
+        mode == "--protocol-gpu-evidence-cancel"
+            ? "23 27 "
+            : (mode == "--protocol-gpu-evidence-heartbeat-loss" ? "24 28 "
+                                                                  : "22 26 ");
     const std::string context_message =
         gpu_evidence_mode
             ? "PRISMINFER/1 CONTEXT_READY " + std::string(nonce) +
@@ -272,7 +276,8 @@ int main(int argc, char** argv) {
     if (!write_protocol(first_heartbeat)) {
       return 7;
     }
-    if (mode == "--protocol-stale-heartbeat") {
+    if (mode == "--protocol-stale-heartbeat" ||
+        mode == "--protocol-gpu-evidence-heartbeat-loss") {
       std::string cancel_version;
       std::string cancel_type;
       std::string cancel_nonce;
@@ -528,6 +533,89 @@ int main(int argc, char** argv) {
       std::cerr << "watchdog cancel failure="
                 << cancelled_worker.failure_reason << " accounting="
                 << cancelled_worker.job_accounting_reconciled << " cleanup="
+                << static_cast<int>(cleanup) << "\n";
+      return 1;
+    }
+  }
+  {
+    constexpr std::uint64_t kPayload = 64ULL << 20U;
+    auto heartbeat_lost =
+        prisminfer::acquire_gpu_admission_session(cell(), 24, 28U);
+    auto heartbeat_pre = pre_request(prisminfer::monotonic_time_milliseconds());
+    heartbeat_pre.gpu.adapter_luid_high = 24;
+    heartbeat_pre.gpu.adapter_luid_low = 28U;
+    heartbeat_pre.predicted_gpu.model =
+        prediction(0U, prisminfer::PredictionProvenance::ExactZeroNotApplicable);
+    heartbeat_pre.predicted_gpu.state = heartbeat_pre.predicted_gpu.model;
+    heartbeat_pre.predicted_gpu.workspace = heartbeat_pre.predicted_gpu.model;
+    heartbeat_pre.predicted_gpu.fragmentation = heartbeat_pre.predicted_gpu.model;
+    heartbeat_pre.predicted_gpu.backend =
+        prediction(kPayload,
+                   prisminfer::PredictionProvenance::PinnedRuntimeEstimate);
+    if (expect(heartbeat_lost.session.has_value() &&
+                   heartbeat_lost.session->admit_pre_context(heartbeat_pre).admitted,
+               "heartbeat-loss Stage A admits")) {
+      return 1;
+    }
+    auto heartbeat_request = request;
+    heartbeat_request.arguments = {L"--protocol-gpu-evidence-heartbeat-loss"};
+    heartbeat_request.require_gpu_protocol_evidence = true;
+    heartbeat_request.expected_post_admission_payload_bytes = kPayload;
+    heartbeat_request.maximum_post_admission_payload_bytes = kPayload;
+    const auto heartbeat_worker = heartbeat_lost.session->run_contained_worker(
+        catalog, heartbeat_request, 100U,
+        [](std::stop_token, std::uint32_t pid, std::uint64_t ready) {
+          auto post = post_request(ready, pid);
+          post.gpu.adapter_luid_high = 24;
+          post.gpu.adapter_luid_low = 28U;
+          post.owned_gpu = {};
+          return post;
+        },
+        [](std::stop_token, std::uint32_t pid, std::uint64_t,
+           std::uint64_t heartbeat) {
+          auto sample = watchdog_sample(heartbeat, pid);
+          sample.gpu.adapter_luid_high = 24;
+          sample.gpu.adapter_luid_low = 28U;
+          sample.owned_gpu = {};
+          return sample;
+        },
+        [](std::stop_token, std::uint32_t pid, std::int32_t high,
+           std::uint32_t low) {
+          prisminfer::ProcessDeviceMemorySample sample;
+          sample.available = true;
+          sample.source = "wddm-process";
+          sample.process_id = pid;
+          sample.captured_monotonic_milliseconds =
+              prisminfer::monotonic_time_milliseconds();
+          sample.adapter_luid_high = high;
+          sample.adapter_luid_low = low;
+          sample.current_bytes = (512ULL << 20U) + kPayload;
+          return sample;
+        });
+    prisminfer::DeviceCleanupEvidence cleanup_evidence;
+    cleanup_evidence.device_resources_reconciled = true;
+    cleanup_evidence.terminal_reason = heartbeat_worker.failure_reason;
+    cleanup_evidence.last_good_sample_sha256 = std::string(64U, 'c');
+    cleanup_evidence.evidence_bundle_sha256 = std::string(64U, 'd');
+    const auto pre_cleanup_state = heartbeat_lost.session->state();
+    const auto cleanup = heartbeat_lost.session->finalize_cleanup(
+        cleanup_evidence, prisminfer::monotonic_time_milliseconds());
+    if (expect(!heartbeat_worker.ok &&
+                   heartbeat_worker.failure_reason.find("heartbeat_timeout") !=
+                       std::string::npos &&
+                   heartbeat_worker.job_accounting_reconciled &&
+                   cleanup == prisminfer::GpuAdmissionSessionState::Cleaned,
+               "heartbeat timeout retains Job accounting and cleans")) {
+      std::cerr << "heartbeat loss failure=" << heartbeat_worker.failure_reason
+                << " accounting="
+                << heartbeat_worker.job_accounting_reconciled
+                << " exit=" << heartbeat_worker.worker_exit_observed
+                << " tree=" << heartbeat_worker.job_tree_empty
+                << " handles=" << heartbeat_worker.artifact_handles_closed
+                << " temp=" << heartbeat_worker.temporary_files_reconciled
+                << " pre_cleanup_state="
+                << static_cast<int>(pre_cleanup_state)
+                << " cleanup="
                 << static_cast<int>(cleanup) << "\n";
       return 1;
     }

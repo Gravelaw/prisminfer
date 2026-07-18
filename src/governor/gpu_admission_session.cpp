@@ -95,6 +95,7 @@ class CallbackProtocolSupervisor final
   std::function<bool(std::uint64_t, std::uint64_t,
                      const NativeWorkerHeartbeatEvidence&)>
       beat_with_evidence;
+  std::function<void(const std::string&, std::uint64_t)> cancel_requested;
   std::function<void(std::uint64_t)> cancel_ack;
 
   bool bind_owned_worker(
@@ -124,6 +125,10 @@ class CallbackProtocolSupervisor final
                ? beat_with_evidence(sequence, now, evidence)
                : NativeWorkerProtocolSupervisor::heartbeat_with_evidence(
                      sequence, now, evidence);
+  }
+  void cooperative_cancel_requested(
+      const std::string& reason, std::uint64_t now) override {
+    if (cancel_requested) cancel_requested(reason, now);
   }
   void cooperative_cancel_acknowledged(std::uint64_t now) override {
     cancel_ack(now);
@@ -590,6 +595,14 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
   protocol.beat = [&protocol](std::uint64_t sequence, std::uint64_t now) {
     return protocol.beat_with_evidence(
         sequence, now, NativeWorkerHeartbeatEvidence{});
+  };
+  protocol.cancel_requested = [this](const std::string&, std::uint64_t now) {
+    std::lock_guard lock(impl_->mutex);
+    if (impl_->state == GpuAdmissionSessionState::TokenConsumed ||
+        impl_->state == GpuAdmissionSessionState::WatchdogActive) {
+      impl_->state = GpuAdmissionSessionState::CancelRequested;
+      impl_->cancel_requested_monotonic_milliseconds = now;
+    }
   };
   protocol.cancel_ack = [this](std::uint64_t now) {
     (void)advance_cancellation(now, true, false, false);

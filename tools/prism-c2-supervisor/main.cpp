@@ -331,6 +331,10 @@ int main(int argc, char** argv) {
           : 0U;
   const bool device_reconciled = result.worker_exit_observed &&
                                  result.job_tree_empty && final_wddm.available &&
+                                 final_wddm.adapter_luid_high ==
+                                     pre_wddm.adapter_luid_high &&
+                                 final_wddm.adapter_luid_low ==
+                                     pre_wddm.adapter_luid_low &&
                                  final_host.available && final_thermal.available &&
                                  cleanup_wddm_positive_delta <=
                                      kCleanupWddmToleranceBytes;
