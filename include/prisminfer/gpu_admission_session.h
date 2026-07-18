@@ -164,8 +164,9 @@ struct GpuAdmissionSessionAcquireResult {
     std::uint32_t adapter_luid_low);
 
 // Called only by the independent parent that observes a fail-stopped
-// supervisor. Exact exit/Job/cleanup evidence is required before the parent
-// quarantines the adapter lease for its remaining process lifetime.
+// supervisor. The parent first quarantines the adapter lease for its remaining
+// process lifetime; exact exit/Job/cleanup evidence is additionally required
+// before the fail-stop receipt is accepted.
 [[nodiscard]] EvidenceProviderFailStopReceipt
 record_evidence_provider_fail_stop(
     const NativeWorkerResult& supervisor_result,
