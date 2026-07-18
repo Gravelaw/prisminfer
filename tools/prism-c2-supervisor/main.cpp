@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "prisminfer/c2_clearance_receipt.h"
+#include "prisminfer/c2_case_policy.h"
 #include "prisminfer/gpu_admission_session.h"
 #include "prisminfer/gpu_thermal.h"
 #include "prisminfer/host_memory_tracker.h"
@@ -20,6 +21,7 @@ namespace {
 
 constexpr std::uint64_t kGiB = 1ULL << 30U;
 constexpr std::uint32_t kWorkerTimeoutMilliseconds = 10'000U;
+constexpr std::uint64_t kCleanupWddmToleranceBytes = 16ULL << 20U;
 
 struct Options {
   std::filesystem::path worker;
@@ -27,6 +29,7 @@ struct Options {
   std::string case_name;
   std::string workflow_run_id;
   std::string authorization_id;
+  std::string gpu_uuid;
   std::uint32_t adapter_index{0};
   std::uint64_t payload_bytes{0};
 };
@@ -41,7 +44,7 @@ bool parse_integer(const std::string& text, Integer* value) {
 }
 
 bool parse_options(int argc, char** argv, Options* options) {
-  if (argc != 15) return false;
+  if (argc != 17) return false;
   std::map<std::string, std::string> fields;
   for (int index = 1; index + 1 < argc; index += 2) {
     if (std::string(argv[index]).rfind("--", 0U) != 0U ||
@@ -49,10 +52,11 @@ bool parse_options(int argc, char** argv, Options* options) {
       return false;
     }
   }
-  if (fields.size() != 7U || !fields.contains("--worker") ||
+  if (fields.size() != 8U || !fields.contains("--worker") ||
       !fields.contains("--output-root") || !fields.contains("--case") ||
       !fields.contains("--workflow-run-id") ||
       !fields.contains("--authorization-id") ||
+      !fields.contains("--gpu-uuid") ||
       !fields.contains("--adapter-index") ||
       !fields.contains("--payload-bytes")) {
     return false;
@@ -62,12 +66,25 @@ bool parse_options(int argc, char** argv, Options* options) {
   options->case_name = fields["--case"];
   options->workflow_run_id = fields["--workflow-run-id"];
   options->authorization_id = fields["--authorization-id"];
+  options->gpu_uuid = fields["--gpu-uuid"];
   const auto authorization_valid =
       !options->authorization_id.empty() &&
       options->authorization_id.size() <= 128U &&
       options->authorization_id.find_first_not_of(
           "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.:-") ==
           std::string::npos;
+  bool gpu_uuid_valid = options->gpu_uuid.size() == 40U &&
+                        options->gpu_uuid.rfind("GPU-", 0U) == 0U;
+  for (std::size_t index = 4U; gpu_uuid_valid && index < 40U; ++index) {
+    const bool separator = index == 12U || index == 17U || index == 22U ||
+                           index == 27U;
+    gpu_uuid_valid = separator
+                         ? options->gpu_uuid[index] == '-'
+                         : ((options->gpu_uuid[index] >= '0' &&
+                             options->gpu_uuid[index] <= '9') ||
+                            (options->gpu_uuid[index] >= 'a' &&
+                             options->gpu_uuid[index] <= 'f'));
+  }
   return parse_integer(fields["--adapter-index"], &options->adapter_index) &&
          options->adapter_index < 64U &&
          parse_integer(fields["--payload-bytes"], &options->payload_bytes) &&
@@ -75,7 +92,7 @@ bool parse_options(int argc, char** argv, Options* options) {
          options->payload_bytes <= prisminfer::kC2MaximumPayloadBytes &&
          !options->workflow_run_id.empty() &&
          options->workflow_run_id.size() <= 128U &&
-         authorization_valid &&
+         authorization_valid && gpu_uuid_valid &&
          (options->case_name == "success" ||
           options->case_name == "post-context-telemetry-loss" ||
           options->case_name == "heartbeat-loss" ||
@@ -168,7 +185,7 @@ prisminfer::PreContextAdmissionRequest make_pre_request(
       0U, prisminfer::PredictionProvenance::ExactZeroNotApplicable);
   request.gpu = gpu_sample(wddm);
   request.thermal =
-      prisminfer::sample_nvml_gpu_thermal(options.adapter_index);
+      prisminfer::sample_nvml_gpu_thermal(options.gpu_uuid);
   request.host = prisminfer::sample_host_telemetry();
   request.host_policy = prisminfer::default_host_reserve_policy(
       prisminfer::HostAdmissionLane::EvidencePromotable);
@@ -200,7 +217,7 @@ prisminfer::PostContextAdmissionRequest make_post_request(
   request.gpu = gpu_sample(
       prisminfer::sample_wddm_memory(options.adapter_index));
   request.thermal =
-      prisminfer::sample_nvml_gpu_thermal(options.adapter_index);
+      prisminfer::sample_nvml_gpu_thermal(options.gpu_uuid);
   request.host = prisminfer::sample_host_telemetry();
   request.host_policy = host_policy;
   request.host_request = host_request;
@@ -217,34 +234,13 @@ prisminfer::SupervisorWatchdogSample make_watchdog_sample(
   sample.gpu = gpu_sample(
       prisminfer::sample_wddm_memory(options.adapter_index));
   sample.thermal =
-      prisminfer::sample_nvml_gpu_thermal(options.adapter_index);
+      prisminfer::sample_nvml_gpu_thermal(options.gpu_uuid);
   sample.host = prisminfer::sample_host_telemetry();
   sample.host_policy = host_policy;
   sample.host_request = host_request;
   sample.owned_gpu.process_id = process_id;
   if (force_cancel) sample.thermal.available = false;
   return sample;
-}
-
-bool expected_result(const std::string& case_name,
-                     const prisminfer::NativeWorkerResult& result,
-                     prisminfer::GpuAdmissionSessionState cleanup) {
-  if (case_name == "success") {
-    return result.ok && cleanup == prisminfer::GpuAdmissionSessionState::Cleaned;
-  }
-  if (case_name == "watchdog-cancel") {
-    return !result.ok &&
-           result.failure_reason.find("watchdog_rejected") != std::string::npos &&
-           cleanup == prisminfer::GpuAdmissionSessionState::Cleaned;
-  }
-  if (case_name == "heartbeat-loss") {
-    return !result.ok &&
-           result.failure_reason.find("heartbeat_timeout") != std::string::npos &&
-           cleanup == prisminfer::GpuAdmissionSessionState::Quarantined;
-  }
-  return !result.ok &&
-         result.failure_reason.find("admission_rejected") != std::string::npos &&
-         cleanup == prisminfer::GpuAdmissionSessionState::Quarantined;
 }
 
 }  // namespace
@@ -294,6 +290,7 @@ int main(int argc, char** argv) {
       L"--device-index", std::to_wstring(options.adapter_index),
       L"--luid-high", std::to_wstring(pre_wddm.adapter_luid_high),
       L"--luid-low", std::to_wstring(pre_wddm.adapter_luid_low),
+      L"--gpu-uuid", std::wstring(options.gpu_uuid.begin(), options.gpu_uuid.end()),
       L"--payload-bytes", std::to_wstring(options.payload_bytes)};
   worker_request.timeout_ms = kWorkerTimeoutMilliseconds;
   worker_request.max_output_bytes = 1U * 1024U * 1024U;
@@ -326,10 +323,17 @@ int main(int argc, char** argv) {
       prisminfer::sample_wddm_memory(options.adapter_index);
   const auto final_host = prisminfer::sample_host_telemetry();
   const auto final_thermal =
-      prisminfer::sample_nvml_gpu_thermal(options.adapter_index);
+      prisminfer::sample_nvml_gpu_thermal(options.gpu_uuid);
+  const auto cleanup_wddm_positive_delta =
+      final_wddm.local_current_usage_bytes > pre_wddm.local_current_usage_bytes
+          ? final_wddm.local_current_usage_bytes -
+                pre_wddm.local_current_usage_bytes
+          : 0U;
   const bool device_reconciled = result.worker_exit_observed &&
                                  result.job_tree_empty && final_wddm.available &&
-                                 final_host.available && final_thermal.available;
+                                 final_host.available && final_thermal.available &&
+                                 cleanup_wddm_positive_delta <=
+                                     kCleanupWddmToleranceBytes;
   std::string last_good_hash;
   const std::string last_good_material =
       worker_sha256 + ":" + std::to_string(result.root_process_id) + ":" +
@@ -342,15 +346,6 @@ int main(int argc, char** argv) {
                                &bundle_hash)) {
     return 10;
   }
-  prisminfer::DeviceCleanupEvidence cleanup_evidence;
-  cleanup_evidence.device_resources_reconciled = device_reconciled;
-  cleanup_evidence.terminal_reason =
-      result.ok ? "synthetic_c2_candidate_completed" : result.failure_reason;
-  cleanup_evidence.last_good_sample_sha256 = last_good_hash;
-  cleanup_evidence.evidence_bundle_sha256 = bundle_hash;
-  const auto cleanup = acquired.session->finalize_cleanup(
-      cleanup_evidence, prisminfer::monotonic_time_milliseconds());
-
   bool output_removed = result.output_path.empty();
   if (!result.output_path.empty()) {
     std::error_code remove_error;
@@ -360,6 +355,15 @@ int main(int argc, char** argv) {
   result.temporary_files_reconciled =
       result.temporary_files_reconciled && output_removed;
 
+  prisminfer::DeviceCleanupEvidence cleanup_evidence;
+  cleanup_evidence.device_resources_reconciled = device_reconciled;
+  cleanup_evidence.terminal_reason =
+      result.ok ? "synthetic_c2_candidate_completed" : result.failure_reason;
+  cleanup_evidence.last_good_sample_sha256 = last_good_hash;
+  cleanup_evidence.evidence_bundle_sha256 = bundle_hash;
+  const auto cleanup = acquired.session->finalize_cleanup(
+      cleanup_evidence, prisminfer::monotonic_time_milliseconds());
+
   prisminfer::C2ClearanceReceipt receipt;
   receipt.repository = "Gravelaw/prisminfer";
   receipt.reviewed_sha = PRISMINFER_C2_REVIEWED_SHA;
@@ -368,6 +372,7 @@ int main(int argc, char** argv) {
   receipt.worker_approval_identity = kApprovalIdentity;
   receipt.workflow_run_id = options.workflow_run_id;
   receipt.authorization_id = options.authorization_id;
+  receipt.gpu_uuid = options.gpu_uuid;
   receipt.case_name = options.case_name;
   receipt.status = result.ok ? "candidate-complete" : "rejected";
   receipt.failure_reason = result.failure_reason;
@@ -396,6 +401,8 @@ int main(int argc, char** argv) {
       result.last_heartbeat_evidence.cuda_mem_info_total_bytes;
   receipt.pre_wddm_local_usage_bytes = pre_wddm.local_current_usage_bytes;
   receipt.final_wddm_local_usage_bytes = final_wddm.local_current_usage_bytes;
+  receipt.cleanup_wddm_positive_delta_bytes = cleanup_wddm_positive_delta;
+  receipt.cleanup_wddm_tolerance_bytes = kCleanupWddmToleranceBytes;
   receipt.pre_host_memory_available_bytes =
       pre.host.system_memory_available_bytes;
   receipt.final_host_memory_available_bytes =
@@ -426,7 +433,8 @@ int main(int argc, char** argv) {
     std::cerr << receipt_error << "\n";
     return 11;
   }
-  if (!expected_result(options.case_name, result, cleanup)) {
+  if (!prisminfer::c2_case_result_matches_contract(
+          options.case_name, result, cleanup, output_removed)) {
     std::cerr << "unexpected case result: " << result.failure_reason << "\n";
     return 12;
   }

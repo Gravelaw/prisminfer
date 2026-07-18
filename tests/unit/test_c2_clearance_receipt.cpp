@@ -23,6 +23,7 @@ prisminfer::C2ClearanceReceipt valid_receipt() {
   receipt.worker_approval_identity = "c2-synthetic-worker-v1";
   receipt.workflow_run_id = "unit-test";
   receipt.authorization_id = "C2-AUTH-unit-test";
+  receipt.gpu_uuid = "GPU-11111111-2222-3333-4444-555555555555";
   receipt.case_name = "success";
   receipt.status = "candidate-complete";
   receipt.cleanup_status = "cleaned";
@@ -41,6 +42,7 @@ prisminfer::C2ClearanceReceipt valid_receipt() {
   receipt.last_heartbeat_cuda_total_bytes = 16ULL << 30U;
   receipt.pre_wddm_local_usage_bytes = 256ULL << 20U;
   receipt.final_wddm_local_usage_bytes = 256ULL << 20U;
+  receipt.cleanup_wddm_positive_delta_bytes = 0U;
   receipt.pre_host_memory_available_bytes = 16ULL << 30U;
   receipt.final_host_memory_available_bytes = 15ULL << 30U;
   receipt.pre_host_commit_available_bytes = 24ULL << 30U;
@@ -97,6 +99,17 @@ int main() {
   if (expect(!prisminfer::write_c2_clearance_receipt(
                  root, oversized_path, oversized, &error),
              "payload above 64 MiB rejects")) {
+    cleanup();
+    return 1;
+  }
+
+  auto leaked = receipt;
+  leaked.cleanup_wddm_positive_delta_bytes =
+      leaked.cleanup_wddm_tolerance_bytes + 1U;
+  const auto leaked_path = root / "leaked.json";
+  if (expect(!prisminfer::write_c2_clearance_receipt(
+                 root, leaked_path, leaked, &error),
+             "cleanup WDDM delta above tolerance rejects")) {
     cleanup();
     return 1;
   }

@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <string>
 
@@ -72,14 +73,27 @@ bool cleanup_payload(void* payload) {
   return cudaDeviceSynchronize() == cudaSuccess;
 }
 
+std::string canonical_gpu_uuid(const cudaUUID_t& uuid) {
+  std::ostringstream out;
+  out << "GPU-" << std::hex << std::setfill('0');
+  for (std::size_t index = 0U; index < sizeof(uuid.bytes); ++index) {
+    if (index == 4U || index == 6U || index == 8U || index == 10U) out << '-';
+    out << std::setw(2)
+        << static_cast<unsigned int>(
+               static_cast<unsigned char>(uuid.bytes[index]));
+  }
+  return out.str();
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
-  if (argc != 11 || std::string(argv[1]) != "--case" ||
+  if (argc != 13 || std::string(argv[1]) != "--case" ||
       std::string(argv[3]) != "--device-index" ||
       std::string(argv[5]) != "--luid-high" ||
       std::string(argv[7]) != "--luid-low" ||
-      std::string(argv[9]) != "--payload-bytes") {
+      std::string(argv[9]) != "--gpu-uuid" ||
+      std::string(argv[11]) != "--payload-bytes") {
     return 2;
   }
   const std::string case_name = argv[2];
@@ -91,11 +105,12 @@ int main(int argc, char** argv) {
   int device_index = -1;
   std::int32_t expected_luid_high = 0;
   std::uint32_t expected_luid_low = 0U;
+  const std::string expected_gpu_uuid = argv[10];
   std::uint64_t payload_bytes = 0U;
   if (!parse_integer(argv[4], &device_index) || device_index < 0 ||
       !parse_integer(argv[6], &expected_luid_high) ||
       !parse_integer(argv[8], &expected_luid_low) ||
-      !parse_integer(argv[10], &payload_bytes)) {
+      !parse_integer(argv[12], &payload_bytes)) {
     return 4;
   }
   if (payload_bytes == 0U || payload_bytes > kMaximumPayloadBytes) {
@@ -120,6 +135,11 @@ int main(int argc, char** argv) {
   if (actual_luid_high != expected_luid_high ||
       actual_luid_low != expected_luid_low) {
     return 12;
+  }
+  cudaUUID_t cuda_uuid{};
+  if (cudaDeviceGetUuid(&cuda_uuid, device_index) != cudaSuccess ||
+      canonical_gpu_uuid(cuda_uuid) != expected_gpu_uuid) {
+    return 30;
   }
   if (cudaFree(nullptr) != cudaSuccess) return 13;
   std::size_t context_free = 0U;

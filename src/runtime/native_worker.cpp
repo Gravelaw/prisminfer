@@ -1398,6 +1398,54 @@ NativeWorkerResult run_native_worker_impl(
     }
   }
   if (!drain_protocol()) return fail("native_worker_protocol_read_failed");
+  const auto reconcile_job_accounting = [&]() {
+    if (!sample_retained_root(process_handle.get(), process.dwProcessId,
+                              &tree_memory)) {
+      return false;
+    }
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION job_memory{};
+    JOBOBJECT_BASIC_AND_IO_ACCOUNTING_INFORMATION job_io{};
+    if (!QueryInformationJobObject(job.get(), JobObjectExtendedLimitInformation,
+                                   &job_memory, sizeof(job_memory), nullptr) ||
+        !QueryInformationJobObject(job.get(),
+                                   JobObjectBasicAndIoAccountingInformation,
+                                   &job_io, sizeof(job_io), nullptr)) {
+      return false;
+    }
+    if (job_io.BasicInfo.TotalProcesses == 0U ||
+        tree_memory.assigned_process_ids.size() !=
+            job_io.BasicInfo.TotalProcesses ||
+        tree_memory.assigned_process_ids.count(process.dwProcessId) != 1U ||
+        tree_memory.peak_active_processes == 0U ||
+        tree_memory.peak_active_processes > request.max_active_processes ||
+        tree_memory.root_peak_working_set_bytes == 0U ||
+        tree_memory.root_peak_private_commit_bytes == 0U ||
+        tree_memory.tree_peak_working_set_bytes <
+            tree_memory.root_peak_working_set_bytes ||
+        job_memory.PeakJobMemoryUsed == 0U) {
+      return false;
+    }
+    result.job_total_processes = job_io.BasicInfo.TotalProcesses;
+    result.job_peak_active_processes = tree_memory.peak_active_processes;
+    result.job_total_terminated_processes =
+        job_io.BasicInfo.TotalTerminatedProcesses;
+    result.root_peak_working_set_bytes =
+        tree_memory.root_peak_working_set_bytes;
+    result.root_peak_private_commit_bytes =
+        tree_memory.root_peak_private_commit_bytes;
+    result.tree_peak_working_set_bytes =
+        tree_memory.tree_peak_working_set_bytes;
+    result.tree_peak_private_commit_bytes = job_memory.PeakJobMemoryUsed;
+    result.tree_sample_interval_milliseconds =
+        kTreeSampleIntervalMilliseconds;
+    result.read_bytes = job_io.IoInfo.ReadTransferCount;
+    result.write_bytes = job_io.IoInfo.WriteTransferCount;
+    result.evidence_available = true;
+    result.job_accounting_reconciled = true;
+    result.per_process_memory_reconciled =
+        tree_memory.per_process_memory_reconciled;
+    return true;
+  };
   if (protocol_enabled && !protocol_failure.empty()) {
     if (!tree_complete &&
         !terminate_job_tree(job.get(), process_handle.get(), tree_memory,
@@ -1407,6 +1455,7 @@ NativeWorkerResult run_native_worker_impl(
     result.failure_reason = protocol_failure;
     result.worker_exit_observed = true;
     result.job_tree_empty = true;
+    (void)reconcile_job_accounting();
     result.artifact_handles_closed = true;
     result.temporary_files_reconciled = true;
     return result;
@@ -1416,6 +1465,7 @@ NativeWorkerResult run_native_worker_impl(
     result.failure_reason = "native_worker_protocol_incomplete";
     result.worker_exit_observed = true;
     result.job_tree_empty = true;
+    (void)reconcile_job_accounting();
     result.artifact_handles_closed = true;
     result.temporary_files_reconciled = true;
     return result;
@@ -1484,54 +1534,12 @@ NativeWorkerResult run_native_worker_impl(
     return fail("native_worker_exit_query_failed");
   }
   result.exit_code = exit_code;
-  if (!sample_retained_root(process_handle.get(), process.dwProcessId,
-                            &tree_memory)) {
-    return fail("native_worker_root_evidence_unavailable");
-  }
-  JOBOBJECT_EXTENDED_LIMIT_INFORMATION job_memory{};
-  JOBOBJECT_BASIC_AND_IO_ACCOUNTING_INFORMATION job_io{};
-  if (!QueryInformationJobObject(job.get(), JobObjectExtendedLimitInformation,
-                                 &job_memory, sizeof(job_memory), nullptr) ||
-      !QueryInformationJobObject(job.get(),
-                                 JobObjectBasicAndIoAccountingInformation,
-                                 &job_io, sizeof(job_io), nullptr)) {
-    return fail("native_worker_evidence_unavailable");
-  }
-  if (job_io.BasicInfo.TotalProcesses == 0U ||
-      tree_memory.assigned_process_ids.size() !=
-          job_io.BasicInfo.TotalProcesses ||
-      tree_memory.assigned_process_ids.count(process.dwProcessId) != 1U ||
-      (exit_code == 0U && !tree_memory.per_process_memory_reconciled) ||
-      tree_memory.peak_active_processes == 0U ||
-      tree_memory.peak_active_processes > request.max_active_processes ||
-      tree_memory.root_peak_working_set_bytes == 0U ||
-      tree_memory.root_peak_private_commit_bytes == 0U ||
-      tree_memory.tree_peak_working_set_bytes <
-          tree_memory.root_peak_working_set_bytes ||
-      job_memory.PeakJobMemoryUsed == 0U) {
+  if (!reconcile_job_accounting() ||
+      (exit_code == 0U && !result.per_process_memory_reconciled)) {
     return fail("native_worker_process_tree_evidence_incomplete");
   }
-  result.job_total_processes = job_io.BasicInfo.TotalProcesses;
-  result.job_peak_active_processes = tree_memory.peak_active_processes;
-  result.job_total_terminated_processes =
-      job_io.BasicInfo.TotalTerminatedProcesses;
-  result.root_peak_working_set_bytes =
-      tree_memory.root_peak_working_set_bytes;
-  result.root_peak_private_commit_bytes =
-      tree_memory.root_peak_private_commit_bytes;
-  result.tree_peak_working_set_bytes =
-      tree_memory.tree_peak_working_set_bytes;
-  result.tree_peak_private_commit_bytes = job_memory.PeakJobMemoryUsed;
-  result.tree_sample_interval_milliseconds =
-      kTreeSampleIntervalMilliseconds;
-  result.read_bytes = job_io.IoInfo.ReadTransferCount;
-  result.write_bytes = job_io.IoInfo.WriteTransferCount;
-  result.evidence_available = true;
   result.worker_exit_observed = true;
   result.job_tree_empty = true;
-  result.job_accounting_reconciled = true;
-  result.per_process_memory_reconciled =
-      tree_memory.per_process_memory_reconciled;
   result.artifact_handles_closed = true;
   result.temporary_files_reconciled = true;
   result.ok = !result.timed_out && result.exit_code == 0U;

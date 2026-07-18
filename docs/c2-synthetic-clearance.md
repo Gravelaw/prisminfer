@@ -25,8 +25,10 @@ serializes its GPU workflows. `run-c2-clearance.ps1` additionally holds a
 non-waiting host-wide Windows mutex while the production `GpuAdmissionSession`
 holds the exclusive adapter-LUID lease for each worker case.
 
-The approved worker verifies its CUDA device against the supervisor-selected
-DXGI LUID before announcing context readiness. It reports CUDA memory capacity,
+The approved worker verifies its CUDA device against both the
+supervisor-selected DXGI LUID and the authorization-bound NVML/CUDA GPU UUID
+before announcing context readiness. Thermal samples resolve their NVML handle
+by that UUID rather than a numeric index. The worker reports CUDA memory capacity,
 then consumes the session token before allocating an exact post-admission
 payload of no more than 64 MiB. Each case has a 10-second worker timeout, no
 automatic retry, bounded Job containment, protocol cancellation, and explicit
@@ -42,7 +44,9 @@ identity, adapter LUID/index, host workflow run, lease/Job identity, payload,
 CUDA context/final observations, heartbeat count, last-good/evidence hashes,
 and cleanup reconciliation. Every emitted receipt hard-codes
 `promotable=false`, `c2_credit=false`, and
-`review_status=pending-independent-review`.
+`review_status=pending-independent-review`. Cleanup additionally rejects a
+positive final WDDM local-usage delta above the versioned 16 MiB noise bound;
+the pre/final counters, actual positive delta, and bound are retained.
 
 ## Authorization and promotion boundary
 

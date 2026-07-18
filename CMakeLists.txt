@@ -89,6 +89,7 @@ add_library(prisminfer_core
   src/governor/usability_policy.cpp
   src/offload/offload_planner.cpp
   src/governor/cuda_context_probe.cpp
+  src/validation/c2_case_policy.cpp
   src/validation/evidence_bundle.cpp
   src/validation/c2_clearance_receipt.cpp
   src/validation/model_sidecar.cpp
@@ -168,6 +169,16 @@ target_link_libraries(prism-compare-benchmark PRIVATE prisminfer_core)
 
 add_executable(prism-emit-benchmark tools/prism-emit-benchmark/main.cpp)
 target_link_libraries(prism-emit-benchmark PRIVATE prisminfer_core)
+
+# Compile the complete C2 supervisor translation unit in every hosted build.
+# The object is never linked or executed in this lane; real tools remain behind
+# the explicit CUDA/Windows opt-in below.
+add_library(prism_c2_supervisor_compile_check OBJECT
+  tools/prism-c2-supervisor/main.cpp)
+target_include_directories(prism_c2_supervisor_compile_check PRIVATE include)
+target_compile_definitions(prism_c2_supervisor_compile_check PRIVATE
+  PRISMINFER_C2_REVIEWED_SHA="0000000000000000000000000000000000000000"
+  PRISMINFER_C2_SOURCE_TREE_SHA="0000000000000000000000000000000000000000")
 
 if(PRISMINFER_ENABLE_C2_SYNTHETIC)
   add_executable(prism-c2-synthetic-worker
@@ -322,6 +333,10 @@ add_executable(test_c2_clearance_receipt
   tests/unit/test_c2_clearance_receipt.cpp)
 target_link_libraries(test_c2_clearance_receipt PRIVATE prisminfer_core)
 add_test(NAME test_c2_clearance_receipt COMMAND test_c2_clearance_receipt)
+
+add_executable(test_c2_case_policy tests/unit/test_c2_case_policy.cpp)
+target_link_libraries(test_c2_case_policy PRIVATE prisminfer_core)
+add_test(NAME test_c2_case_policy COMMAND test_c2_case_policy)
 
 add_executable(test_allocator_tracker tests/unit/test_allocator_tracker.cpp)
 target_link_libraries(test_allocator_tracker PRIVATE prisminfer_core)

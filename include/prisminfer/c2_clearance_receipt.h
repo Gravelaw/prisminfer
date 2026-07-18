@@ -18,6 +18,7 @@ struct C2ClearanceReceipt {
   std::string worker_approval_identity;
   std::string workflow_run_id;
   std::string authorization_id;
+  std::string gpu_uuid;
   std::string case_name;
   std::string status;
   std::string failure_reason;
@@ -38,6 +39,8 @@ struct C2ClearanceReceipt {
   std::uint64_t last_heartbeat_cuda_total_bytes{0};
   std::uint64_t pre_wddm_local_usage_bytes{0};
   std::uint64_t final_wddm_local_usage_bytes{0};
+  std::uint64_t cleanup_wddm_positive_delta_bytes{0};
+  std::uint64_t cleanup_wddm_tolerance_bytes{16ULL * 1024ULL * 1024ULL};
   std::uint64_t pre_host_memory_available_bytes{0};
   std::uint64_t final_host_memory_available_bytes{0};
   std::uint64_t pre_host_commit_available_bytes{0};

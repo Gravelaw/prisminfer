@@ -227,10 +227,15 @@ int main(int argc, char** argv) {
       return write_protocol("PRISMINFER/1 CANCEL_ACK " +
                             std::string(nonce) + "\n") ? 0 : 7;
     }
+    const bool gpu_evidence_mode =
+        mode == "--protocol-gpu-evidence" ||
+        mode == "--protocol-gpu-evidence-cancel";
+    const std::string evidence_luid =
+        mode == "--protocol-gpu-evidence-cancel" ? "23 27 " : "22 26 ";
     const std::string context_message =
-        mode == "--protocol-gpu-evidence"
+        gpu_evidence_mode
             ? "PRISMINFER/1 CONTEXT_READY " + std::string(nonce) +
-                  " 22 26 " + std::to_string(12U * kGiB) + " " +
+                  " " + evidence_luid + std::to_string(12U * kGiB) + " " +
                   std::to_string(16U * kGiB) + "\n"
             : "PRISMINFER/1 CONTEXT_READY " + std::string(nonce) + "\n";
     if (!write_protocol(context_message)) {
@@ -258,7 +263,7 @@ int main(int argc, char** argv) {
       return 0;
     }
     const std::string first_heartbeat =
-        mode == "--protocol-gpu-evidence"
+        gpu_evidence_mode
             ? "PRISMINFER/1 HEARTBEAT " + std::string(nonce) + " 1 " +
                   std::to_string(64ULL << 20U) + " " +
                   std::to_string((12U * kGiB) - (64ULL << 20U)) + " " +
@@ -280,7 +285,7 @@ int main(int argc, char** argv) {
     }
     Sleep(20U);
     const std::string second_heartbeat =
-        mode == "--protocol-gpu-evidence"
+        gpu_evidence_mode
             ? "PRISMINFER/1 HEARTBEAT " + std::string(nonce) + " 2 " +
                   std::to_string(64ULL << 20U) + " " +
                   std::to_string((12U * kGiB) - (64ULL << 20U)) + " " +
@@ -450,6 +455,82 @@ int main(int argc, char** argv) {
     }
     std::error_code remove_error;
     (void)std::filesystem::remove(gpu_worker.output_path, remove_error);
+  }
+  {
+    constexpr std::uint64_t kPayload = 64ULL << 20U;
+    auto cancelled =
+        prisminfer::acquire_gpu_admission_session(cell(), 23, 27U);
+    auto cancelled_pre = pre_request(prisminfer::monotonic_time_milliseconds());
+    cancelled_pre.gpu.adapter_luid_high = 23;
+    cancelled_pre.gpu.adapter_luid_low = 27U;
+    cancelled_pre.predicted_gpu.model =
+        prediction(0U, prisminfer::PredictionProvenance::ExactZeroNotApplicable);
+    cancelled_pre.predicted_gpu.state = cancelled_pre.predicted_gpu.model;
+    cancelled_pre.predicted_gpu.workspace = cancelled_pre.predicted_gpu.model;
+    cancelled_pre.predicted_gpu.fragmentation = cancelled_pre.predicted_gpu.model;
+    cancelled_pre.predicted_gpu.backend =
+        prediction(kPayload,
+                   prisminfer::PredictionProvenance::PinnedRuntimeEstimate);
+    if (expect(cancelled.session.has_value() &&
+                   cancelled.session->admit_pre_context(cancelled_pre).admitted,
+               "watchdog-cancel Stage A admits")) {
+      return 1;
+    }
+    auto cancelled_request = request;
+    cancelled_request.arguments = {L"--protocol-gpu-evidence-cancel"};
+    cancelled_request.require_gpu_protocol_evidence = true;
+    cancelled_request.expected_post_admission_payload_bytes = kPayload;
+    cancelled_request.maximum_post_admission_payload_bytes = kPayload;
+    const auto cancelled_worker = cancelled.session->run_contained_worker(
+        catalog, cancelled_request, 100U,
+        [](std::stop_token, std::uint32_t pid, std::uint64_t ready) {
+          auto post = post_request(ready, pid);
+          post.gpu.adapter_luid_high = 23;
+          post.gpu.adapter_luid_low = 27U;
+          post.owned_gpu = {};
+          return post;
+        },
+        [](std::stop_token, std::uint32_t pid, std::uint64_t,
+           std::uint64_t heartbeat) {
+          auto sample = watchdog_sample(heartbeat, pid);
+          sample.gpu.adapter_luid_high = 23;
+          sample.gpu.adapter_luid_low = 27U;
+          sample.owned_gpu = {};
+          sample.thermal.available = false;
+          return sample;
+        },
+        [](std::stop_token, std::uint32_t pid, std::int32_t high,
+           std::uint32_t low) {
+          prisminfer::ProcessDeviceMemorySample sample;
+          sample.available = true;
+          sample.source = "wddm-process";
+          sample.process_id = pid;
+          sample.captured_monotonic_milliseconds =
+              prisminfer::monotonic_time_milliseconds();
+          sample.adapter_luid_high = high;
+          sample.adapter_luid_low = low;
+          sample.current_bytes = (512ULL << 20U) + kPayload;
+          return sample;
+        });
+    prisminfer::DeviceCleanupEvidence cleanup_evidence;
+    cleanup_evidence.device_resources_reconciled = true;
+    cleanup_evidence.terminal_reason = cancelled_worker.failure_reason;
+    cleanup_evidence.last_good_sample_sha256 = std::string(64U, 'a');
+    cleanup_evidence.evidence_bundle_sha256 = std::string(64U, 'b');
+    const auto cleanup = cancelled.session->finalize_cleanup(
+        cleanup_evidence, prisminfer::monotonic_time_milliseconds());
+    if (expect(!cancelled_worker.ok &&
+                   cancelled_worker.failure_reason.find("watchdog_rejected") !=
+                       std::string::npos &&
+                   cancelled_worker.job_accounting_reconciled &&
+                   cleanup == prisminfer::GpuAdmissionSessionState::Cleaned,
+               "watchdog rejection retains Job accounting and cleans")) {
+      std::cerr << "watchdog cancel failure="
+                << cancelled_worker.failure_reason << " accounting="
+                << cancelled_worker.job_accounting_reconciled << " cleanup="
+                << static_cast<int>(cleanup) << "\n";
+      return 1;
+    }
   }
   {
     auto live = prisminfer::acquire_gpu_admission_session(cell(), 9, 13U);

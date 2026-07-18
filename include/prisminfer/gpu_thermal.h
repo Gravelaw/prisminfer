@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #include "prisminfer/supervisor_admission.h"
 
@@ -10,6 +11,6 @@ namespace prisminfer {
 // worker independently proves that its device LUID matches the DXGI adapter;
 // unavailable or stale thermal evidence remains fail-closed.
 [[nodiscard]] GpuThermalSample sample_nvml_gpu_thermal(
-    std::uint32_t device_index);
+    const std::string& gpu_uuid);
 
 }  // namespace prisminfer

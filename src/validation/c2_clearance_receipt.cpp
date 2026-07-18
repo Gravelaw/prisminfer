@@ -41,6 +41,20 @@ bool authorization_identifier(const std::string& value) {
   return true;
 }
 
+bool canonical_gpu_uuid(const std::string& value) {
+  if (value.size() != 40U || value.rfind("GPU-", 0U) != 0U) return false;
+  for (std::size_t index = 4U; index < value.size(); ++index) {
+    const bool separator = index == 12U || index == 17U || index == 22U ||
+                           index == 27U;
+    if (separator ? value[index] != '-'
+                  : !((value[index] >= '0' && value[index] <= '9') ||
+                      (value[index] >= 'a' && value[index] <= 'f'))) {
+      return false;
+    }
+  }
+  return true;
+}
+
 std::string escaped(const std::string& value) {
   std::string output;
   output.reserve(value.size());
@@ -101,6 +115,7 @@ std::string serialize_c2_clearance_receipt(const C2ClearanceReceipt& receipt) {
       << "\",\n"
       << "  \"authorization_id\":\"" << escaped(receipt.authorization_id)
       << "\",\n"
+      << "  \"gpu_uuid\":\"" << receipt.gpu_uuid << "\",\n"
       << "  \"case_name\":\"" << escaped(receipt.case_name) << "\",\n"
       << "  \"status\":\"" << escaped(receipt.status) << "\",\n"
       << "  \"failure_reason\":\"" << escaped(receipt.failure_reason)
@@ -140,6 +155,10 @@ std::string serialize_c2_clearance_receipt(const C2ClearanceReceipt& receipt) {
       << receipt.pre_wddm_local_usage_bytes << ",\n"
       << "  \"final_wddm_local_usage_bytes\":"
       << receipt.final_wddm_local_usage_bytes << ",\n"
+      << "  \"cleanup_wddm_positive_delta_bytes\":"
+      << receipt.cleanup_wddm_positive_delta_bytes << ",\n"
+      << "  \"cleanup_wddm_tolerance_bytes\":"
+      << receipt.cleanup_wddm_tolerance_bytes << ",\n"
       << "  \"pre_host_memory_available_bytes\":"
       << receipt.pre_host_memory_available_bytes << ",\n"
       << "  \"final_host_memory_available_bytes\":"
@@ -185,7 +204,7 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
   static const std::set<std::string> required = {
       "schema_version", "receipt_class", "repository", "reviewed_sha",
       "source_tree_sha", "worker_sha256", "worker_approval_identity",
-      "workflow_run_id", "authorization_id", "case_name", "status", "failure_reason",
+      "workflow_run_id", "authorization_id", "gpu_uuid", "case_name", "status", "failure_reason",
       "cleanup_status", "review_status", "claim_scope", "promotable",
       "c2_credit", "lease_id", "job_identity", "last_good_sample_sha256",
       "evidence_bundle_sha256", "adapter_luid_high", "adapter_luid_low",
@@ -194,7 +213,8 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
       "context_cuda_free_bytes", "context_cuda_total_bytes",
       "last_heartbeat_cuda_free_bytes",
       "last_heartbeat_cuda_total_bytes", "pre_wddm_local_usage_bytes",
-      "final_wddm_local_usage_bytes", "pre_host_memory_available_bytes",
+      "final_wddm_local_usage_bytes", "cleanup_wddm_positive_delta_bytes",
+      "cleanup_wddm_tolerance_bytes", "pre_host_memory_available_bytes",
       "final_host_memory_available_bytes", "pre_host_commit_available_bytes",
       "final_host_commit_available_bytes", "pre_gpu_temperature_celsius",
       "final_gpu_temperature_celsius", "root_process_id",
@@ -222,6 +242,7 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
   std::string approval;
   std::string run_id;
   std::string authorization_id;
+  std::string gpu_uuid;
   std::string case_name;
   std::string status;
   std::string failure_reason;
@@ -242,6 +263,7 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
       require_string(json, "worker_approval_identity", &approval) &&
       require_string(json, "workflow_run_id", &run_id) &&
       require_string(json, "authorization_id", &authorization_id) &&
+      require_string(json, "gpu_uuid", &gpu_uuid) &&
       require_string(json, "case_name", &case_name) &&
       require_string(json, "status", &status) &&
       require_string(json, "failure_reason", &failure_reason) &&
@@ -260,6 +282,7 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
       !lower_hex(tree_sha, 40U) || !lower_hex(worker_sha, 64U) ||
       !bounded_text(approval, 128U) || !bounded_text(run_id, 128U) ||
       !authorization_identifier(authorization_id) ||
+      !canonical_gpu_uuid(gpu_uuid) ||
       !bounded_text(case_name, 64U) ||
       (status != "candidate-complete" && status != "rejected" &&
        status != "aborted") ||
@@ -274,17 +297,28 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
   }
   std::uint64_t payload = 0U;
   std::uint64_t maximum_payload = 0U;
+  std::uint64_t cleanup_delta = 0U;
+  std::uint64_t cleanup_tolerance = 0U;
   std::uint32_t timeout = 0U;
   const auto payload_field = json.fields.find("post_admission_payload_bytes");
   const auto maximum_field = json.fields.find("maximum_payload_bytes");
   const auto timeout_field = json.fields.find("worker_timeout_milliseconds");
+  const auto cleanup_delta_field =
+      json.fields.find("cleanup_wddm_positive_delta_bytes");
+  const auto cleanup_tolerance_field =
+      json.fields.find("cleanup_wddm_tolerance_bytes");
   if (payload_field == json.fields.end() || maximum_field == json.fields.end() ||
       timeout_field == json.fields.end() ||
+      cleanup_delta_field == json.fields.end() ||
+      cleanup_tolerance_field == json.fields.end() ||
       !parse_integer(payload_field->second, &payload) ||
       !parse_integer(maximum_field->second, &maximum_payload) ||
       !parse_integer(timeout_field->second, &timeout) ||
+      !parse_integer(cleanup_delta_field->second, &cleanup_delta) ||
+      !parse_integer(cleanup_tolerance_field->second, &cleanup_tolerance) ||
       maximum_payload != kC2MaximumPayloadBytes ||
-      payload > maximum_payload || timeout == 0U || timeout > 60'000U) {
+      payload > maximum_payload || cleanup_tolerance != 16ULL * 1024ULL * 1024ULL ||
+      cleanup_delta > cleanup_tolerance || timeout == 0U || timeout > 60'000U) {
     if (error) *error = "c2_receipt_bounds_invalid";
     return false;
   }

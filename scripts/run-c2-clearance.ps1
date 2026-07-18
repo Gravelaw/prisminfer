@@ -14,6 +14,10 @@ param(
     [ValidateRange(0, 63)]
     [int]$AdapterIndex = 0,
 
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^GPU-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')]
+    [string]$GpuUuid,
+
     [ValidateRange(1, 67108864)]
     [UInt64]$PayloadBytes = 67108864,
 
@@ -95,7 +99,7 @@ try {
     foreach ($caseName in @('success', 'post-context-telemetry-loss', 'heartbeat-loss', 'watchdog-cancel')) {
         & $supervisor --worker $worker --output-root $resolvedOutput --case $caseName `
             --workflow-run-id $env:GITHUB_RUN_ID --authorization-id $AuthorizationId `
-            --adapter-index $AdapterIndex `
+            --gpu-uuid $GpuUuid --adapter-index $AdapterIndex `
             --payload-bytes $PayloadBytes
         if ($LASTEXITCODE -ne 0) {
             throw "C2 worker case '$caseName' failed; automatic retry is forbidden."
