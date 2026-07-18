@@ -29,8 +29,8 @@ prisminfer::C2ClearanceReceipt valid_receipt() {
   receipt.cleanup_status = "cleaned";
   receipt.lease_id = "prisminfer-gpu-00000001-00000002";
   receipt.job_identity = "job:1:2:3";
-  receipt.last_good_sample_sha256 = std::string(64U, '4');
-  receipt.evidence_bundle_sha256 = std::string(64U, '5');
+  receipt.process_wddm_source = "wddm-process";
+  receipt.pre_cleanup_evidence_sha256 = std::string(64U, '6');
   receipt.adapter_luid_high = 1;
   receipt.adapter_luid_low = 2U;
   receipt.worker_timeout_milliseconds = 10'000U;
@@ -43,6 +43,22 @@ prisminfer::C2ClearanceReceipt valid_receipt() {
   receipt.pre_wddm_local_usage_bytes = 256ULL << 20U;
   receipt.final_wddm_local_usage_bytes = 256ULL << 20U;
   receipt.cleanup_wddm_positive_delta_bytes = 0U;
+  receipt.last_sample_monotonic_milliseconds = 100U;
+  receipt.last_sample_wddm_local_budget_bytes = 16ULL << 30U;
+  receipt.last_sample_wddm_local_usage_bytes = 2ULL << 30U;
+  receipt.process_wddm_sample_monotonic_milliseconds = 101U;
+  receipt.process_wddm_current_bytes = 576ULL << 20U;
+  receipt.process_wddm_peak_bytes = 576ULL << 20U;
+  receipt.last_host_sample_monotonic_milliseconds = 102U;
+  receipt.last_host_memory_available_bytes = 15ULL << 30U;
+  receipt.last_host_commit_available_bytes = 23ULL << 30U;
+  receipt.last_thermal_sample_monotonic_milliseconds = 103U;
+  receipt.last_gpu_temperature_celsius = 46;
+  receipt.last_gpu_slowdown_celsius = 90;
+  receipt.last_wddm_available = true;
+  receipt.last_process_wddm_available = true;
+  receipt.last_host_available = true;
+  receipt.last_thermal_available = true;
   receipt.pre_host_memory_available_bytes = 16ULL << 30U;
   receipt.final_host_memory_available_bytes = 15ULL << 30U;
   receipt.pre_host_commit_available_bytes = 24ULL << 30U;
@@ -59,6 +75,11 @@ prisminfer::C2ClearanceReceipt valid_receipt() {
   receipt.device_resources_reconciled = true;
   receipt.artifact_handles_closed = true;
   receipt.temporary_files_reconciled = true;
+  std::string hash_error;
+  if (!prisminfer::compute_c2_clearance_evidence_hashes(&receipt,
+                                                         &hash_error)) {
+    std::cerr << hash_error << "\n";
+  }
   return receipt;
 }
 
@@ -103,6 +124,46 @@ int main() {
     return 1;
   }
 
+  auto changed_sample = receipt;
+  ++changed_sample.process_wddm_current_bytes;
+  if (expect(prisminfer::compute_c2_clearance_evidence_hashes(
+                 &changed_sample, &error),
+             "changed safety sample rehashes") ||
+      expect(changed_sample.last_good_sample_sha256 !=
+                 receipt.last_good_sample_sha256,
+             "last-good hash is sensitive to process WDDM bytes") ||
+      expect(changed_sample.evidence_bundle_sha256 !=
+                 receipt.evidence_bundle_sha256,
+             "terminal bundle hash is sensitive to last-good sample")) {
+    cleanup();
+    return 1;
+  }
+  auto changed_thermal = receipt;
+  ++changed_thermal.last_gpu_temperature_celsius;
+  if (expect(prisminfer::compute_c2_clearance_evidence_hashes(
+                 &changed_thermal, &error),
+             "changed thermal sample rehashes") ||
+      expect(changed_thermal.last_good_sample_sha256 !=
+                 receipt.last_good_sample_sha256,
+             "last-good hash is sensitive to thermal safety fields")) {
+    cleanup();
+    return 1;
+  }
+  auto changed_cleanup = receipt;
+  changed_cleanup.cleanup_status = "quarantined";
+  if (expect(prisminfer::compute_c2_clearance_evidence_hashes(
+                 &changed_cleanup, &error),
+             "changed cleanup result rehashes") ||
+      expect(changed_cleanup.last_good_sample_sha256 ==
+                 receipt.last_good_sample_sha256,
+             "cleanup does not rewrite the last-good sample hash") ||
+      expect(changed_cleanup.evidence_bundle_sha256 !=
+                 receipt.evidence_bundle_sha256,
+             "terminal hash is sensitive to cleanup classification")) {
+    cleanup();
+    return 1;
+  }
+
   auto leaked = receipt;
   leaked.cleanup_wddm_positive_delta_bytes =
       leaked.cleanup_wddm_tolerance_bytes + 1U;
@@ -123,6 +184,22 @@ int main() {
   if (expect(!prisminfer::validate_c2_clearance_receipt_file(tampered_path,
                                                              &error),
              "promotable tampering rejects")) {
+    cleanup();
+    return 1;
+  }
+
+  auto safety_tampered = prisminfer::serialize_c2_clearance_receipt(receipt);
+  const auto process_bytes =
+      safety_tampered.find("\"process_wddm_current_bytes\":603979776");
+  safety_tampered.replace(
+      process_bytes,
+      std::string("\"process_wddm_current_bytes\":603979776").size(),
+      "\"process_wddm_current_bytes\":603979777");
+  const auto safety_tampered_path = root / "safety-tampered.json";
+  write_text(safety_tampered_path, safety_tampered);
+  if (expect(!prisminfer::validate_c2_clearance_receipt_file(
+                 safety_tampered_path, &error),
+             "safety field tampering breaks the evidence hash")) {
     cleanup();
     return 1;
   }

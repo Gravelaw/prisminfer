@@ -25,7 +25,9 @@ struct C2ClearanceReceipt {
   std::string cleanup_status;
   std::string lease_id;
   std::string job_identity;
+  std::string process_wddm_source;
   std::string last_good_sample_sha256;
+  std::string pre_cleanup_evidence_sha256;
   std::string evidence_bundle_sha256;
   std::int32_t adapter_luid_high{0};
   std::uint32_t adapter_luid_low{0};
@@ -41,6 +43,18 @@ struct C2ClearanceReceipt {
   std::uint64_t final_wddm_local_usage_bytes{0};
   std::uint64_t cleanup_wddm_positive_delta_bytes{0};
   std::uint64_t cleanup_wddm_tolerance_bytes{16ULL * 1024ULL * 1024ULL};
+  std::uint64_t last_sample_monotonic_milliseconds{0};
+  std::uint64_t last_sample_wddm_local_budget_bytes{0};
+  std::uint64_t last_sample_wddm_local_usage_bytes{0};
+  std::uint64_t process_wddm_sample_monotonic_milliseconds{0};
+  std::uint64_t process_wddm_current_bytes{0};
+  std::uint64_t process_wddm_peak_bytes{0};
+  std::uint64_t last_host_sample_monotonic_milliseconds{0};
+  std::uint64_t last_host_memory_available_bytes{0};
+  std::uint64_t last_host_commit_available_bytes{0};
+  std::uint64_t last_thermal_sample_monotonic_milliseconds{0};
+  std::int32_t last_gpu_temperature_celsius{0};
+  std::int32_t last_gpu_slowdown_celsius{0};
   std::uint64_t pre_host_memory_available_bytes{0};
   std::uint64_t final_host_memory_available_bytes{0};
   std::uint64_t pre_host_commit_available_bytes{0};
@@ -57,7 +71,16 @@ struct C2ClearanceReceipt {
   bool device_resources_reconciled{false};
   bool artifact_handles_closed{false};
   bool temporary_files_reconciled{false};
+  bool last_gpu_thermal_throttling{false};
+  bool last_gpu_power_brake_slowdown{false};
+  bool last_wddm_available{false};
+  bool last_process_wddm_available{false};
+  bool last_host_available{false};
+  bool last_thermal_available{false};
 };
+
+[[nodiscard]] bool compute_c2_clearance_evidence_hashes(
+    C2ClearanceReceipt* receipt, std::string* error);
 
 [[nodiscard]] std::string serialize_c2_clearance_receipt(
     const C2ClearanceReceipt& receipt);

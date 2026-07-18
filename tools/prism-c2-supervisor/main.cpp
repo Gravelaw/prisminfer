@@ -1,9 +1,12 @@
+#include <algorithm>
 #include <array>
 #include <charconv>
 #include <cstdint>
 #include <filesystem>
 #include <iostream>
 #include <map>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -32,6 +35,14 @@ struct Options {
   std::string gpu_uuid;
   std::uint32_t adapter_index{0};
   std::uint64_t payload_bytes{0};
+};
+
+struct LiveEvidenceCapture {
+  std::mutex mutex;
+  std::optional<prisminfer::PostContextAdmissionRequest> post;
+  std::optional<prisminfer::SupervisorWatchdogSample> watchdog;
+  std::optional<prisminfer::ProcessDeviceMemorySample> process;
+  std::uint64_t process_peak_bytes{0};
 };
 
 template <typename Integer>
@@ -143,7 +154,8 @@ prisminfer::AdmissionCellIdentity make_cell(
   cell.run_sequence = 1U;
   cell.run_contract_hash = digest("prisminfer-c2-synthetic-contract-v1");
   cell.threshold_registry_hash = digest(
-      "prisminfer-t100-t105-v2:c2-max-payload=67108864:worker=10000ms");
+      "prisminfer-t100-t105-v2:c2-max-payload=67108864:worker=10000ms:"
+      "cleanup-wddm-positive-delta=16777216");
   cell.hardware_identity_hash =
       digest(std::to_string(wddm.adapter_luid_high) + ":" +
              std::to_string(wddm.adapter_luid_low) + ":" +
@@ -305,19 +317,57 @@ int main(int argc, char** argv) {
       options.case_name == "post-context-telemetry-loss";
   const bool force_watchdog_cancel =
       options.case_name == "watchdog-cancel";
+  LiveEvidenceCapture captured;
   auto result = acquired.session->run_contained_worker(
       catalog, worker_request, 250U,
       [&](std::stop_token stop, std::uint32_t pid, std::uint64_t) {
         if (stop.stop_requested()) return prisminfer::PostContextAdmissionRequest{};
-        return make_post_request(options, cell, host_policy, host_request, pid,
-                                 lose_post_context);
+        auto sample = make_post_request(options, cell, host_policy, host_request,
+                                        pid, lose_post_context);
+        {
+          std::lock_guard lock(captured.mutex);
+          captured.post = sample;
+        }
+        return sample;
       },
       [&](std::stop_token stop, std::uint32_t pid, std::uint64_t,
           std::uint64_t) {
         if (stop.stop_requested()) return prisminfer::SupervisorWatchdogSample{};
-        return make_watchdog_sample(options, host_policy, host_request, pid,
-                                    force_watchdog_cancel);
+        auto sample = make_watchdog_sample(options, host_policy, host_request,
+                                           pid, force_watchdog_cancel);
+        {
+          std::lock_guard lock(captured.mutex);
+          captured.watchdog = sample;
+        }
+        return sample;
+      },
+      [&](std::stop_token stop, std::uint32_t pid, std::int32_t luid_high,
+          std::uint32_t luid_low) {
+        if (stop.stop_requested()) {
+          return prisminfer::ProcessDeviceMemorySample{};
+        }
+        auto sample = prisminfer::sample_process_device_memory(
+            pid, luid_high, luid_low);
+        {
+          std::lock_guard lock(captured.mutex);
+          captured.process = sample;
+          captured.process_peak_bytes =
+              std::max(captured.process_peak_bytes, sample.current_bytes);
+        }
+        return sample;
       });
+
+  std::optional<prisminfer::PostContextAdmissionRequest> last_post;
+  std::optional<prisminfer::SupervisorWatchdogSample> last_watchdog;
+  std::optional<prisminfer::ProcessDeviceMemorySample> last_process;
+  std::uint64_t process_peak_bytes = 0U;
+  {
+    std::lock_guard lock(captured.mutex);
+    last_post = captured.post;
+    last_watchdog = captured.watchdog;
+    last_process = captured.process;
+    process_peak_bytes = captured.process_peak_bytes;
+  }
 
   const auto final_wddm =
       prisminfer::sample_wddm_memory(options.adapter_index);
@@ -338,18 +388,6 @@ int main(int argc, char** argv) {
                                  final_host.available && final_thermal.available &&
                                  cleanup_wddm_positive_delta <=
                                      kCleanupWddmToleranceBytes;
-  std::string last_good_hash;
-  const std::string last_good_material =
-      worker_sha256 + ":" + std::to_string(result.root_process_id) + ":" +
-      std::to_string(result.heartbeat_sequence) + ":" +
-      std::to_string(final_wddm.local_current_usage_bytes);
-  if (!prisminfer::sha256_text(last_good_material, &last_good_hash)) return 9;
-  std::string bundle_hash;
-  if (!prisminfer::sha256_text(last_good_hash + ":" + result.failure_reason +
-                                   ":" + options.case_name,
-                               &bundle_hash)) {
-    return 10;
-  }
   bool output_removed = result.output_path.empty();
   if (!result.output_path.empty()) {
     std::error_code remove_error;
@@ -358,15 +396,6 @@ int main(int argc, char** argv) {
   }
   result.temporary_files_reconciled =
       result.temporary_files_reconciled && output_removed;
-
-  prisminfer::DeviceCleanupEvidence cleanup_evidence;
-  cleanup_evidence.device_resources_reconciled = device_reconciled;
-  cleanup_evidence.terminal_reason =
-      result.ok ? "synthetic_c2_candidate_completed" : result.failure_reason;
-  cleanup_evidence.last_good_sample_sha256 = last_good_hash;
-  cleanup_evidence.evidence_bundle_sha256 = bundle_hash;
-  const auto cleanup = acquired.session->finalize_cleanup(
-      cleanup_evidence, prisminfer::monotonic_time_milliseconds());
 
   prisminfer::C2ClearanceReceipt receipt;
   receipt.repository = "Gravelaw/prisminfer";
@@ -380,13 +409,17 @@ int main(int argc, char** argv) {
   receipt.case_name = options.case_name;
   receipt.status = result.ok ? "candidate-complete" : "rejected";
   receipt.failure_reason = result.failure_reason;
-  receipt.cleanup_status =
-      cleanup == prisminfer::GpuAdmissionSessionState::Cleaned ? "cleaned"
-                                                               : "quarantined";
+  receipt.cleanup_status = "pending";
   receipt.lease_id = lease_id;
   receipt.job_identity = result.job_identity;
-  receipt.last_good_sample_sha256 = last_good_hash;
-  receipt.evidence_bundle_sha256 = bundle_hash;
+  if (last_process) {
+    receipt.last_process_wddm_available = last_process->available;
+    receipt.process_wddm_source = last_process->source;
+    receipt.process_wddm_sample_monotonic_milliseconds =
+        last_process->captured_monotonic_milliseconds;
+    receipt.process_wddm_current_bytes = last_process->current_bytes;
+    receipt.process_wddm_peak_bytes = process_peak_bytes;
+  }
   receipt.adapter_luid_high = pre_wddm.adapter_luid_high;
   receipt.adapter_luid_low = pre_wddm.adapter_luid_low;
   receipt.adapter_index = options.adapter_index;
@@ -403,6 +436,58 @@ int main(int argc, char** argv) {
       result.last_heartbeat_evidence.cuda_mem_info_free_bytes;
   receipt.last_heartbeat_cuda_total_bytes =
       result.last_heartbeat_evidence.cuda_mem_info_total_bytes;
+  if (last_watchdog) {
+    receipt.last_wddm_available = last_watchdog->gpu.available;
+    receipt.last_host_available = last_watchdog->host.available;
+    receipt.last_thermal_available = last_watchdog->thermal.available;
+    receipt.last_sample_monotonic_milliseconds =
+        last_watchdog->gpu.captured_monotonic_milliseconds;
+    receipt.last_sample_wddm_local_budget_bytes =
+        last_watchdog->gpu.dxgi_local_budget_bytes;
+    receipt.last_sample_wddm_local_usage_bytes =
+        last_watchdog->gpu.dxgi_local_current_usage_bytes;
+    receipt.last_host_sample_monotonic_milliseconds =
+        last_watchdog->host.captured_monotonic_milliseconds;
+    receipt.last_host_memory_available_bytes =
+        last_watchdog->host.system_memory_available_bytes;
+    receipt.last_host_commit_available_bytes =
+        last_watchdog->host.system_commit_available_bytes;
+    receipt.last_thermal_sample_monotonic_milliseconds =
+        last_watchdog->thermal.captured_monotonic_milliseconds;
+    receipt.last_gpu_temperature_celsius =
+        last_watchdog->thermal.current_celsius;
+    receipt.last_gpu_slowdown_celsius =
+        last_watchdog->thermal.reported_slowdown_celsius.value_or(0);
+    receipt.last_gpu_thermal_throttling =
+        last_watchdog->thermal.thermal_throttling;
+    receipt.last_gpu_power_brake_slowdown =
+        last_watchdog->thermal.power_brake_slowdown;
+  } else if (last_post) {
+    receipt.last_wddm_available = last_post->gpu.available;
+    receipt.last_host_available = last_post->host.available;
+    receipt.last_thermal_available = last_post->thermal.available;
+    receipt.last_sample_monotonic_milliseconds =
+        last_post->gpu.captured_monotonic_milliseconds;
+    receipt.last_sample_wddm_local_budget_bytes =
+        last_post->gpu.dxgi_local_budget_bytes;
+    receipt.last_sample_wddm_local_usage_bytes =
+        last_post->gpu.dxgi_local_current_usage_bytes;
+    receipt.last_host_sample_monotonic_milliseconds =
+        last_post->host.captured_monotonic_milliseconds;
+    receipt.last_host_memory_available_bytes =
+        last_post->host.system_memory_available_bytes;
+    receipt.last_host_commit_available_bytes =
+        last_post->host.system_commit_available_bytes;
+    receipt.last_thermal_sample_monotonic_milliseconds =
+        last_post->thermal.captured_monotonic_milliseconds;
+    receipt.last_gpu_temperature_celsius = last_post->thermal.current_celsius;
+    receipt.last_gpu_slowdown_celsius =
+        last_post->thermal.reported_slowdown_celsius.value_or(0);
+    receipt.last_gpu_thermal_throttling =
+        last_post->thermal.thermal_throttling;
+    receipt.last_gpu_power_brake_slowdown =
+        last_post->thermal.power_brake_slowdown;
+  }
   receipt.pre_wddm_local_usage_bytes = pre_wddm.local_current_usage_bytes;
   receipt.final_wddm_local_usage_bytes = final_wddm.local_current_usage_bytes;
   receipt.cleanup_wddm_positive_delta_bytes = cleanup_wddm_positive_delta;
@@ -428,10 +513,34 @@ int main(int argc, char** argv) {
   receipt.device_resources_reconciled = device_reconciled;
   receipt.artifact_handles_closed = result.artifact_handles_closed;
   receipt.temporary_files_reconciled = result.temporary_files_reconciled;
+  std::string receipt_error;
+  if (!prisminfer::compute_c2_clearance_evidence_hashes(&receipt,
+                                                        &receipt_error)) {
+    std::cerr << receipt_error << "\n";
+    return 9;
+  }
+  receipt.pre_cleanup_evidence_sha256 = receipt.evidence_bundle_sha256;
+  prisminfer::DeviceCleanupEvidence cleanup_evidence;
+  cleanup_evidence.device_resources_reconciled = device_reconciled;
+  cleanup_evidence.terminal_reason =
+      result.ok ? "synthetic_c2_candidate_completed" : result.failure_reason;
+  cleanup_evidence.last_good_sample_sha256 =
+      receipt.last_good_sample_sha256;
+  cleanup_evidence.evidence_bundle_sha256 =
+      receipt.pre_cleanup_evidence_sha256;
+  const auto cleanup = acquired.session->finalize_cleanup(
+      cleanup_evidence, prisminfer::monotonic_time_milliseconds());
+  receipt.cleanup_status =
+      cleanup == prisminfer::GpuAdmissionSessionState::Cleaned ? "cleaned"
+                                                               : "quarantined";
+  if (!prisminfer::compute_c2_clearance_evidence_hashes(&receipt,
+                                                        &receipt_error)) {
+    std::cerr << receipt_error << "\n";
+    return 10;
+  }
   const auto receipt_path =
       options.output_root /
       ("c2-clearance-" + options.case_name + ".json");
-  std::string receipt_error;
   if (!prisminfer::write_c2_clearance_receipt(
           options.output_root, receipt_path, receipt, &receipt_error)) {
     std::cerr << receipt_error << "\n";

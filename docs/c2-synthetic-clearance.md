@@ -57,6 +57,15 @@ WDDM/NVML/host/thermal sensors, attendance, abort conditions, and retained
 outputs. Any commit/tree/content change invalidates the functional/safety review
 receipt and the authorization packet.
 
+Each candidate receipt retains the actual last global-WDDM, process-WDDM,
+host, and thermal availability, timestamps, and guard values, including the
+process-bound current/peak bytes and source. A canonical last-good hash is
+sensitive to those safety fields. A separate pre-cleanup hash is passed into
+the session cleanup gate, while the terminal bundle hash additionally binds the
+observed failure, Job/handle/file reconciliation, final WDDM delta, and actual
+cleaned/quarantined result. Receipt validation recomputes both canonical hashes;
+changing a safety or cleanup field without rehashing is rejected.
+
 After an explicitly authorized run, an independent reviewer must accept the
 complete positive and negative receipt set before C2 may be proposed as closed.
 A critical vulnerability, concrete safety-floor defect, missing telemetry,
