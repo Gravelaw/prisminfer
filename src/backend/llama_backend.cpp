@@ -1,60 +1,83 @@
 #include "prisminfer/backend.h"
+#include "prisminfer/flat_json.h"
+#include "prisminfer/native_worker.h"
 
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <regex>
 #include <sstream>
 #include <string>
+#include <optional>
+#include <vector>
 
 namespace prisminfer {
 namespace {
-
-std::string quote_text(const std::string& text) {
-  std::string escaped;
-  escaped.reserve(text.size() + 2);
-  escaped.push_back('"');
-  for (const char ch : text) {
-    if (ch == '"') {
-      escaped.push_back('\\');
-    }
-    escaped.push_back(ch);
-  }
-  escaped.push_back('"');
-  return escaped;
-}
-
-std::string quote_path(const std::filesystem::path& value) {
-  return quote_text(value.string());
-}
 
 bool path_has_directory(const std::filesystem::path& path) {
   return path.has_parent_path() || path.is_absolute();
 }
 
 std::filesystem::path resolve_llama_executable(const RuntimeConfig& config) {
-  if (!config.llama_executable_path.empty()) {
-    return config.llama_executable_path;
+  return config.llama_executable_path;
+}
+
+std::filesystem::path resolve_workspace_artifact(
+    const std::filesystem::path& relative_path) {
+  auto cursor = std::filesystem::path(PRISMINFER_SOURCE_DIR);
+  for (;;) {
+    const auto candidate = cursor / relative_path;
+    std::error_code error;
+    if (std::filesystem::is_regular_file(candidate, error) && !error) {
+      return candidate;
+    }
+    const auto parent = cursor.parent_path();
+    if (parent == cursor || parent.empty()) return {};
+    cursor = parent;
   }
-#if defined(_WIN32)
-  char* env_path = nullptr;
-  std::size_t env_size = 0;
-  if (_dupenv_s(&env_path, &env_size, "PRISMINFER_LLAMA_CLI") == 0 &&
-      env_path != nullptr && env_path[0] != '\0') {
-    std::filesystem::path resolved(env_path);
-    std::free(env_path);
-    return resolved;
+}
+
+std::optional<NativeWorkerTrustCatalog> load_llama_approval_catalog() {
+  const auto approval_path = std::filesystem::path(PRISMINFER_SOURCE_DIR) /
+      "third_party" / "llama.cpp-executable-approval.json";
+  const auto approval = read_flat_json_file(approval_path, 64U * 1024U);
+  const auto schema = approval.fields.find("schema_version");
+  const auto status = approval.fields.find("approval_status");
+  if (!approval.ok || schema == approval.fields.end() ||
+      schema->second.text != "0.1" || status == approval.fields.end() ||
+      status->second.text != "approved") {
+    return std::nullopt;
   }
-  if (env_path != nullptr) {
-    std::free(env_path);
+  const auto executable = approval.fields.find("workspace_relative_executable");
+  const auto hash = approval.fields.find("sha256");
+  const auto identity = approval.fields.find("approval_identity");
+  const auto dependency_count = approval.fields.find("dependency_count");
+  const auto shared_libraries = approval.fields.find("shared_libraries");
+  const auto dynamic_loading =
+      approval.fields.find("dynamic_backend_loading");
+  const auto cuda = approval.fields.find("cuda");
+  const auto openssl = approval.fields.find("openssl");
+  const auto import_policy = approval.fields.find("pe_import_policy");
+  if (executable == approval.fields.end() || hash == approval.fields.end() ||
+      identity == approval.fields.end() ||
+      dependency_count == approval.fields.end() ||
+      shared_libraries == approval.fields.end() ||
+      shared_libraries->second.text != "disabled" ||
+      dynamic_loading == approval.fields.end() ||
+      dynamic_loading->second.text != "disabled" ||
+      cuda == approval.fields.end() || cuda->second.text != "disabled" ||
+      openssl == approval.fields.end() || openssl->second.text != "disabled" ||
+      import_policy == approval.fields.end() ||
+      import_policy->second.text != "system-dlls-only" ||
+      identity->second.text.empty()) {
+    return std::nullopt;
   }
-#else
-  const char* env_path = std::getenv("PRISMINFER_LLAMA_CLI");
-  if (env_path != nullptr && env_path[0] != '\0') {
-    return std::filesystem::path(env_path);
-  }
-#endif
-  return {};
+  const auto executable_path =
+      resolve_workspace_artifact(executable->second.text);
+  if (executable_path.empty()) return std::nullopt;
+  if (dependency_count->second.text != "0") return std::nullopt;
+  return NativeWorkerTrustCatalog({{
+      executable_path, executable_path.parent_path(), hash->second.text,
+      identity->second.text}});
 }
 
 std::uint64_t parse_bytes(double value, const std::string& unit) {
@@ -73,11 +96,9 @@ std::uint64_t parse_bytes(double value, const std::string& unit) {
 }
 
 std::uint64_t extract_llama_allocation_bytes(
-    const std::filesystem::path& log_path) {
-  std::ifstream in(log_path);
-  if (!in) {
-    return 0;
-  }
+    const std::string& captured_output) {
+  try {
+  std::istringstream in(captured_output);
 
   std::uint64_t total = 0;
   std::string line;
@@ -98,15 +119,19 @@ std::uint64_t extract_llama_allocation_bytes(
     }
   }
   return total;
+  } catch (const std::exception&) {
+    return 0;
+  }
 }
 
-bool extract_llama_kv_profile(const std::filesystem::path& log_path,
+bool extract_llama_kv_profile(const std::string& captured_output,
                               const RuntimeConfig& config,
                               KvCacheProfile* profile) {
-  std::ifstream in(log_path);
-  if (!in || profile == nullptr) {
+  try {
+  if (profile == nullptr) {
     return false;
   }
+  std::istringstream in(captured_output);
   std::uint32_t layer_count = 0;
   std::uint32_t kv_head_count = 0;
   std::uint32_t head_dim = 0;
@@ -148,7 +173,20 @@ bool extract_llama_kv_profile(const std::filesystem::path& log_path,
   }
   *profile = extracted;
   return true;
+  } catch (const std::exception&) {
+    return false;
+  }
 }
+
+struct WorkerOutputCleanup {
+  std::filesystem::path path;
+  ~WorkerOutputCleanup() {
+    if (!path.empty()) {
+      std::error_code ignored;
+      std::filesystem::remove(path, ignored);
+    }
+  }
+};
 
 class LlamaBackendAdapter final : public BackendAdapter {
  public:
@@ -180,36 +218,65 @@ class LlamaBackendAdapter final : public BackendAdapter {
       result.failure_reason = "llama_executable_not_found";
       return result;
     }
-
-    const auto log_path =
-        std::filesystem::temp_directory_path() /
-        ("prisminfer-llama-" + config.run_id + ".log");
-    std::ostringstream command;
-#if defined(_WIN32)
-    command << "call ";
-#endif
-    command << quote_path(executable) << " --model " << quote_path(config.model_path)
-            << " --ctx-size " << config.context_tokens << " --n-predict "
-            << config.warmup_tokens << " --prompt "
-            << quote_text("PrismInfer backend warmup.") << " --no-display-prompt"
-            << " --no-conversation --single-turn --log-verbose"
-            << " --gpu-layers " << config.gpu_layers;
-    if (!config.mmap_enabled) {
-      command << " --no-mmap";
-    }
-    command << " > " << quote_path(log_path) << " 2>&1";
-
-    const int exit_code = std::system(command.str().c_str());
-    if (exit_code != 0) {
+    const auto catalog = load_llama_approval_catalog();
+    if (!catalog.has_value()) {
       result.ok = false;
-      result.failure_reason = "llama_cli_failed";
+      result.failure_reason = "llama_executable_approval_unavailable";
       return result;
     }
 
+    std::vector<std::wstring> arguments{
+        L"cli", L"--model", config.model_path.wstring(),
+        L"--ctx-size", std::to_wstring(config.context_tokens),
+        L"--n-predict", std::to_wstring(config.warmup_tokens),
+        L"--prompt", L"PrismInfer backend warmup.",
+        L"--no-display-prompt", L"--no-conversation", L"--single-turn",
+        L"--log-verbose", L"--gpu-layers", std::to_wstring(config.gpu_layers)};
+    if (!config.mmap_enabled) {
+      arguments.emplace_back(L"--no-mmap");
+    }
+    NativeWorkerRequest request;
+    request.executable_path = executable;
+    request.arguments = std::move(arguments);
+    request.timeout_ms = 60'000U;
+    const auto worker = run_native_worker(*catalog, request);
+    result.worker_evidence_available = worker.evidence_available;
+    result.worker_executable_sha256 = worker.executable_sha256;
+    result.worker_approval_identity = worker.approval_identity;
+    result.worker_exit_code = worker.exit_code;
+    result.worker_timed_out = worker.timed_out;
+    result.worker_root_process_id = worker.root_process_id;
+    result.worker_job_identity = worker.job_identity;
+    result.worker_job_total_processes = worker.job_total_processes;
+    result.worker_job_peak_active_processes = worker.job_peak_active_processes;
+    result.worker_job_total_terminated_processes =
+        worker.job_total_terminated_processes;
+    result.worker_root_peak_working_set_bytes =
+        worker.root_peak_working_set_bytes;
+    result.worker_root_peak_private_commit_bytes =
+        worker.root_peak_private_commit_bytes;
+    result.worker_tree_peak_working_set_bytes =
+        worker.tree_peak_working_set_bytes;
+    result.worker_tree_peak_private_commit_bytes =
+        worker.tree_peak_private_commit_bytes;
+    result.worker_tree_sample_interval_milliseconds =
+        worker.tree_sample_interval_milliseconds;
+    result.worker_read_bytes = worker.read_bytes;
+    result.worker_write_bytes = worker.write_bytes;
+    result.worker_output_bytes = worker.output_bytes;
+    result.worker_output_limit_bytes = worker.output_limit_bytes;
+    if (!worker.ok) {
+      result.ok = false;
+      result.failure_reason = "llama_" + worker.failure_reason;
+      return result;
+    }
+    WorkerOutputCleanup output_cleanup{worker.output_path};
+
     result.backend_external_peak_bytes =
-        extract_llama_allocation_bytes(log_path);
+        extract_llama_allocation_bytes(worker.captured_output);
     result.kv_profile_available =
-        extract_llama_kv_profile(log_path, config, &result.kv_profile);
+        extract_llama_kv_profile(worker.captured_output, config,
+                                 &result.kv_profile);
     if (result.backend_external_peak_bytes == 0) {
       result.ok = false;
       result.failure_reason = "llama_allocation_evidence_missing";

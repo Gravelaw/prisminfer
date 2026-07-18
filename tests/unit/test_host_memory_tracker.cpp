@@ -17,8 +17,18 @@ int expect(bool condition, const char* message) {
 int main() {
   const auto sample = prisminfer::sample_host_telemetry();
   if (sample.available) {
-    if (expect(sample.process_working_set_bytes > 0,
+    if (expect(sample.process_id != 0U && !sample.process_image_path.empty(),
+               "process identity is recorded") ||
+        expect(sample.process_working_set_current_bytes > 0,
                "working set is recorded when host telemetry is available")) {
+      return 1;
+    }
+    if (expect(sample.process_working_set_peak_bytes >=
+                   sample.process_working_set_current_bytes,
+               "working-set peak is not lower than current") ||
+        expect(sample.process_private_commit_peak_bytes >=
+                   sample.process_private_commit_current_bytes,
+               "private-commit peak is not lower than current")) {
       return 1;
     }
     if (expect(sample.system_commit_source == "get_performance_info",
@@ -37,6 +47,19 @@ int main() {
                    sample.system_commit_limit_bytes -
                        sample.system_commit_total_bytes,
                "system commit headroom is reconciled")) {
+      return 1;
+    }
+    if (sample.pagefile_configuration_available) {
+      if (expect(sample.pagefile_current_usage_bytes <=
+                         sample.pagefile_peak_usage_bytes &&
+                     sample.pagefile_peak_usage_bytes <=
+                         sample.pagefile_total_bytes,
+                 "pagefile configuration counters reconcile")) {
+        return 1;
+      }
+    } else if (expect(
+                   !sample.pagefile_configuration_unavailable_reason.empty(),
+                   "unavailable pagefile configuration has a typed reason")) {
       return 1;
     }
   } else {

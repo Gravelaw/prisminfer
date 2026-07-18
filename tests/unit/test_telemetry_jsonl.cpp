@@ -28,6 +28,19 @@ int main() {
 
   prisminfer::RuntimeConfig config;
   config.run_id = "test-run-id";
+  config.worker_evidence_available = true;
+  config.worker_executable_sha256 = "worker-sha256";
+  config.worker_approval_identity = "approval-1";
+  config.worker_root_process_id = 1234;
+  config.worker_job_identity = "job:1:1234:99";
+  config.worker_job_total_processes = 1;
+  config.worker_job_peak_active_processes = 1;
+  config.worker_root_peak_working_set_bytes = 3072;
+  config.worker_root_peak_private_commit_bytes = 2048;
+  config.worker_tree_peak_working_set_bytes = 3072;
+  config.worker_tree_peak_private_commit_bytes = 4096;
+  config.worker_tree_sample_interval_milliseconds = 10;
+  config.worker_output_limit_bytes = 1024;
   {
     prisminfer::JsonlTelemetry telemetry(path);
     if (expect(telemetry.ok(), telemetry.error().c_str())) return 1;
@@ -42,8 +55,21 @@ int main() {
   in.close();
 
   const std::string content = buffer.str();
+  if (expect(content.find("\"schema_version\":\"0.6\"") !=
+                 std::string::npos,
+             "telemetry schema version written")) return 1;
   if (expect(content.find("\"run_id\":\"test-run-id\"") != std::string::npos,
              "run_id written")) return 1;
+  if (expect(content.find("\"worker_executable_sha256\":\"worker-sha256\"") !=
+                 std::string::npos &&
+                 content.find("\"worker_job_identity\":\"job:1:1234:99\"") !=
+                     std::string::npos &&
+                 content.find(
+                     "\"worker_tree_peak_private_commit_bytes\":4096") !=
+                     std::string::npos &&
+                 content.find("\"worker_output_limit_bytes\":1024") !=
+                     std::string::npos,
+             "worker identity and Job evidence written")) return 1;
   if (expect(content.find("\"event\":\"run_start\"") != std::string::npos,
              "run_start event written")) return 1;
   if (expect(content.find("\"event\":\"memory_sample\"") != std::string::npos,

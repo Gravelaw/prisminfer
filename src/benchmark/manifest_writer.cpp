@@ -41,8 +41,7 @@ bool line_contains(const std::string& line, const std::string& needle) {
 }  // namespace
 
 bool write_probe_manifest(const std::filesystem::path& path,
-                          const ManifestInputs& inputs,
-                          std::string* error) {
+                          const ManifestInputs& inputs, std::string* error) {
   std::ofstream out(path, std::ios::out | std::ios::trunc);
   if (!out) {
     if (error != nullptr) {
@@ -52,7 +51,7 @@ bool write_probe_manifest(const std::filesystem::path& path,
   }
 
   out << "{\n"
-      << "  \"manifest_version\": \"0.5\",\n"
+      << "  \"manifest_version\": \"0.6\",\n"
       << "  \"run_id\": \"" << json_escape(inputs.config.run_id) << "\",\n"
       << "  \"created_at_utc\": \"" << utc_timestamp() << "\",\n"
       << "  \"tool\": \"prism-probe\",\n"
@@ -100,8 +99,8 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << json_escape(inputs.config.validation_cell_status) << "\",\n"
       << "  \"backend\": \"" << json_escape(to_string(inputs.config.backend))
       << "\",\n"
-      << "  \"backend_adapter_contract_version\": \""
-      << kBackendContractVersion << "\",\n"
+      << "  \"backend_adapter_contract_version\": \"" << kBackendContractVersion
+      << "\",\n"
       << "  \"backend_required\": "
       << (inputs.config.backend_required ? "true" : "false") << ",\n"
       << "  \"dependency_pin_file\": \""
@@ -115,6 +114,42 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << "  \"mmap_enabled\": "
       << (inputs.config.mmap_enabled ? "true" : "false") << ",\n"
       << "  \"warmup_tokens\": " << inputs.config.warmup_tokens << ",\n"
+      << "  \"worker_evidence_available\": "
+      << (inputs.config.worker_evidence_available ? "true" : "false") << ",\n"
+      << "  \"worker_executable_sha256\": \""
+      << json_escape(inputs.config.worker_executable_sha256) << "\",\n"
+      << "  \"worker_approval_identity\": \""
+      << json_escape(inputs.config.worker_approval_identity) << "\",\n"
+      << "  \"worker_exit_code\": " << inputs.config.worker_exit_code << ",\n"
+      << "  \"worker_timed_out\": "
+      << (inputs.config.worker_timed_out ? "true" : "false") << ",\n"
+      << "  \"worker_root_process_id\": "
+      << inputs.config.worker_root_process_id << ",\n"
+      << "  \"worker_job_identity\": \""
+      << json_escape(inputs.config.worker_job_identity) << "\",\n"
+      << "  \"worker_job_total_processes\": "
+      << inputs.config.worker_job_total_processes << ",\n"
+      << "  \"worker_job_peak_active_processes\": "
+      << inputs.config.worker_job_peak_active_processes << ",\n"
+      << "  \"worker_job_total_terminated_processes\": "
+      << inputs.config.worker_job_total_terminated_processes << ",\n"
+      << "  \"worker_root_peak_working_set_bytes\": "
+      << inputs.config.worker_root_peak_working_set_bytes << ",\n"
+      << "  \"worker_root_peak_private_commit_bytes\": "
+      << inputs.config.worker_root_peak_private_commit_bytes << ",\n"
+      << "  \"worker_tree_peak_working_set_bytes\": "
+      << inputs.config.worker_tree_peak_working_set_bytes << ",\n"
+      << "  \"worker_tree_peak_private_commit_bytes\": "
+      << inputs.config.worker_tree_peak_private_commit_bytes << ",\n"
+      << "  \"worker_tree_sample_interval_milliseconds\": "
+      << inputs.config.worker_tree_sample_interval_milliseconds << ",\n"
+      << "  \"worker_read_bytes\": " << inputs.config.worker_read_bytes << ",\n"
+      << "  \"worker_write_bytes\": " << inputs.config.worker_write_bytes
+      << ",\n"
+      << "  \"worker_output_bytes\": " << inputs.config.worker_output_bytes
+      << ",\n"
+      << "  \"worker_output_limit_bytes\": "
+      << inputs.config.worker_output_limit_bytes << ",\n"
       << "  \"kv_accounting\": "
       << (inputs.config.kv_accounting ? "true" : "false") << ",\n"
       << "  \"kv_layer_count\": " << inputs.kv_profile.layer_count << ",\n"
@@ -129,20 +164,16 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << ",\n"
       << "  \"kv_placement\": \"" << json_escape(inputs.config.kv_placement)
       << "\",\n"
-      << "  \"kv_compression\": \""
-      << json_escape(inputs.config.kv_compression) << "\",\n"
-      << "  \"kv_logical_tokens\": " << inputs.kv_sample.logical_tokens
-      << ",\n"
-      << "  \"kv_active_blocks\": " << inputs.kv_sample.active_blocks
-      << ",\n"
+      << "  \"kv_compression\": \"" << json_escape(inputs.config.kv_compression)
+      << "\",\n"
+      << "  \"kv_logical_tokens\": " << inputs.kv_sample.logical_tokens << ",\n"
+      << "  \"kv_active_blocks\": " << inputs.kv_sample.active_blocks << ",\n"
       << "  \"kv_gpu_bytes\": " << inputs.kv_sample.gpu_bytes << ",\n"
       << "  \"kv_host_bytes\": " << inputs.kv_sample.host_bytes << ",\n"
       << "  \"kv_compressed_bytes\": " << inputs.kv_sample.compressed_bytes
       << ",\n"
-      << "  \"kv_metadata_bytes\": " << inputs.kv_sample.metadata_bytes
-      << ",\n"
-      << "  \"kv_unknown_bytes\": " << inputs.kv_sample.unknown_bytes
-      << ",\n"
+      << "  \"kv_metadata_bytes\": " << inputs.kv_sample.metadata_bytes << ",\n"
+      << "  \"kv_unknown_bytes\": " << inputs.kv_sample.unknown_bytes << ",\n"
       << "  \"kv_evidence_status\": \""
       << json_escape(inputs.kv_sample.evidence_status) << "\",\n"
       << "  \"kv_metadata_budget_bytes\": "
@@ -154,8 +185,8 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << "\",\n"
       << "  \"quality_status\": \"" << json_escape(inputs.quality.status)
       << "\",\n"
-      << "  \"quality_passed\": "
-      << (inputs.quality.passed ? "true" : "false") << ",\n"
+      << "  \"quality_passed\": " << (inputs.quality.passed ? "true" : "false")
+      << ",\n"
       << "  \"quality_failure_reason\": \""
       << json_escape(inputs.quality.failure_reason) << "\",\n"
       << "  \"quality_observed_delta\": " << inputs.quality.observed_delta
@@ -196,8 +227,8 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << "  \"attention_logit_error_p95\": 0,\n"
       << "  \"attention_logit_error_p99\": 0,\n"
       << "  \"attention_topk_overlap\": 0,\n"
-      << "  \"quality_gate_id\": \""
-      << json_escape(inputs.config.quality_gate) << "\",\n"
+      << "  \"quality_gate_id\": \"" << json_escape(inputs.config.quality_gate)
+      << "\",\n"
       << "  \"quality_result_path\": \""
       << json_escape(inputs.config.quality_baseline_manifest.generic_string())
       << "\",\n"
@@ -207,10 +238,9 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << "  \"baseline_manifest\": \""
       << json_escape(inputs.config.baseline_manifest.generic_string())
       << "\",\n"
-      << "  \"min_speedup_ratio\": " << inputs.config.min_speedup_ratio
-      << ",\n"
-      << "  \"offload_policy\": \""
-      << json_escape(inputs.config.offload_policy) << "\",\n"
+      << "  \"min_speedup_ratio\": " << inputs.config.min_speedup_ratio << ",\n"
+      << "  \"offload_policy\": \"" << json_escape(inputs.config.offload_policy)
+      << "\",\n"
       << "  \"pinned_host_budget_bytes\": "
       << inputs.config.pinned_host_budget_bytes << ",\n"
       << "  \"staging_buffer_bytes\": " << inputs.config.staging_buffer_bytes
@@ -219,34 +249,50 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << (inputs.config.transfer_metrics ? "true" : "false") << ",\n"
       << "  \"cold_cache_run\": "
       << (inputs.config.cold_cache_run ? "true" : "false") << ",\n"
-      << "  \"cpu_baseline_ttft_ms\": "
-      << inputs.config.cpu_baseline_ttft_ms << ",\n"
+      << "  \"cpu_baseline_ttft_ms\": " << inputs.config.cpu_baseline_ttft_ms
+      << ",\n"
       << "  \"cpu_baseline_decode_tps\": "
       << inputs.config.cpu_baseline_decode_tps << ",\n"
       << "  \"cpu_baseline_peak_bytes\": "
       << inputs.config.cpu_baseline_peak_bytes << ",\n"
-      << "  \"observed_ttft_ms\": "
-      << inputs.transfer.time_to_first_token_ms << ",\n"
+      << "  \"observed_ttft_ms\": " << inputs.transfer.time_to_first_token_ms
+      << ",\n"
       << "  \"observed_decode_tps\": "
       << inputs.transfer.decode_tokens_per_second << ",\n"
-      << "  \"token_latency_p50_ms\": "
-      << inputs.transfer.token_latency_p50_ms << ",\n"
-      << "  \"token_latency_p95_ms\": "
-      << inputs.transfer.token_latency_p95_ms << ",\n"
-      << "  \"h2d_bytes\": " << inputs.transfer.h2d_bytes << ",\n"
-      << "  \"d2h_bytes\": " << inputs.transfer.d2h_bytes << ",\n"
-      << "  \"nvme_read_bytes\": " << inputs.transfer.nvme_read_bytes
+      << "  \"token_latency_p50_ms\": " << inputs.transfer.token_latency_p50_ms
       << ",\n"
-      << "  \"nvme_write_bytes\": " << inputs.transfer.nvme_write_bytes
+      << "  \"token_latency_p95_ms\": " << inputs.transfer.token_latency_p95_ms
       << ",\n"
-      << "  \"pinned_host_peak_bytes\": "
-      << inputs.transfer.pinned_host_peak_bytes << ",\n"
-      << "  \"staging_peak_bytes\": " << inputs.transfer.staging_peak_bytes
+      << "  \"h2d_declared_bytes\": " << inputs.transfer.declared_h2d_bytes
       << ",\n"
-      << "  \"h2d_ms\": " << inputs.transfer.h2d_ms << ",\n"
-      << "  \"d2h_ms\": " << inputs.transfer.d2h_ms << ",\n"
-      << "  \"io_ms\": " << inputs.transfer.io_ms << ",\n"
-      << "  \"wait_ms\": " << inputs.transfer.wait_ms << ",\n"
+      << "  \"d2h_declared_bytes\": " << inputs.transfer.declared_d2h_bytes
+      << ",\n"
+      << "  \"h2d_observed_submitted_bytes\": "
+      << inputs.transfer.observed_h2d_submitted_bytes << ",\n"
+      << "  \"h2d_observed_completed_bytes\": "
+      << inputs.transfer.observed_h2d_completed_bytes << ",\n"
+      << "  \"d2h_observed_submitted_bytes\": "
+      << inputs.transfer.observed_d2h_submitted_bytes << ",\n"
+      << "  \"d2h_observed_completed_bytes\": "
+      << inputs.transfer.observed_d2h_completed_bytes << ",\n"
+      << "  \"nvme_read_declared_bytes\": "
+      << inputs.transfer.declared_nvme_read_bytes << ",\n"
+      << "  \"nvme_write_declared_bytes\": "
+      << inputs.transfer.declared_nvme_write_bytes << ",\n"
+      << "  \"pinned_host_observed_peak_bytes\": "
+      << inputs.transfer.observed_pinned_host_peak_bytes << ",\n"
+      << "  \"staging_observed_peak_bytes\": "
+      << inputs.transfer.observed_staging_peak_bytes << ",\n"
+      << "  \"transfer_instrumentation_mode\": \""
+      << json_escape(inputs.transfer.instrumentation_mode) << "\",\n"
+      << "  \"transfer_dropped_records\": " << inputs.transfer.dropped_records
+      << ",\n"
+      << "  \"transfer_event_count\": " << inputs.transfer.events.size()
+      << ",\n"
+      << "  \"h2d_declared_ms\": " << inputs.transfer.declared_h2d_ms << ",\n"
+      << "  \"d2h_declared_ms\": " << inputs.transfer.declared_d2h_ms << ",\n"
+      << "  \"io_declared_ms\": " << inputs.transfer.declared_io_ms << ",\n"
+      << "  \"wait_declared_ms\": " << inputs.transfer.declared_wait_ms << ",\n"
       << "  \"prefill_ms\": " << inputs.transfer.prefill_ms << ",\n"
       << "  \"decode_ms\": " << inputs.transfer.decode_ms << ",\n"
       << "  \"offload_evidence_label\": \""
@@ -269,8 +315,7 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << json_escape(inputs.config.quant_artifact_sha256) << "\",\n"
       << "  \"host_memory_budget_bytes\": "
       << inputs.config.host_memory_budget_bytes << ",\n"
-      << "  \"nvme_budget_bytes\": " << inputs.config.nvme_budget_bytes
-      << ",\n"
+      << "  \"nvme_budget_bytes\": " << inputs.config.nvme_budget_bytes << ",\n"
       << "  \"max_time_to_first_token_ms\": "
       << inputs.config.max_time_to_first_token_ms << ",\n"
       << "  \"min_decode_tokens_per_second\": "
@@ -293,14 +338,14 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << "\",\n"
       << "  \"usability_reason\": \"" << json_escape(inputs.usability.reason)
       << "\",\n"
-      << "  \"claim_validation_status\": \""
-      << json_escape(inputs.claim.status) << "\",\n"
+      << "  \"claim_validation_status\": \"" << json_escape(inputs.claim.status)
+      << "\",\n"
       << "  \"claim_validation_accepted\": "
       << (inputs.claim.accepted ? "true" : "false") << ",\n"
-      << "  \"claim_validation_reason\": \""
-      << json_escape(inputs.claim.reason) << "\",\n"
-      << "  \"telemetry_path\": \""
-      << json_escape(inputs.config.telemetry_path) << "\",\n"
+      << "  \"claim_validation_reason\": \"" << json_escape(inputs.claim.reason)
+      << "\",\n"
+      << "  \"telemetry_path\": \"" << json_escape(inputs.config.telemetry_path)
+      << "\",\n"
       << "  \"status\": \"" << json_escape(inputs.status) << "\",\n"
       << "  \"failure_reason\": \"" << json_escape(inputs.failure_reason)
       << "\",\n"
@@ -312,20 +357,17 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << ",\n"
       << "  \"device_total_bytes\": " << inputs.cuda_probe.device_total_bytes
       << ",\n"
-      << "  \"device_used_bytes\": " << inputs.sample.device_used_bytes
-      << ",\n"
+      << "  \"device_used_bytes\": " << inputs.sample.device_used_bytes << ",\n"
       << "  \"device_delta_bytes\": " << inputs.sample.device_delta_bytes
       << ",\n"
-      << "  \"allocator_peak_bytes\": "
-      << inputs.sample.allocator_peak_bytes << ",\n"
+      << "  \"allocator_peak_bytes\": " << inputs.sample.allocator_peak_bytes
+      << ",\n"
       << "  \"process_gpu_peak_bytes\": "
       << inputs.sample.process_gpu_peak_bytes << ",\n"
-      << "  \"warmup_peak_bytes\": " << inputs.sample.warmup_peak_bytes
-      << ",\n"
+      << "  \"warmup_peak_bytes\": " << inputs.sample.warmup_peak_bytes << ",\n"
       << "  \"retained_pool_bytes\": " << inputs.sample.retained_pool_bytes
       << ",\n"
-      << "  \"kv_gpu_peak_bytes\": " << inputs.sample.kv_gpu_peak_bytes
-      << ",\n"
+      << "  \"kv_gpu_peak_bytes\": " << inputs.sample.kv_gpu_peak_bytes << ",\n"
       << "  \"kv_host_peak_bytes\": " << inputs.sample.kv_host_peak_bytes
       << ",\n"
       << "  \"kv_compressed_peak_bytes\": "
@@ -336,35 +378,231 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << ",\n"
       << "  \"unknown_post_warmup_bytes\": "
       << inputs.sample.unknown_post_warmup_bytes << ",\n"
-      << "  \"host_telemetry_available\": "
+      << "  \"host_pre_telemetry_available\": "
+      << (inputs.host_pre.available ? "true" : "false") << ",\n"
+      << "  \"host_pre_telemetry_unavailable_reason\": \""
+      << json_escape(inputs.host_pre.unavailable_reason) << "\",\n"
+      << "  \"host_pre_system_commit_source\": \""
+      << json_escape(inputs.host_pre.system_commit_source) << "\",\n"
+      << "  \"host_pre_captured_monotonic_milliseconds\": "
+      << inputs.host_pre.captured_monotonic_milliseconds << ",\n"
+      << "  \"host_pre_process_id\": " << inputs.host_pre.process_id << ",\n"
+      << "  \"host_pre_process_image_path\": \""
+      << json_escape(inputs.host_pre.process_image_path) << "\",\n"
+      << "  \"host_pre_process_working_set_current_bytes\": "
+      << inputs.host_pre.process_working_set_current_bytes << ",\n"
+      << "  \"host_pre_process_working_set_peak_bytes\": "
+      << inputs.host_pre.process_working_set_peak_bytes << ",\n"
+      << "  \"host_pre_process_private_commit_current_bytes\": "
+      << inputs.host_pre.process_private_commit_current_bytes << ",\n"
+      << "  \"host_pre_process_private_commit_peak_bytes\": "
+      << inputs.host_pre.process_private_commit_peak_bytes << ",\n"
+      << "  \"host_pre_system_memory_total_bytes\": "
+      << inputs.host_pre.system_memory_total_bytes << ",\n"
+      << "  \"host_pre_system_memory_available_bytes\": "
+      << inputs.host_pre.system_memory_available_bytes << ",\n"
+      << "  \"host_pre_system_commit_total_bytes\": "
+      << inputs.host_pre.system_commit_total_bytes << ",\n"
+      << "  \"host_pre_system_commit_limit_bytes\": "
+      << inputs.host_pre.system_commit_limit_bytes << ",\n"
+      << "  \"host_pre_system_commit_available_bytes\": "
+      << inputs.host_pre.system_commit_available_bytes << ",\n"
+      << "  \"host_pre_pagefile_configuration_available\": "
+      << (inputs.host_pre.pagefile_configuration_available ? "true" : "false")
+      << ",\n"
+      << "  \"host_pre_pagefile_configuration_unavailable_reason\": \""
+      << json_escape(inputs.host_pre.pagefile_configuration_unavailable_reason)
+      << "\",\n"
+      << "  \"host_pre_pagefile_count\": " << inputs.host_pre.pagefile_count
+      << ",\n"
+      << "  \"host_pre_pagefile_total_bytes\": "
+      << inputs.host_pre.pagefile_total_bytes << ",\n"
+      << "  \"host_pre_pagefile_current_usage_bytes\": "
+      << inputs.host_pre.pagefile_current_usage_bytes << ",\n"
+      << "  \"host_pre_pagefile_peak_usage_bytes\": "
+      << inputs.host_pre.pagefile_peak_usage_bytes << ",\n"
+      << "  \"host_pre_process_io_read_bytes\": "
+      << inputs.host_pre.process_io_read_bytes << ",\n"
+      << "  \"host_pre_process_io_write_bytes\": "
+      << inputs.host_pre.process_io_write_bytes << ",\n"
+      << "  \"host_post_telemetry_available\": "
       << (inputs.host.available ? "true" : "false") << ",\n"
-      << "  \"host_telemetry_unavailable_reason\": \""
+      << "  \"host_post_telemetry_unavailable_reason\": \""
       << json_escape(inputs.host.unavailable_reason) << "\",\n"
-      << "  \"system_commit_source\": \""
+      << "  \"host_post_system_commit_source\": \""
       << json_escape(inputs.host.system_commit_source) << "\",\n"
-      << "  \"host_captured_monotonic_milliseconds\": "
+      << "  \"host_post_captured_monotonic_milliseconds\": "
       << inputs.host.captured_monotonic_milliseconds << ",\n"
-      << "  \"process_working_set_bytes\": "
-      << inputs.host.process_working_set_bytes << ",\n"
-      << "  \"process_private_bytes\": "
-      << inputs.host.process_private_bytes << ",\n"
-      << "  \"system_memory_total_bytes\": "
+      << "  \"wddm_available\": " << (inputs.wddm.available ? "true" : "false")
+      << ",\n"
+      << "  \"wddm_unavailable_reason\": \""
+      << json_escape(inputs.wddm.unavailable_reason) << "\",\n"
+      << "  \"wddm_captured_monotonic_milliseconds\": "
+      << inputs.wddm.captured_monotonic_milliseconds << ",\n"
+      << "  \"wddm_adapter_index\": " << inputs.wddm.adapter_index << ",\n"
+      << "  \"wddm_adapter_luid_high\": " << inputs.wddm.adapter_luid_high
+      << ",\n"
+      << "  \"wddm_adapter_luid_low\": " << inputs.wddm.adapter_luid_low
+      << ",\n"
+      << "  \"wddm_adapter_description\": \""
+      << json_escape(inputs.wddm.adapter_description) << "\",\n"
+      << "  \"wddm_local_budget_bytes\": " << inputs.wddm.local_budget_bytes
+      << ",\n"
+      << "  \"wddm_local_current_usage_bytes\": "
+      << inputs.wddm.local_current_usage_bytes << ",\n"
+      << "  \"wddm_local_available_for_reservation_bytes\": "
+      << inputs.wddm.local_available_for_reservation_bytes << ",\n"
+      << "  \"wddm_nonlocal_budget_bytes\": "
+      << inputs.wddm.nonlocal_budget_bytes << ",\n"
+      << "  \"wddm_nonlocal_current_usage_bytes\": "
+      << inputs.wddm.nonlocal_current_usage_bytes << ",\n"
+      << "  \"wddm_nonlocal_available_for_reservation_bytes\": "
+      << inputs.wddm.nonlocal_available_for_reservation_bytes << ",\n"
+      << "  \"owned_gpu_available\": "
+      << (inputs.owned_gpu.available ? "true" : "false") << ",\n"
+      << "  \"owned_gpu_source_reconciled\": "
+      << (inputs.owned_gpu.reconciled ? "true" : "false") << ",\n"
+      << "  \"owned_gpu_process_device_corroboration_available\": "
+      << (inputs.owned_gpu.process_device_corroboration_available ? "true"
+                                                                  : "false")
+      << ",\n"
+      << "  \"owned_gpu_adapter_identity_available\": "
+      << (inputs.owned_gpu.adapter_identity_available ? "true" : "false")
+      << ",\n"
+      << "  \"owned_gpu_adapter_luid_high\": "
+      << inputs.owned_gpu.adapter_luid_high << ",\n"
+      << "  \"owned_gpu_adapter_luid_low\": "
+      << inputs.owned_gpu.adapter_luid_low << ",\n"
+      << "  \"owned_gpu_hard_cap_bytes\": "
+      << inputs.owned_gpu.hard_cap_bytes << ",\n"
+      << "  \"owned_gpu_current_bytes\": "
+      << inputs.owned_gpu.owned_current_bytes << ",\n"
+      << "  \"owned_gpu_peak_bytes\": " << inputs.owned_gpu.owned_peak_bytes
+      << ",\n"
+      << "  \"owned_gpu_rejected_attempted_peak_bytes\": "
+      << inputs.owned_gpu.rejected_attempted_peak_bytes << ",\n"
+      << "  \"owned_gpu_backend_buffer_current_bytes\": "
+      << inputs.owned_gpu.backend_buffer_current_bytes << ",\n"
+      << "  \"owned_gpu_backend_buffer_at_peak_bytes\": "
+      << inputs.owned_gpu.backend_buffer_at_owned_peak_bytes << ",\n"
+      << "  \"owned_gpu_backend_pool_current_bytes\": "
+      << inputs.owned_gpu.backend_pool_current_bytes << ",\n"
+      << "  \"owned_gpu_backend_pool_at_peak_bytes\": "
+      << inputs.owned_gpu.backend_pool_at_owned_peak_bytes << ",\n"
+      << "  \"owned_gpu_kernel_workspace_current_bytes\": "
+      << inputs.owned_gpu.kernel_workspace_current_bytes << ",\n"
+      << "  \"owned_gpu_kernel_workspace_at_peak_bytes\": "
+      << inputs.owned_gpu.kernel_workspace_at_owned_peak_bytes << ",\n"
+      << "  \"owned_gpu_activation_current_bytes\": "
+      << inputs.owned_gpu.activation_current_bytes << ",\n"
+      << "  \"owned_gpu_activation_at_peak_bytes\": "
+      << inputs.owned_gpu.activation_at_owned_peak_bytes << ",\n"
+      << "  \"owned_gpu_kv_current_bytes\": "
+      << inputs.owned_gpu.kv_current_bytes << ",\n"
+      << "  \"owned_gpu_kv_at_peak_bytes\": "
+      << inputs.owned_gpu.kv_at_owned_peak_bytes << ",\n"
+      << "  \"owned_gpu_graph_current_bytes\": "
+      << inputs.owned_gpu.graph_current_bytes << ",\n"
+      << "  \"owned_gpu_graph_at_peak_bytes\": "
+      << inputs.owned_gpu.graph_at_owned_peak_bytes << ",\n"
+      << "  \"owned_gpu_profiler_workspace_current_bytes\": "
+      << inputs.owned_gpu.profiler_workspace_current_bytes << ",\n"
+      << "  \"owned_gpu_profiler_workspace_at_peak_bytes\": "
+      << inputs.owned_gpu.profiler_workspace_at_owned_peak_bytes << ",\n"
+      << "  \"owned_gpu_cuda_context_runtime_current_bytes\": "
+      << inputs.owned_gpu.cuda_context_runtime_current_bytes << ",\n"
+      << "  \"owned_gpu_cuda_context_runtime_at_peak_bytes\": "
+      << inputs.owned_gpu.cuda_context_runtime_at_owned_peak_bytes << ",\n"
+      << "  \"owned_gpu_cuda_mem_info_free_bytes\": "
+      << inputs.owned_gpu.cuda_mem_info_free_bytes << ",\n"
+      << "  \"owned_gpu_cuda_mem_info_total_bytes\": "
+      << inputs.owned_gpu.cuda_mem_info_total_bytes << ",\n"
+      << "  \"owned_gpu_unknown_unreconciled_bytes\": "
+      << inputs.owned_gpu.unknown_unreconciled_bytes << ",\n"
+      << "  \"file_evidence\": [";
+  for (std::size_t index = 0; index < inputs.files.size(); ++index) {
+    const auto& file = inputs.files[index];
+    if (index != 0U) out << ",";
+    out << "\n    {\"identity_available\": "
+        << (file.identity_available ? "true" : "false")
+        << ", \"unavailable_reason\": \""
+        << json_escape(file.unavailable_reason) << "\", \"role\": \""
+        << json_escape(file.role) << "\", \"final_path\": \""
+        << json_escape(file.final_path) << "\", \"volume_serial_hex\": \""
+        << json_escape(file.volume_serial_hex) << "\", \"file_id_hex\": \""
+        << json_escape(file.file_id_hex)
+        << "\", \"size_bytes\": " << file.size_bytes
+        << ", \"mapped_bytes\": " << file.mapped_bytes
+        << ", \"resident_proxy_available\": "
+        << (file.resident_proxy_available ? "true" : "false")
+        << ", \"resident_proxy_bytes\": " << file.resident_proxy_bytes
+        << ", \"identity_aware_io_available\": "
+        << (file.identity_aware_io_available ? "true" : "false")
+        << ", \"observed_read_bytes\": " << file.observed_read_bytes
+        << ", \"observed_write_bytes\": " << file.observed_write_bytes
+        << ", \"pagefile_io_available\": "
+        << (file.pagefile_io_available ? "true" : "false")
+        << ", \"observed_pagefile_read_bytes\": "
+        << file.observed_pagefile_read_bytes
+        << ", \"observed_pagefile_write_bytes\": "
+        << file.observed_pagefile_write_bytes << ", \"hard_faults_available\": "
+        << (file.hard_faults_available ? "true" : "false")
+        << ", \"hard_fault_count\": " << file.hard_fault_count
+        << ", \"hard_fault_source\": \"" << json_escape(file.hard_fault_source)
+        << "\", \"cache_state\": \"" << json_escape(file.cache_state)
+        << "\", \"cache_state_verified\": "
+        << (file.cache_state_verified ? "true" : "false")
+        << ", \"dropped_trace_records\": " << file.dropped_trace_records << "}";
+  }
+  if (!inputs.files.empty()) out << "\n  ";
+  out << "],\n"
+      << "  \"windows_evidence_promotable\": "
+      << (inputs.windows_evidence.promotable ? "true" : "false") << ",\n"
+      << "  \"windows_evidence_classification\": \""
+      << json_escape(inputs.windows_evidence.classification) << "\",\n"
+      << "  \"windows_evidence_reason\": \""
+      << json_escape(inputs.windows_evidence.reason) << "\",\n"
+      << "  \"host_post_process_id\": " << inputs.host.process_id << ",\n"
+      << "  \"host_post_process_image_path\": \""
+      << json_escape(inputs.host.process_image_path) << "\",\n"
+      << "  \"host_post_process_working_set_current_bytes\": "
+      << inputs.host.process_working_set_current_bytes << ",\n"
+      << "  \"host_post_process_working_set_peak_bytes\": "
+      << inputs.host.process_working_set_peak_bytes << ",\n"
+      << "  \"host_post_process_private_commit_current_bytes\": "
+      << inputs.host.process_private_commit_current_bytes << ",\n"
+      << "  \"host_post_process_private_commit_peak_bytes\": "
+      << inputs.host.process_private_commit_peak_bytes << ",\n"
+      << "  \"host_post_system_memory_total_bytes\": "
       << inputs.host.system_memory_total_bytes << ",\n"
-      << "  \"system_memory_available_bytes\": "
+      << "  \"host_post_system_memory_available_bytes\": "
       << inputs.host.system_memory_available_bytes << ",\n"
-      << "  \"system_commit_total_bytes\": "
+      << "  \"host_post_system_commit_total_bytes\": "
       << inputs.host.system_commit_total_bytes << ",\n"
-      << "  \"system_commit_limit_bytes\": "
+      << "  \"host_post_system_commit_limit_bytes\": "
       << inputs.host.system_commit_limit_bytes << ",\n"
-      << "  \"system_commit_available_bytes\": "
+      << "  \"host_post_system_commit_available_bytes\": "
       << inputs.host.system_commit_available_bytes << ",\n"
-      << "  \"process_io_read_bytes\": "
+      << "  \"host_post_pagefile_configuration_available\": "
+      << (inputs.host.pagefile_configuration_available ? "true" : "false")
+      << ",\n"
+      << "  \"host_post_pagefile_configuration_unavailable_reason\": \""
+      << json_escape(inputs.host.pagefile_configuration_unavailable_reason)
+      << "\",\n"
+      << "  \"host_post_pagefile_count\": " << inputs.host.pagefile_count
+      << ",\n"
+      << "  \"host_post_pagefile_total_bytes\": "
+      << inputs.host.pagefile_total_bytes << ",\n"
+      << "  \"host_post_pagefile_current_usage_bytes\": "
+      << inputs.host.pagefile_current_usage_bytes << ",\n"
+      << "  \"host_post_pagefile_peak_usage_bytes\": "
+      << inputs.host.pagefile_peak_usage_bytes << ",\n"
+      << "  \"host_post_process_io_read_bytes\": "
       << inputs.host.process_io_read_bytes << ",\n"
-      << "  \"process_io_write_bytes\": "
+      << "  \"host_post_process_io_write_bytes\": "
       << inputs.host.process_io_write_bytes << ",\n"
       << "  \"required_telemetry_present\": "
-      << (inputs.sample.required_telemetry_present ? "true" : "false")
-      << ",\n"
+      << (inputs.sample.required_telemetry_present ? "true" : "false") << ",\n"
       << "  \"telemetry_agreement\": "
       << (inputs.sample.telemetry_agreement ? "true" : "false") << "\n"
       << "}\n";
@@ -607,7 +845,8 @@ bool validate_phase0_lifecycle(const std::filesystem::path& telemetry_path,
       }
       saw_memory = true;
     }
-    if (events[position] == "completed" || events[position] == "failed_closed") {
+    if (events[position] == "completed" ||
+        events[position] == "failed_closed") {
       saw_terminal = true;
     }
   }

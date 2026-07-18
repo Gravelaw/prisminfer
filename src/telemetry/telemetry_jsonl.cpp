@@ -16,6 +16,21 @@ bool reserved_event_field(const std::string& key) {
          key == "dependency_pin_file" || key == "llama_executable" ||
          key == "context_tokens" || key == "gpu_layers" ||
          key == "mmap_enabled" || key == "warmup_tokens" ||
+         key == "worker_evidence_available" ||
+         key == "worker_executable_sha256" ||
+         key == "worker_approval_identity" || key == "worker_exit_code" ||
+         key == "worker_timed_out" ||
+         key == "worker_root_process_id" || key == "worker_job_identity" ||
+         key == "worker_job_total_processes" ||
+         key == "worker_job_peak_active_processes" ||
+         key == "worker_job_total_terminated_processes" ||
+         key == "worker_root_peak_working_set_bytes" ||
+         key == "worker_root_peak_private_commit_bytes" ||
+         key == "worker_tree_peak_working_set_bytes" ||
+         key == "worker_tree_peak_private_commit_bytes" ||
+         key == "worker_tree_sample_interval_milliseconds" ||
+         key == "worker_read_bytes" || key == "worker_write_bytes" ||
+         key == "worker_output_bytes" || key == "worker_output_limit_bytes" ||
          key == "kv_accounting" || key == "kv_placement" ||
          key == "kv_compression" || key == "quality_gate" ||
          key == "profitability_policy" || key == "offload_policy" ||
@@ -74,7 +89,7 @@ void JsonlTelemetry::emit(
     return;
   }
 
-  out_ << "{\"schema_version\":\"0.5\""
+  out_ << "{\"schema_version\":\"0.6\""
        << ",\"timestamp_ns\":" << monotonic_time_ns()
        << ",\"run_id\":\"" << json_escape(config.run_id) << "\""
        << ",\"event\":\"" << json_escape(event) << "\""
@@ -99,6 +114,38 @@ void JsonlTelemetry::emit(
        << ",\"gpu_layers\":" << config.gpu_layers
        << ",\"mmap_enabled\":" << (config.mmap_enabled ? "true" : "false")
        << ",\"warmup_tokens\":" << config.warmup_tokens
+       << ",\"worker_evidence_available\":"
+       << (config.worker_evidence_available ? "true" : "false")
+       << ",\"worker_executable_sha256\":\""
+       << json_escape(config.worker_executable_sha256) << "\""
+       << ",\"worker_approval_identity\":\""
+       << json_escape(config.worker_approval_identity) << "\""
+       << ",\"worker_exit_code\":" << config.worker_exit_code
+       << ",\"worker_timed_out\":"
+       << (config.worker_timed_out ? "true" : "false")
+       << ",\"worker_root_process_id\":" << config.worker_root_process_id
+       << ",\"worker_job_identity\":\""
+       << json_escape(config.worker_job_identity) << "\""
+       << ",\"worker_job_total_processes\":"
+       << config.worker_job_total_processes
+       << ",\"worker_job_peak_active_processes\":"
+       << config.worker_job_peak_active_processes
+       << ",\"worker_job_total_terminated_processes\":"
+       << config.worker_job_total_terminated_processes
+       << ",\"worker_root_peak_working_set_bytes\":"
+       << config.worker_root_peak_working_set_bytes
+       << ",\"worker_root_peak_private_commit_bytes\":"
+       << config.worker_root_peak_private_commit_bytes
+       << ",\"worker_tree_peak_working_set_bytes\":"
+       << config.worker_tree_peak_working_set_bytes
+       << ",\"worker_tree_peak_private_commit_bytes\":"
+       << config.worker_tree_peak_private_commit_bytes
+       << ",\"worker_tree_sample_interval_milliseconds\":"
+       << config.worker_tree_sample_interval_milliseconds
+       << ",\"worker_read_bytes\":" << config.worker_read_bytes
+       << ",\"worker_write_bytes\":" << config.worker_write_bytes
+       << ",\"worker_output_bytes\":" << config.worker_output_bytes
+       << ",\"worker_output_limit_bytes\":" << config.worker_output_limit_bytes
        << ",\"kv_accounting\":"
        << (config.kv_accounting ? "true" : "false")
        << ",\"kv_placement\":\"" << json_escape(config.kv_placement) << "\""
@@ -131,7 +178,7 @@ void JsonlTelemetry::emit_memory_sample(const RuntimeConfig& config,
     return;
   }
 
-  out_ << "{\"schema_version\":\"0.5\""
+  out_ << "{\"schema_version\":\"0.6\""
        << ",\"timestamp_ns\":" << monotonic_time_ns()
        << ",\"run_id\":\"" << json_escape(config.run_id) << "\""
        << ",\"event\":\"memory_sample\""
@@ -156,6 +203,38 @@ void JsonlTelemetry::emit_memory_sample(const RuntimeConfig& config,
        << ",\"gpu_layers\":" << config.gpu_layers
        << ",\"mmap_enabled\":" << (config.mmap_enabled ? "true" : "false")
        << ",\"warmup_tokens\":" << config.warmup_tokens
+       << ",\"worker_evidence_available\":"
+       << (config.worker_evidence_available ? "true" : "false")
+       << ",\"worker_executable_sha256\":\""
+       << json_escape(config.worker_executable_sha256) << "\""
+       << ",\"worker_approval_identity\":\""
+       << json_escape(config.worker_approval_identity) << "\""
+       << ",\"worker_exit_code\":" << config.worker_exit_code
+       << ",\"worker_timed_out\":"
+       << (config.worker_timed_out ? "true" : "false")
+       << ",\"worker_root_process_id\":" << config.worker_root_process_id
+       << ",\"worker_job_identity\":\""
+       << json_escape(config.worker_job_identity) << "\""
+       << ",\"worker_job_total_processes\":"
+       << config.worker_job_total_processes
+       << ",\"worker_job_peak_active_processes\":"
+       << config.worker_job_peak_active_processes
+       << ",\"worker_job_total_terminated_processes\":"
+       << config.worker_job_total_terminated_processes
+       << ",\"worker_root_peak_working_set_bytes\":"
+       << config.worker_root_peak_working_set_bytes
+       << ",\"worker_root_peak_private_commit_bytes\":"
+       << config.worker_root_peak_private_commit_bytes
+       << ",\"worker_tree_peak_working_set_bytes\":"
+       << config.worker_tree_peak_working_set_bytes
+       << ",\"worker_tree_peak_private_commit_bytes\":"
+       << config.worker_tree_peak_private_commit_bytes
+       << ",\"worker_tree_sample_interval_milliseconds\":"
+       << config.worker_tree_sample_interval_milliseconds
+       << ",\"worker_read_bytes\":" << config.worker_read_bytes
+       << ",\"worker_write_bytes\":" << config.worker_write_bytes
+       << ",\"worker_output_bytes\":" << config.worker_output_bytes
+       << ",\"worker_output_limit_bytes\":" << config.worker_output_limit_bytes
        << ",\"kv_accounting\":"
        << (config.kv_accounting ? "true" : "false")
        << ",\"kv_placement\":\"" << json_escape(config.kv_placement) << "\""
