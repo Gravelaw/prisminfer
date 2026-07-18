@@ -641,8 +641,6 @@ PostContextAdmissionDecision evaluate_post_context_admission(
           owned.captured_monotonic_milliseconds ||
       owned.process_device_current_bytes != owned.owned_current_bytes ||
       !owned.adapter_identity_available ||
-      owned.captured_monotonic_milliseconds !=
-          request.gpu.captured_monotonic_milliseconds ||
       !sample_is_fresh(owned.captured_monotonic_milliseconds,
                        request.evaluation_monotonic_milliseconds,
                        request.timing.maximum_guard_age_milliseconds) ||

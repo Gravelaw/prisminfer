@@ -415,8 +415,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate-plan-projec
 - The current Packet B review candidate closes the three prior binding
   implementation gaps in CPU-safe code: session-owned process/Job/control and
   cleanup authority; a nonce-bound context-ready, one-shot-token, heartbeat,
-  cancellation and watchdog protocol; and an independent NVML process-memory
-  producer bound to the worker PID and DXGI adapter LUID. Llama GPU execution
+  cancellation and watchdog protocol; and an independent WDDM process-memory
+  producer sampled while the retained worker is live and bound to its PID and
+  DXGI adapter LUID. NVML is only a non-WDDM fallback. Llama GPU execution
   fails closed until it speaks that protocol. This earns no live hardware,
   model, calibration, performance, or C2 credit before fresh exact-head review.
 - PR #111 is merged Packet A history. Draft PR #112 is the freshly ported

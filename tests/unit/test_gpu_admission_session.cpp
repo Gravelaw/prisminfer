@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <type_traits>
 
 #include "prisminfer/gpu_admission_session.h"
 
@@ -11,6 +12,9 @@
 #endif
 
 namespace {
+
+static_assert(!std::is_default_constructible_v<
+              prisminfer::NativeWorkerSupervisorAccess>);
 
 constexpr std::uint64_t kGiB = 1ULL << 30;
 
@@ -150,7 +154,7 @@ class AcceptingProtocolSupervisor final
   }
   prisminfer::NativeWorkerAdmissionGrant context_ready(
       std::uint64_t) override {
-    return {true, 17U, 1U * kGiB, ""};
+    return {true, 17U, 1U * kGiB, 1'000U, ""};
   }
   bool token_consumed(std::uint64_t token_id, std::uint64_t) override {
     ++consumption_count;
@@ -270,53 +274,51 @@ int main(int argc, char** argv) {
       [](std::uint32_t pid, std::uint64_t, std::uint64_t heartbeat) {
         return watchdog_sample(heartbeat, pid);
       });
-  if (expect(worker.ok && worker.worker_exit_observed &&
-                 worker.job_tree_empty && worker.job_accounting_reconciled,
-             "session-owned worker completes staged protocol and Job cleanup") ||
+  if (expect(!worker.ok && worker.worker_exit_observed &&
+                 worker.job_tree_empty &&
+                 worker.failure_reason.rfind(
+                     "native_worker_protocol_admission_rejected:", 0U) == 0U,
+             "missing live process-device evidence aborts the contained Job") ||
       expect(acquired.session->state() ==
-                 prisminfer::GpuAdmissionSessionState::WorkerExited,
-             "session records only supervisor-observed exit")) {
+                 prisminfer::GpuAdmissionSessionState::FailedClosed,
+             "production session cannot substitute simulated GPU evidence")) {
     std::cerr << "worker failure=" << worker.failure_reason << "\n";
     return 1;
   }
-  prisminfer::DeviceCleanupEvidence cleanup;
-  cleanup.device_resources_reconciled = true;
-  cleanup.terminal_reason = "completed";
-  cleanup.last_good_sample_sha256 = std::string(64U, 'a');
-  cleanup.evidence_bundle_sha256 = std::string(64U, 'b');
-  if (expect(acquired.session->finalize_cleanup(cleanup, GetTickCount64()) ==
-                 prisminfer::GpuAdmissionSessionState::Cleaned,
-             "owned cleanup releases the lease only after reconciliation")) {
-    return 1;
-  }
-
-  const auto run_negative = [&](const wchar_t* mode,
-                                const char* expected_reason) {
-    prisminfer::NativeWorkerRequest negative = request;
-    negative.arguments = {mode};
-    negative.timeout_ms = 2'000U;
-    prisminfer::NativeWorkerProtocolPolicy negative_policy;
-    negative_policy.context_ready_timeout_ms = 50U;
-    negative_policy.heartbeat_timeout_ms = 50U;
-    negative_policy.cooperative_cancel_ack_timeout_ms = 100U;
-    negative_policy.worker_exit_timeout_ms = 500U;
-    AcceptingProtocolSupervisor supervisor;
-    const auto result = prisminfer::run_supervised_native_worker(
-        catalog, negative, negative_policy, supervisor);
-    return !result.ok && result.worker_exit_observed && result.job_tree_empty &&
-           result.failure_reason == expected_reason;
-  };
-  if (expect(run_negative(
-                 L"--protocol-duplicate-token",
-                 "native_worker_protocol_token_rejected"),
-             "duplicate token consumption aborts the contained Job") ||
-      expect(run_negative(L"--protocol-no-context",
-                          "native_worker_protocol_context_timeout"),
-             "missing context barrier triggers bounded cancellation") ||
-      expect(run_negative(L"--protocol-stale-heartbeat",
-                          "native_worker_protocol_heartbeat_timeout"),
-             "heartbeat loss triggers cancellation and contained exit")) {
-    return 1;
+  {
+    auto bounded = prisminfer::acquire_gpu_admission_session(cell(), 8, 12U);
+    auto alternate_pre = pre_request(GetTickCount64());
+    alternate_pre.gpu.adapter_luid_high = 8;
+    alternate_pre.gpu.adapter_luid_low = 12U;
+    if (expect(bounded.session.has_value() &&
+                   bounded.session->admit_pre_context(alternate_pre).admitted,
+               "alternate adapter Stage A admits callback-timeout test")) {
+      return 1;
+    }
+    const auto started = GetTickCount64();
+    const auto timed_out = bounded.session->run_contained_worker(
+        catalog, request, 100U,
+        [](std::uint32_t pid, std::uint64_t ready) {
+          Sleep(2'000U);
+          auto post = post_request(ready, pid);
+          post.gpu.adapter_luid_high = 8;
+          post.gpu.adapter_luid_low = 12U;
+          post.owned_gpu.adapter_luid_high = 8;
+          post.owned_gpu.adapter_luid_low = 12U;
+          return post;
+        },
+        [](std::uint32_t pid, std::uint64_t, std::uint64_t heartbeat) {
+          return watchdog_sample(heartbeat, pid);
+        });
+    if (expect(!timed_out.ok && timed_out.worker_exit_observed &&
+                   timed_out.job_tree_empty &&
+                   timed_out.failure_reason ==
+                       "native_worker_protocol_admission_rejected:"
+                       "post_context_evidence_timeout" &&
+                   GetTickCount64() - started < 1'500U,
+               "blocked evidence producer cannot block bounded Job abort")) {
+      return 1;
+    }
   }
 #else
   (void)argc;

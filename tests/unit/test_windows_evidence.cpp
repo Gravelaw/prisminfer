@@ -95,6 +95,24 @@ int main() {
              "independent process-device reports bind PID and adapter")) {
     return 1;
   }
+  prisminfer::OwnedGpuMemoryEvidence bound;
+  if (expect(prisminfer::bind_process_device_memory_evidence(
+                 &bound, independent, 42U, 1, 2U, 120U, 50U) &&
+                 bound.process_device_corroboration_available &&
+                 bound.process_device_source == "nvml-process" &&
+                 bound.process_device_current_bytes == 4096U,
+             "fresh independent evidence populates only the bound contract") ||
+      expect(!prisminfer::bind_process_device_memory_evidence(
+                 &bound, independent, 43U, 1, 2U, 120U, 50U),
+             "PID mismatch is rejected") ||
+      expect(!prisminfer::bind_process_device_memory_evidence(
+                 &bound, independent, 42U, 1, 3U, 120U, 50U),
+             "adapter mismatch is rejected") ||
+      expect(!prisminfer::bind_process_device_memory_evidence(
+                 &bound, independent, 42U, 1, 2U, 200U, 50U),
+             "stale independent evidence is rejected")) {
+    return 1;
+  }
   const auto contradictory =
       prisminfer::reconcile_process_device_memory_candidates(
           42U, 1, 2U, 100U,

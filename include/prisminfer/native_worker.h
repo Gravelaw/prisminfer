@@ -7,6 +7,8 @@
 
 namespace prisminfer {
 
+class GpuAdmissionSession;
+
 struct NativeWorkerExecutableApproval {
   std::filesystem::path executable_path;
   std::filesystem::path trusted_executable_root;
@@ -101,6 +103,7 @@ struct NativeWorkerAdmissionGrant {
   bool admitted{false};
   std::uint64_t token_id{0};
   std::uint64_t effective_cap_bytes{0};
+  std::uint64_t expires_monotonic_milliseconds{0};
   std::string failure_reason;
 };
 
@@ -121,6 +124,12 @@ class NativeWorkerProtocolSupervisor {
                          std::uint64_t now_monotonic_milliseconds) = 0;
   virtual void cooperative_cancel_acknowledged(
       std::uint64_t now_monotonic_milliseconds) = 0;
+};
+
+class NativeWorkerSupervisorAccess {
+ private:
+  NativeWorkerSupervisorAccess() = default;
+  friend class GpuAdmissionSession;
 };
 
 struct NativeWorkerProtocolPolicy {
@@ -156,6 +165,7 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
 NativeWorkerResult run_supervised_native_worker(
     const NativeWorkerTrustCatalog& catalog, const NativeWorkerRequest& request,
     const NativeWorkerProtocolPolicy& policy,
-    NativeWorkerProtocolSupervisor& supervisor);
+    NativeWorkerProtocolSupervisor& supervisor,
+    const NativeWorkerSupervisorAccess& access);
 
 }  // namespace prisminfer

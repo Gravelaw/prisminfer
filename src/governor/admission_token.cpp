@@ -73,6 +73,10 @@ std::uint64_t AdmissionToken::effective_cap_bytes() const {
   return effective_cap_bytes_;
 }
 
+std::uint64_t AdmissionToken::expires_monotonic_milliseconds() const {
+  return expires_monotonic_milliseconds_;
+}
+
 bool AdmissionToken::active() const {
   return active_.load(std::memory_order_acquire);
 }

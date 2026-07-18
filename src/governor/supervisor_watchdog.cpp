@@ -117,8 +117,6 @@ SupervisorWatchdogDecision evaluate_supervisor_watchdog(
       sample.owned_gpu.process_device_current_bytes !=
           sample.owned_gpu.owned_current_bytes ||
       !sample.owned_gpu.adapter_identity_available || !owned_total ||
-      sample.owned_gpu.captured_monotonic_milliseconds !=
-          sample.gpu.captured_monotonic_milliseconds ||
       !fresh(sample.owned_gpu.captured_monotonic_milliseconds,
              sample.evaluated_monotonic_milliseconds, maximum_age) ||
       *owned_total != sample.owned_gpu.owned_current_bytes ||

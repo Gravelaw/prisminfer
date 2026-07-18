@@ -10,6 +10,8 @@
 
 namespace prisminfer {
 
+struct OwnedGpuMemoryEvidence;
+
 struct WddmMemorySample {
   bool available{false};
   std::string unavailable_reason;
@@ -53,13 +55,24 @@ ProcessDeviceMemorySample reconcile_process_device_memory_candidates(
     std::uint64_t captured_monotonic_milliseconds,
     const std::vector<ProcessDeviceMemoryCandidate>& candidates);
 
-// Dynamically queries the installed Windows NVML provider and binds the
-// result to both the contained worker PID and the DXGI adapter LUID. This is
-// an independent OS/driver producer; absence or ambiguity is typed as
+// Queries Windows WDDM GPU Process Memory counters first and retains NVML only
+// as a TCC/non-WDDM fallback. The result is bound to both the live contained
+// worker PID and DXGI adapter LUID. Absence or ambiguity is typed as
 // unavailable and never replaced with allocator self-reporting.
 ProcessDeviceMemorySample sample_process_device_memory(
     std::uint32_t process_id, std::int32_t adapter_luid_high,
     std::uint32_t adapter_luid_low);
+
+// Applies a fresh independent sample to the owned-memory contract only when
+// PID and adapter identity exactly match. Existing allocation categories are
+// retained and must reconcile against the independent byte count downstream.
+bool bind_process_device_memory_evidence(
+    OwnedGpuMemoryEvidence* owned,
+    const ProcessDeviceMemorySample& independent,
+    std::uint32_t expected_process_id, std::int32_t expected_luid_high,
+    std::uint32_t expected_luid_low,
+    std::uint64_t evaluation_monotonic_milliseconds,
+    std::uint64_t maximum_age_milliseconds);
 
 struct FileIoEvidence {
   bool identity_available{false};

@@ -134,7 +134,7 @@ if(PRISMINFER_ENABLE_CUDA_KERNELS)
 endif()
 
 if(WIN32)
-  target_link_libraries(prisminfer_core PUBLIC psapi bcrypt dxgi)
+  target_link_libraries(prisminfer_core PUBLIC psapi bcrypt dxgi pdh)
 endif()
 
 if(MSVC)

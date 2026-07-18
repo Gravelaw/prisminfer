@@ -48,6 +48,7 @@ class AdmissionToken {
 
   [[nodiscard]] std::uint64_t token_id() const;
   [[nodiscard]] std::uint64_t effective_cap_bytes() const;
+  [[nodiscard]] std::uint64_t expires_monotonic_milliseconds() const;
   [[nodiscard]] bool active() const;
 
  private:

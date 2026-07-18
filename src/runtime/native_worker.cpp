@@ -4,6 +4,7 @@
 
 
 #include <cstddef>
+#include <atomic>
 #include <array>
 #include <algorithm>
 #include <cctype>
@@ -13,6 +14,7 @@
 #include <limits>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <utility>
 #include <unordered_set>
 #include <vector>
@@ -976,9 +978,21 @@ NativeWorkerResult run_native_worker_impl(
   std::uint64_t protocol_token_id = 0U;
   std::uint64_t heartbeat_sequence = 0U;
   ULONGLONG last_heartbeat = protocol_started;
+  ULONGLONG token_consumption_deadline = 0U;
   ULONGLONG cancel_sent_at = 0U;
   std::string protocol_pending;
   std::string protocol_failure;
+  std::atomic<bool> authority_callback_active{false};
+  std::atomic<ULONGLONG> authority_callback_started{0U};
+  std::atomic<bool> emergency_job_abort{false};
+  const auto begin_authority_callback = [&]() {
+    authority_callback_started.store(GetTickCount64(),
+                                     std::memory_order_release);
+    authority_callback_active.store(true, std::memory_order_release);
+  };
+  const auto end_authority_callback = [&]() {
+    authority_callback_active.store(false, std::memory_order_release);
+  };
   const auto write_protocol = [&](const std::string& message) {
     if (!protocol_enabled || protocol_input_write.get() == nullptr) return false;
     DWORD written = 0U;
@@ -1023,9 +1037,17 @@ NativeWorkerResult run_native_worker_impl(
         request_protocol_cancel("native_worker_protocol_context_duplicate");
         return;
       }
+      begin_authority_callback();
       const auto grant = protocol_supervisor->context_ready(now);
+      end_authority_callback();
+      if (emergency_job_abort.load(std::memory_order_acquire)) {
+        request_protocol_cancel(
+            "native_worker_protocol_authority_callback_timeout");
+        return;
+      }
       if (!grant.admitted || grant.token_id == 0U ||
-          grant.effective_cap_bytes == 0U) {
+          grant.effective_cap_bytes == 0U ||
+          grant.expires_monotonic_milliseconds <= now) {
         request_protocol_cancel(
             grant.failure_reason.empty()
                 ? "native_worker_protocol_admission_rejected"
@@ -1043,6 +1065,7 @@ NativeWorkerResult run_native_worker_impl(
         return;
       }
       protocol_state = ProtocolState::TokenDelivered;
+      token_consumption_deadline = grant.expires_monotonic_milliseconds;
       return;
     }
     if (type == "TOKEN_CONSUMED") {
@@ -1050,9 +1073,19 @@ NativeWorkerResult run_native_worker_impl(
       std::string extra;
       if (protocol_state != ProtocolState::TokenDelivered ||
           !(parsed >> token_id) || parsed >> extra ||
-          token_id != protocol_token_id ||
-          !protocol_supervisor->token_consumed(token_id, now)) {
+          token_id != protocol_token_id) {
         request_protocol_cancel("native_worker_protocol_token_rejected");
+        return;
+      }
+      begin_authority_callback();
+      const bool consumed = protocol_supervisor->token_consumed(token_id, now);
+      end_authority_callback();
+      if (!consumed ||
+          emergency_job_abort.load(std::memory_order_acquire)) {
+        request_protocol_cancel(
+            emergency_job_abort.load(std::memory_order_acquire)
+                ? "native_worker_protocol_authority_callback_timeout"
+                : "native_worker_protocol_token_rejected");
         return;
       }
       protocol_state = ProtocolState::Active;
@@ -1069,7 +1102,10 @@ NativeWorkerResult run_native_worker_impl(
       }
       heartbeat_sequence = sequence;
       last_heartbeat = GetTickCount64();
-      if (!protocol_supervisor->heartbeat(sequence, now)) {
+      begin_authority_callback();
+      const bool accepted = protocol_supervisor->heartbeat(sequence, now);
+      end_authority_callback();
+      if (!accepted || emergency_job_abort.load(std::memory_order_acquire)) {
         request_protocol_cancel("native_worker_protocol_watchdog_rejected");
       }
       return;
@@ -1081,7 +1117,9 @@ NativeWorkerResult run_native_worker_impl(
         return;
       }
       protocol_state = ProtocolState::CancelAcknowledged;
+      begin_authority_callback();
       protocol_supervisor->cooperative_cancel_acknowledged(now);
+      end_authority_callback();
       return;
     }
     request_protocol_cancel("native_worker_protocol_message_unknown");
@@ -1140,6 +1178,25 @@ NativeWorkerResult run_native_worker_impl(
       }
     }
   };
+  std::jthread authority_watchdog(
+      [&](std::stop_token stop) {
+        while (!stop.stop_requested()) {
+          if (authority_callback_active.load(std::memory_order_acquire)) {
+            const ULONGLONG started =
+                authority_callback_started.load(std::memory_order_acquire);
+            const ULONGLONG now = GetTickCount64();
+            if (started != 0U && now >= started &&
+                now - started >= protocol_policy->heartbeat_timeout_ms) {
+              if (!emergency_job_abort.exchange(true,
+                                                std::memory_order_acq_rel)) {
+                (void)TerminateJobObject(job.get(), 1U);
+              }
+              return;
+            }
+          }
+          Sleep(5U);
+        }
+      });
   while (GetTickCount64() < deadline) {
     wait = WaitForSingleObject(process_handle.get(), 10U);
     if (!drain_output()) return fail("native_worker_output_read_failed");
@@ -1150,6 +1207,10 @@ NativeWorkerResult run_native_worker_impl(
       if (protocol_state == ProtocolState::AwaitContext &&
           now - protocol_started >= protocol_policy->context_ready_timeout_ms) {
         request_protocol_cancel("native_worker_protocol_context_timeout");
+      } else if (protocol_state == ProtocolState::TokenDelivered &&
+                 now >= token_consumption_deadline) {
+        request_protocol_cancel(
+            "native_worker_protocol_token_consumption_timeout");
       } else if (protocol_state == ProtocolState::Active &&
                  now - last_heartbeat >=
                      protocol_policy->heartbeat_timeout_ms) {
@@ -1348,7 +1409,8 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
 NativeWorkerResult run_supervised_native_worker(
     const NativeWorkerTrustCatalog& catalog, const NativeWorkerRequest& request,
     const NativeWorkerProtocolPolicy& policy,
-    NativeWorkerProtocolSupervisor& supervisor) {
+    NativeWorkerProtocolSupervisor& supervisor,
+    const NativeWorkerSupervisorAccess&) {
   return run_native_worker_impl(catalog, request, &policy, &supervisor);
 }
 

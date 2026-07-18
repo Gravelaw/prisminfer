@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cerrno>
+#include <cwchar>
+#include <cwctype>
 #include <iomanip>
 #include <iterator>
 #include <limits>
@@ -16,6 +19,8 @@
 #if defined(_WIN32)
 #define NOMINMAX
 #include <dxgi1_4.h>
+#include <pdh.h>
+#include <pdhmsg.h>
 #include <windows.h>
 #endif
 
@@ -131,6 +136,121 @@ std::string hex_bytes(const unsigned char* bytes, std::size_t count) {
   }
   return encoded.str();
 }
+
+bool parse_unsigned_component(const std::wstring& text, std::size_t begin,
+                              int base, std::uint64_t* value,
+                              std::size_t* end) {
+  if (value == nullptr || end == nullptr || begin >= text.size()) return false;
+  wchar_t* parsed_end = nullptr;
+  errno = 0;
+  const auto parsed = std::wcstoull(text.c_str() + begin, &parsed_end, base);
+  if (errno != 0 || parsed_end == text.c_str() + begin) return false;
+  *value = parsed;
+  *end = static_cast<std::size_t>(parsed_end - text.c_str());
+  return true;
+}
+
+bool pdh_instance_matches(const wchar_t* instance, std::uint32_t process_id,
+                          std::int32_t luid_high, std::uint32_t luid_low) {
+  if (instance == nullptr) return false;
+  std::wstring text(instance);
+  std::transform(text.begin(), text.end(), text.begin(), towlower);
+  const auto pid_marker = text.find(L"pid_");
+  const auto luid_marker = text.find(L"_luid_0x");
+  if (pid_marker == std::wstring::npos || luid_marker == std::wstring::npos) {
+    return false;
+  }
+  std::uint64_t parsed_pid = 0U;
+  std::uint64_t parsed_high = 0U;
+  std::uint64_t parsed_low = 0U;
+  std::size_t end = 0U;
+  if (!parse_unsigned_component(text, pid_marker + 4U, 10, &parsed_pid, &end) ||
+      end >= text.size() || text[end] != L'_' || parsed_pid != process_id ||
+      !parse_unsigned_component(text, luid_marker + 8U, 16, &parsed_high,
+                                &end) ||
+      end + 3U >= text.size() || text.compare(end, 3U, L"_0x") != 0 ||
+      !parse_unsigned_component(text, end + 3U, 16, &parsed_low, &end) ||
+      parsed_high > std::numeric_limits<std::uint32_t>::max() ||
+      parsed_low > std::numeric_limits<std::uint32_t>::max()) {
+    return false;
+  }
+  return static_cast<std::int32_t>(
+             static_cast<std::uint32_t>(parsed_high)) == luid_high &&
+         static_cast<std::uint32_t>(parsed_low) == luid_low;
+}
+
+ProcessDeviceMemorySample sample_wddm_process_memory(
+    std::uint32_t process_id, std::int32_t adapter_luid_high,
+    std::uint32_t adapter_luid_low) {
+  ProcessDeviceMemorySample sample;
+  sample.process_id = process_id;
+  sample.adapter_luid_high = adapter_luid_high;
+  sample.adapter_luid_low = adapter_luid_low;
+  PDH_HQUERY query = nullptr;
+  PDH_HCOUNTER counter = nullptr;
+  if (PdhOpenQueryW(nullptr, 0U, &query) != ERROR_SUCCESS) {
+    sample.unavailable_reason = "wddm_process_query_open_failed";
+    return sample;
+  }
+  struct QueryGuard {
+    PDH_HQUERY query;
+    ~QueryGuard() { (void)PdhCloseQuery(query); }
+  } guard{query};
+  if (PdhAddEnglishCounterW(query,
+                            L"\\GPU Process Memory(*)\\Dedicated Usage",
+                            0U, &counter) != ERROR_SUCCESS ||
+      PdhCollectQueryData(query) != ERROR_SUCCESS) {
+    sample.unavailable_reason = "wddm_process_counter_unavailable";
+    return sample;
+  }
+  DWORD bytes = 0U;
+  DWORD count = 0U;
+  const PDH_STATUS sized =
+      PdhGetRawCounterArrayW(counter, &bytes, &count, nullptr);
+  if (sized != PDH_MORE_DATA || bytes == 0U || count == 0U ||
+      bytes > 16U * 1024U * 1024U || count > 65'536U) {
+    sample.unavailable_reason = "wddm_process_counter_empty";
+    return sample;
+  }
+  std::vector<std::byte> storage(bytes);
+  auto* items = reinterpret_cast<PDH_RAW_COUNTER_ITEM_W*>(storage.data());
+  if (PdhGetRawCounterArrayW(counter, &bytes, &count, items) != ERROR_SUCCESS) {
+    sample.unavailable_reason = "wddm_process_counter_read_failed";
+    return sample;
+  }
+  std::optional<std::uint64_t> exact_bytes;
+  for (DWORD index = 0U; index < count; ++index) {
+    if (!pdh_instance_matches(items[index].szName, process_id,
+                              adapter_luid_high, adapter_luid_low)) {
+      continue;
+    }
+    const auto& value = items[index].RawValue;
+    if ((value.CStatus != PDH_CSTATUS_VALID_DATA &&
+         value.CStatus != PDH_CSTATUS_NEW_DATA) ||
+        value.FirstValue < 0 || exact_bytes.has_value()) {
+      sample.unavailable_reason = "wddm_process_counter_ambiguous";
+      return sample;
+    }
+    exact_bytes = static_cast<std::uint64_t>(value.FirstValue);
+  }
+  if (!exact_bytes) {
+    sample.unavailable_reason = "wddm_process_pid_luid_not_reported";
+    return sample;
+  }
+  const auto captured = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch())
+                            .count();
+  if (captured <= 0) {
+    sample.unavailable_reason = "monotonic_clock_invalid";
+    return sample;
+  }
+  sample.available = true;
+  sample.source = "wddm-process";
+  sample.captured_monotonic_milliseconds =
+      static_cast<std::uint64_t>(captured);
+  sample.current_bytes = *exact_bytes;
+  return sample;
+}
 #endif
 
 }  // namespace
@@ -190,6 +310,12 @@ ProcessDeviceMemorySample sample_process_device_memory(
     unavailable.unavailable_reason = "process_device_pid_required";
     return unavailable;
   }
+  // WDDM exposes per-process dedicated usage through the Windows GPU Process
+  // Memory performance-counter provider. Query it first; NVML is retained only
+  // as a TCC/non-WDDM fallback because usedGpuMemory is unavailable on WDDM.
+  const auto wddm_process = sample_wddm_process_memory(
+      process_id, adapter_luid_high, adapter_luid_low);
+  if (wddm_process.available) return wddm_process;
   using NvmlReturn = int;
   using NvmlDevice = void*;
   struct NvmlProcessInfo {
@@ -311,6 +437,42 @@ ProcessDeviceMemorySample sample_process_device_memory(
       process_id, adapter_luid_high, adapter_luid_low,
       static_cast<std::uint64_t>(captured), candidates);
 #endif
+}
+
+bool bind_process_device_memory_evidence(
+    OwnedGpuMemoryEvidence* owned,
+    const ProcessDeviceMemorySample& independent,
+    std::uint32_t expected_process_id, std::int32_t expected_luid_high,
+    std::uint32_t expected_luid_low,
+    std::uint64_t evaluation_monotonic_milliseconds,
+    std::uint64_t maximum_age_milliseconds) {
+  if (owned == nullptr || !independent.available ||
+      independent.captured_monotonic_milliseconds == 0U ||
+      independent.process_id != expected_process_id ||
+      independent.adapter_luid_high != expected_luid_high ||
+      independent.adapter_luid_low != expected_luid_low ||
+      maximum_age_milliseconds == 0U ||
+      evaluation_monotonic_milliseconds <
+          independent.captured_monotonic_milliseconds ||
+      evaluation_monotonic_milliseconds -
+              independent.captured_monotonic_milliseconds >
+          maximum_age_milliseconds ||
+      (independent.source != "wddm-process" &&
+       independent.source != "nvml-process")) {
+    return false;
+  }
+  owned->process_device_corroboration_available = true;
+  owned->process_device_source = independent.source;
+  owned->process_id = independent.process_id;
+  owned->process_device_captured_monotonic_milliseconds =
+      independent.captured_monotonic_milliseconds;
+  owned->process_device_current_bytes = independent.current_bytes;
+  owned->adapter_identity_available = true;
+  owned->adapter_luid_high = independent.adapter_luid_high;
+  owned->adapter_luid_low = independent.adapter_luid_low;
+  owned->captured_monotonic_milliseconds =
+      independent.captured_monotonic_milliseconds;
+  return true;
 }
 
 WddmMemorySample sample_wddm_memory(std::uint32_t adapter_index) {
