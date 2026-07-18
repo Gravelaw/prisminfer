@@ -83,10 +83,12 @@ must name its owner, severity, disposition, target gate, affected exact tree or
 artifact, and invalidation condition. Noncritical deferred findings do not
 block unrelated functionality merely because the consolidated scan has not run.
 Credible critical vulnerabilities and the early-trigger conditions in
-`AGENTS.md` still require immediate review, and concrete safety-floor defects
-remain ordinary functional blockers. #102 cannot close until all reportable
-findings are fixed, explicitly accepted by the repository owner, or classified
-out of scope with retained evidence.
+`AGENTS.md` still require immediate review. A credible critical vulnerability
+immediately blocks the affected PR, packet, promotion, and hardware/model
+dispatch until it is fixed or disproven with retained evidence, and concrete safety-floor defects remain
+ordinary functional blockers. #102 cannot close until all reportable findings
+are fixed, explicitly accepted by the repository owner, or classified out of
+scope with retained evidence.
 
 ## Hardware safety and admission thresholds
 

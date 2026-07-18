@@ -44,7 +44,9 @@ deferred, but it must retain an owner, disposition and target gate.
 An earlier dedicated security review is required only for a credible critical
 vulnerability, a new public or untrusted-user surface, secrets or privileged
 network/service integration, a material new sandbox/authorization boundary,
-or explicit user direction. #89 audits usable-runtime functionality, safety,
+or explicit user direction. A credible critical vulnerability immediately
+blocks the affected PR, packet, promotion, and hardware/model dispatch until it
+is fixed or disproven with retained evidence. #89 audits usable-runtime functionality, safety,
 evidence and claims without requiring Codex Security. After #96 and #101 finish
 the implementation program and its applicable test/evidence matrix, #102 runs
 the first mandatory consolidated product/repository security review and the
