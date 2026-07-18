@@ -7,7 +7,7 @@
 #include <set>
 #include <sstream>
 
-#include "prisminfer/native_worker.h"
+#include "prisminfer/sha256.h"
 
 namespace prisminfer {
 
@@ -254,8 +254,12 @@ ModelSidecarValidationResult validate_model_sidecar(
     result.failure_reason = "sidecar_model_sha256_invalid";
     return result;
   }
-  const auto actual_hash = sha256_regular_file(result.normalized_model_path);
-  if (actual_hash.empty()) {
+  std::string actual_hash;
+  std::string hash_error;
+  if (!sha256_trusted_regular_file_bounded(
+          result.normalized_model_path.parent_path(),
+          result.normalized_model_path, request.max_model_bytes, &actual_hash,
+          &hash_error)) {
     result.valid = false;
     result.failure_reason = "model_sha256_unavailable";
     return result;
