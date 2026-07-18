@@ -7,18 +7,53 @@
 
 #include "prisminfer/admission_token.h"
 #include "prisminfer/exclusive_gpu_lease.h"
+#include "prisminfer/supervisor_watchdog.h"
 
 namespace prisminfer {
 
 enum class GpuAdmissionSessionState {
   LeaseHeld,
   PreContextAdmitted,
+  WorkerContained,
   PostContextAdmitted,
   TokenIssued,
   TokenConsumed,
+  WatchdogActive,
+  CancelRequested,
+  CooperativeCancelAcknowledged,
+  JobAbortRequired,
+  WorkerExited,
+  CleanupStarted,
   FailedClosed,
   Cleaned,
   Quarantined,
+};
+
+struct ContainedWorkerEvidence {
+  bool created_suspended{false};
+  bool job_assigned_before_resume{false};
+  bool non_breakaway_job{false};
+  bool kill_on_close{false};
+  bool controlled_environment{false};
+  bool controlled_inherited_handles{false};
+  std::uint32_t root_process_id{0};
+  std::uint32_t maximum_active_processes{0};
+  std::uint64_t job_memory_limit_bytes{0};
+  std::uint32_t job_cpu_time_limit_milliseconds{0};
+  std::string job_identity;
+  std::string executable_identity;
+};
+
+enum class CancellationAction {
+  AwaitCooperativeExit,
+  AbortJob,
+  BeginCleanup,
+  Quarantine,
+};
+
+struct CancellationDecision {
+  CancellationAction action{CancellationAction::Quarantine};
+  GpuAdmissionSessionState state{GpuAdmissionSessionState::FailedClosed};
 };
 
 struct GpuAdmissionSessionAcquireResult;
@@ -35,6 +70,8 @@ class GpuAdmissionSession {
   [[nodiscard]] std::string lease_id() const;
   [[nodiscard]] PreContextAdmissionDecision admit_pre_context(
       PreContextAdmissionRequest request);
+  [[nodiscard]] bool bind_contained_worker(
+      const ContainedWorkerEvidence& evidence);
   [[nodiscard]] PostContextAdmissionDecision admit_post_context(
       PostContextAdmissionRequest request);
   [[nodiscard]] AdmissionTokenIssueResult issue_token(
@@ -42,7 +79,19 @@ class GpuAdmissionSession {
       std::uint64_t validity_milliseconds);
   [[nodiscard]] AdmissionTokenConsumeResult consume_token(
       AdmissionToken& token, std::uint64_t now_monotonic_milliseconds);
-  [[nodiscard]] GpuAdmissionSessionState cleanup(bool resources_reconciled);
+  [[nodiscard]] SupervisorWatchdogDecision evaluate_watchdog(
+      const SupervisorWatchdogSample& sample);
+  [[nodiscard]] CancellationDecision advance_cancellation(
+      std::uint64_t now_monotonic_milliseconds,
+      bool cooperative_cancel_acknowledged, bool worker_exited,
+      bool job_tree_empty);
+  [[nodiscard]] CancellationDecision record_job_abort(
+      std::uint64_t now_monotonic_milliseconds, bool job_tree_empty);
+  [[nodiscard]] bool begin_cleanup(
+      std::uint64_t now_monotonic_milliseconds);
+  [[nodiscard]] GpuAdmissionSessionState cleanup(
+      bool resources_reconciled,
+      std::uint64_t now_monotonic_milliseconds);
 
  private:
   struct Impl;
