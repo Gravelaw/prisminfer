@@ -1,3 +1,4 @@
+#include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <windows.h>
 
@@ -73,7 +74,7 @@ bool cleanup_payload(void* payload) {
   return cudaDeviceSynchronize() == cudaSuccess;
 }
 
-std::string canonical_gpu_uuid(const cudaUUID_t& uuid) {
+std::string canonical_gpu_uuid(const CUuuid& uuid) {
   std::ostringstream out;
   out << "GPU-" << std::hex << std::setfill('0');
   for (std::size_t index = 0U; index < sizeof(uuid.bytes); ++index) {
@@ -121,10 +122,14 @@ int main(int argc, char** argv) {
   HANDLE protocol_output = nullptr;
   if (!read_nonce(&nonce) || !read_protocol_handle(&protocol_output)) return 6;
 
-  if (cudaSetDevice(device_index) != cudaSuccess) return 10;
+  // LUID and UUID are driver-API device identities.  Query them before the
+  // runtime context is created, then bind the runtime to that verified device.
+  if (cuInit(0U) != CUDA_SUCCESS) return 10;
+  CUdevice cuda_device = 0;
+  if (cuDeviceGet(&cuda_device, device_index) != CUDA_SUCCESS) return 11;
   char cuda_luid[8]{};
   unsigned int node_mask = 0U;
-  if (cudaDeviceGetLuid(cuda_luid, &node_mask, device_index) != cudaSuccess) {
+  if (cuDeviceGetLuid(cuda_luid, &node_mask, cuda_device) != CUDA_SUCCESS) {
     return 11;
   }
   std::uint32_t actual_luid_low = 0U;
@@ -136,11 +141,12 @@ int main(int argc, char** argv) {
       actual_luid_low != expected_luid_low) {
     return 12;
   }
-  cudaUUID_t cuda_uuid{};
-  if (cudaDeviceGetUuid(&cuda_uuid, device_index) != cudaSuccess ||
+  CUuuid cuda_uuid{};
+  if (cuDeviceGetUuid(&cuda_uuid, cuda_device) != CUDA_SUCCESS ||
       canonical_gpu_uuid(cuda_uuid) != expected_gpu_uuid) {
     return 30;
   }
+  if (cudaSetDevice(device_index) != cudaSuccess) return 10;
   if (cudaFree(nullptr) != cudaSuccess) return 13;
   std::size_t context_free = 0U;
   std::size_t context_total = 0U;
