@@ -1024,7 +1024,15 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
   result.ok = !result.timed_out && result.exit_code == 0U;
   result.failure_reason = result.ok ? "" :
       (result.timed_out ? "native_worker_timeout" : "native_worker_child_failed");
-  temporary_output.released = true;
+  if (result.ok) {
+    temporary_output.released = true;
+  } else {
+    // Failed and timed-out runs retain bounded captured bytes in memory, but
+    // never publish a pathname whose cleanup is delegated to a caller that may
+    // return early. The artifact RAII removes the file before this result is
+    // returned.
+    result.output_path.clear();
+  }
   return result;
 #endif
 }

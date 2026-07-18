@@ -122,6 +122,7 @@ PostContextAdmissionDecision GpuAdmissionSession::admit_post_context(
   if (impl_->state != GpuAdmissionSessionState::WorkerContained ||
       !impl_->worker ||
       !impl_->pre_receipt || request.cell != impl_->cell ||
+      request.owned_gpu.process_id != impl_->worker->root_process_id ||
       request.gpu.adapter_luid_high != impl_->adapter_luid_high ||
       request.gpu.adapter_luid_low != impl_->adapter_luid_low) {
     rejected.reason = "supervisor_post_context_state_or_identity_mismatch";
@@ -201,7 +202,8 @@ SupervisorWatchdogDecision GpuAdmissionSession::evaluate_watchdog(
   std::lock_guard lock(impl_->mutex);
   if ((impl_->state != GpuAdmissionSessionState::TokenConsumed &&
        impl_->state != GpuAdmissionSessionState::WatchdogActive) ||
-      !impl_->post_receipt) {
+      !impl_->post_receipt || !impl_->worker ||
+      sample.owned_gpu.process_id != impl_->worker->root_process_id) {
     impl_->state = GpuAdmissionSessionState::FailedClosed;
     return rejected;
   }

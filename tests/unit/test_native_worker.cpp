@@ -333,16 +333,19 @@ int main(int argc, char** argv) {
   request.arguments = {L"--hang"};
   request.timeout_ms = 50U;
   const auto timed_out = prisminfer::run_native_worker(catalog, request);
-  std::filesystem::remove(timed_out.output_path, remove_error);
   if (expect(!timed_out.ok && timed_out.timed_out,
-             "timeout terminates the contained child")) return 1;
+             "timeout terminates the contained child") ||
+      expect(timed_out.output_path.empty(),
+             "timeout removes the temporary output before return")) return 1;
   request.arguments = {L"--flood"};
   request.timeout_ms = 2000U;
   request.max_output_bytes = 16U * 1024U;
   const auto flooded = prisminfer::run_native_worker(catalog, request);
   if (expect(!flooded.ok &&
                  flooded.failure_reason == "native_worker_output_limit_exceeded",
-             "output limit terminates and rejects a noisy child")) return 1;
+             "output limit terminates and rejects a noisy child") ||
+      expect(!std::filesystem::exists(flooded.output_path),
+             "output-limit failure removes the temporary output")) return 1;
 
   request.arguments = {L"--verify-argv", L"&|<>%^!\"", L"snow-\u96ea path",
                        std::wstring(600U, L'x')};

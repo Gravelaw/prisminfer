@@ -105,7 +105,7 @@ prisminfer::PostContextAdmissionRequest post_request(
   request.owned_gpu.reconciled = true;
   request.owned_gpu.process_device_corroboration_available = true;
   request.owned_gpu.process_device_source = "wddm-process";
-  request.owned_gpu.process_id = 42;
+  request.owned_gpu.process_id = 1234;
   request.owned_gpu.process_device_captured_monotonic_milliseconds =
       request.owned_gpu.captured_monotonic_milliseconds;
   request.owned_gpu.adapter_identity_available = true;
@@ -176,7 +176,7 @@ prisminfer::SupervisorWatchdogSample watchdog_sample() {
   sample.owned_gpu.reconciled = true;
   sample.owned_gpu.process_device_corroboration_available = true;
   sample.owned_gpu.process_device_source = "wddm-process";
-  sample.owned_gpu.process_id = 42;
+  sample.owned_gpu.process_id = 1234;
   sample.owned_gpu.process_device_captured_monotonic_milliseconds =
       sample.owned_gpu.captured_monotonic_milliseconds;
   sample.owned_gpu.adapter_identity_available = true;
@@ -416,6 +416,29 @@ int main() {
         expect(acquired.session->cleanup(cleanup_evidence(), 16'001) ==
                    GpuAdmissionSessionState::Quarantined,
                "cleanup beyond the cancel-relative deadline quarantines")) {
+      return 1;
+    }
+  }
+
+  {
+    auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 9, 13);
+    auto pre = pre_request();
+    pre.gpu.adapter_luid_high = 9;
+    pre.gpu.adapter_luid_low = 13;
+    auto mismatched = post_request();
+    mismatched.gpu.adapter_luid_high = 9;
+    mismatched.gpu.adapter_luid_low = 13;
+    mismatched.owned_gpu.adapter_luid_high = 9;
+    mismatched.owned_gpu.adapter_luid_low = 13;
+    mismatched.owned_gpu.process_id = 42;
+    if (expect(acquired.session->admit_pre_context(pre).admitted,
+               "PID binding test Stage A admits") ||
+        expect(acquired.session->bind_contained_worker(contained_worker()),
+               "PID binding test worker is contained") ||
+        expect(!acquired.session->admit_post_context(mismatched).admitted &&
+                   acquired.session->state() ==
+                       GpuAdmissionSessionState::FailedClosed,
+               "Stage B rejects evidence from another process")) {
       return 1;
     }
   }

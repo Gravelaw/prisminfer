@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 #include <vector>
 
@@ -53,21 +54,77 @@ void process_block(const std::uint8_t* block, std::array<std::uint32_t, 8>* stat
   (*state)[0]+=a;(*state)[1]+=b;(*state)[2]+=c;(*state)[3]+=d;(*state)[4]+=e;(*state)[5]+=f;(*state)[6]+=g;(*state)[7]+=h;
 }
 
+struct Sha256Stream {
+  std::array<std::uint32_t, 8> state{
+      0x6a09e667U, 0xbb67ae85U, 0x3c6ef372U, 0xa54ff53aU,
+      0x510e527fU, 0x9b05688cU, 0x1f83d9abU, 0x5be0cd19U};
+  std::array<std::uint8_t, 64> block{};
+  std::size_t buffered{0};
+  std::uint64_t total_bytes{0};
+};
+
+bool sha256_update(Sha256Stream* stream, const std::uint8_t* data,
+                   std::size_t size) {
+  if (stream == nullptr || (size != 0U && data == nullptr) ||
+      size > std::numeric_limits<std::uint64_t>::max() -
+                 stream->total_bytes) {
+    return false;
+  }
+  stream->total_bytes += static_cast<std::uint64_t>(size);
+  std::size_t position = 0;
+  if (stream->buffered != 0U) {
+    const auto copied =
+        std::min(size, stream->block.size() - stream->buffered);
+    std::copy_n(data, copied, stream->block.begin() + stream->buffered);
+    stream->buffered += copied;
+    position += copied;
+    if (stream->buffered == stream->block.size()) {
+      process_block(stream->block.data(), &stream->state);
+      stream->buffered = 0U;
+    }
+  }
+  while (size - position >= stream->block.size()) {
+    process_block(data + position, &stream->state);
+    position += stream->block.size();
+  }
+  if (position < size) {
+    stream->buffered = size - position;
+    std::copy_n(data + position, stream->buffered, stream->block.begin());
+  }
+  return true;
+}
+
+bool sha256_finish(Sha256Stream stream, std::string* digest) {
+  if (digest == nullptr ||
+      stream.total_bytes > std::numeric_limits<std::uint64_t>::max() / 8U) {
+    return false;
+  }
+  stream.block[stream.buffered++] = 0x80U;
+  if (stream.buffered > 56U) {
+    std::fill(stream.block.begin() + stream.buffered, stream.block.end(),
+              std::uint8_t{0});
+    process_block(stream.block.data(), &stream.state);
+    stream.buffered = 0U;
+  }
+  std::fill(stream.block.begin() + stream.buffered, stream.block.end(),
+            std::uint8_t{0});
+  const std::uint64_t bit_count = stream.total_bytes * 8U;
+  for (std::size_t i = 0; i < 8U; ++i) {
+    stream.block[63U - i] =
+        static_cast<std::uint8_t>(bit_count >> (8U * i));
+  }
+  process_block(stream.block.data(), &stream.state);
+  std::ostringstream out;
+  out << std::hex << std::setfill('0');
+  for (const auto value : stream.state) out << std::setw(8) << value;
+  *digest = out.str();
+  return true;
+}
+
 bool sha256_bytes(const std::vector<std::uint8_t>& data, std::string* digest) {
-  std::array<std::uint32_t,8> state{0x6a09e667U,0xbb67ae85U,0x3c6ef372U,0xa54ff53aU,0x510e527fU,0x9b05688cU,0x1f83d9abU,0x5be0cd19U};
-  std::array<std::uint8_t,64> block{};
-  std::size_t position=0;
-  while (position + 64U <= data.size()) { process_block(data.data()+position, &state); position += 64U; }
-  const std::size_t remaining=data.size()-position;
-  block.fill(0); for (std::size_t i=0;i<remaining;++i) block[i]=data[position+i];
-  block[remaining]=0x80U;
-  if (remaining >= 56U) { process_block(block.data(), &state); block.fill(0); }
-  const std::uint64_t bit_count=static_cast<std::uint64_t>(data.size())*8U;
-  for (std::size_t i=0;i<8;++i) block[63U-i]=static_cast<std::uint8_t>(bit_count>>(8U*i));
-  process_block(block.data(), &state);
-  std::ostringstream out; out<<std::hex<<std::setfill('0');
-  for (const auto value:state) out<<std::setw(8)<<value;
-  *digest=out.str(); return true;
+  Sha256Stream stream;
+  return sha256_update(&stream, data.data(), data.size()) &&
+         sha256_finish(stream, digest);
 }
 
 #ifdef _WIN32
@@ -191,7 +248,7 @@ bool sha256_windows_trusted_handle(const std::filesystem::path& trusted_root,
     return false;
   }
 
-  std::vector<std::uint8_t> data;
+  Sha256Stream stream;
   std::array<std::uint8_t, 8192> buffer{};
   for (;;) {
     DWORD read = 0U;
@@ -202,14 +259,16 @@ bool sha256_windows_trusted_handle(const std::filesystem::path& trusted_root,
     }
     if (read == 0U) break;
     const auto count = static_cast<std::uint64_t>(read);
-    if (count > maximum_bytes ||
-        static_cast<std::uint64_t>(data.size()) > maximum_bytes - count) {
+    if (count > maximum_bytes || stream.total_bytes > maximum_bytes - count) {
       if (error) *error = "sha256_input_size_exceeds_limit";
       return false;
     }
-    data.insert(data.end(), buffer.begin(), buffer.begin() + read);
+    if (!sha256_update(&stream, buffer.data(), read)) {
+      if (error) *error = "sha256_input_size_exceeds_limit";
+      return false;
+    }
   }
-  return sha256_bytes(data, digest);
+  return sha256_finish(stream, digest);
 }
 #else
 class ScopedFd {
@@ -291,7 +350,7 @@ bool sha256_posix_trusted_handle(const std::filesystem::path& trusted_root,
     component = next;
   }
 
-  std::vector<std::uint8_t> data;
+  Sha256Stream stream;
   std::array<std::uint8_t, 8192> buffer{};
   for (;;) {
     const ssize_t count = read(current.get(), buffer.data(), buffer.size());
@@ -303,13 +362,17 @@ bool sha256_posix_trusted_handle(const std::filesystem::path& trusted_root,
     if (count == 0) break;
     const auto read_count = static_cast<std::uint64_t>(count);
     if (read_count > maximum_bytes ||
-        static_cast<std::uint64_t>(data.size()) > maximum_bytes - read_count) {
+        stream.total_bytes > maximum_bytes - read_count) {
       if (error) *error = "sha256_input_size_exceeds_limit";
       return false;
     }
-    data.insert(data.end(), buffer.begin(), buffer.begin() + count);
+    if (!sha256_update(&stream, buffer.data(),
+                       static_cast<std::size_t>(count))) {
+      if (error) *error = "sha256_input_size_exceeds_limit";
+      return false;
+    }
   }
-  return sha256_bytes(data, digest);
+  return sha256_finish(stream, digest);
 }
 #endif
 }  // namespace
@@ -322,10 +385,21 @@ bool sha256_text(const std::string& text, std::string* digest) {
 bool sha256_file(const std::filesystem::path& path, std::string* digest, std::string* error) {
   std::ifstream input(path, std::ios::binary);
   if (!input) { if (error) *error="sha256_input_open_failed"; return false; }
-  const std::vector<std::uint8_t> data((std::istreambuf_iterator<char>(input)),
-                                       std::istreambuf_iterator<char>());
+  Sha256Stream stream;
+  std::array<char, 8192> buffer{};
+  while (input) {
+    input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    const auto count = input.gcount();
+    if (count <= 0) break;
+    if (!sha256_update(
+            &stream, reinterpret_cast<const std::uint8_t*>(buffer.data()),
+            static_cast<std::size_t>(count))) {
+      if (error) *error = "sha256_input_size_exceeds_limit";
+      return false;
+    }
+  }
   if (input.bad()) { if (error) *error="sha256_input_read_failed"; return false; }
-  return sha256_bytes(data, digest);
+  return sha256_finish(stream, digest);
 }
 
 bool sha256_regular_file_bounded(const std::filesystem::path& path,
@@ -339,7 +413,7 @@ bool sha256_regular_file_bounded(const std::filesystem::path& path,
   }
   std::ifstream input(path, std::ios::binary);
   if (!input) { if (error) *error = "sha256_input_open_failed"; return false; }
-  std::vector<std::uint8_t> data;
+  Sha256Stream stream;
   std::array<char, 8192> buffer{};
   while (input) {
     input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
@@ -347,14 +421,19 @@ bool sha256_regular_file_bounded(const std::filesystem::path& path,
     if (count <= 0) break;
     const auto read_count = static_cast<std::uint64_t>(count);
     if (read_count > maximum_bytes ||
-        static_cast<std::uint64_t>(data.size()) > maximum_bytes - read_count) {
+        stream.total_bytes > maximum_bytes - read_count) {
       if (error) *error = "sha256_input_size_exceeds_limit";
       return false;
     }
-    data.insert(data.end(), buffer.begin(), buffer.begin() + count);
+    if (!sha256_update(
+            &stream, reinterpret_cast<const std::uint8_t*>(buffer.data()),
+            static_cast<std::size_t>(count))) {
+      if (error) *error = "sha256_input_size_exceeds_limit";
+      return false;
+    }
   }
   if (input.bad()) { if (error) *error = "sha256_input_read_failed"; return false; }
-  return sha256_bytes(data, digest);
+  return sha256_finish(stream, digest);
 }
 
 bool sha256_trusted_regular_file_bounded(
