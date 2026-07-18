@@ -22,10 +22,8 @@ bool nvml_field_timestamps_are_fresh(
   const auto earliest = query_start_microseconds > maximum_age_microseconds
                             ? query_start_microseconds - maximum_age_microseconds
                             : 0U;
-  if (first_microseconds < earliest) return false;
-  return first_microseconds <=
-         std::numeric_limits<std::uint64_t>::max() - maximum_age_microseconds &&
-         first_microseconds - maximum_age_microseconds <= query_end_microseconds;
+  return first_microseconds >= earliest &&
+         first_microseconds <= query_end_microseconds;
 }
 
 std::optional<GpuThermalSample> make_ada_tlimit_thermal_sample(

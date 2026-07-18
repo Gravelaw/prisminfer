@@ -43,8 +43,14 @@ int main() {
                    1'700'000U, 1'700'000U, 1'100'000U, 1'100'100U, 500'000U),
               "future fields reject") ||
       !expect(!prisminfer::nvml_field_timestamps_are_fresh(
+                   1'100'101U, 1'100'101U, 1'100'000U, 1'100'100U, 500'000U),
+              "future boundary rejects") ||
+      !expect(!prisminfer::nvml_field_timestamps_are_fresh(
                    1'000'000U, 1'000'001U, 1'100'000U, 1'100'100U, 500'000U),
-              "unequal fields reject")) {
+              "unequal fields reject") ||
+      !expect(!prisminfer::nvml_field_timestamps_are_fresh(
+                   0U, 0U, 1'100'000U, 1'100'100U, 500'000U),
+              "zero fields reject")) {
     return 1;
   }
   return 0;
