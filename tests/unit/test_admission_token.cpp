@@ -101,6 +101,8 @@ prisminfer::PostContextAdmissionReceipt post_receipt() {
   request.thermal = pre_input.thermal;
   request.thermal.captured_monotonic_milliseconds = 10'200;
   request.owned_gpu.available = true;
+  request.owned_gpu.captured_monotonic_milliseconds =
+      request.gpu.captured_monotonic_milliseconds;
   request.owned_gpu.reconciled = true;
   request.owned_gpu.process_device_corroboration_available = true;
   request.owned_gpu.adapter_identity_available = true;
@@ -147,6 +149,8 @@ prisminfer::SupervisorWatchdogSample watchdog_sample() {
   sample.gpu.dxgi_local_budget_bytes = 14 * kGiB;
   sample.gpu.dxgi_local_current_usage_bytes = 2 * kGiB;
   sample.owned_gpu.available = true;
+  sample.owned_gpu.captured_monotonic_milliseconds =
+      sample.gpu.captured_monotonic_milliseconds;
   sample.owned_gpu.reconciled = true;
   sample.owned_gpu.process_device_corroboration_available = true;
   sample.owned_gpu.adapter_identity_available = true;
