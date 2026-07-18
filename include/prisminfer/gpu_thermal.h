@@ -18,6 +18,8 @@ make_ada_tlimit_thermal_sample(std::uint32_t current_celsius,
                                bool thermal_throttling,
                                bool power_brake_slowdown);
 
+// Each NVML field is independently timestamped. Both fields must be fresh and
+// their bounded skew must not exceed the same maximum-age window.
 [[nodiscard]] bool nvml_field_timestamps_are_fresh(
     std::uint64_t first_microseconds, std::uint64_t second_microseconds,
     std::uint64_t query_start_microseconds,

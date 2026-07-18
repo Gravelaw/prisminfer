@@ -16,14 +16,17 @@ bool nvml_field_timestamps_are_fresh(
     std::uint64_t query_start_microseconds,
     std::uint64_t query_end_microseconds,
     std::uint64_t maximum_age_microseconds) {
-  if (first_microseconds == 0U || first_microseconds != second_microseconds ||
+  if (first_microseconds == 0U || second_microseconds == 0U ||
       query_start_microseconds == 0U || query_end_microseconds < query_start_microseconds ||
       maximum_age_microseconds == 0U) return false;
   const auto earliest = query_start_microseconds > maximum_age_microseconds
                             ? query_start_microseconds - maximum_age_microseconds
                             : 0U;
-  return first_microseconds >= earliest &&
-         first_microseconds <= query_end_microseconds;
+  return first_microseconds >= earliest && first_microseconds <= query_end_microseconds &&
+         second_microseconds >= earliest && second_microseconds <= query_end_microseconds &&
+         (first_microseconds >= second_microseconds
+              ? first_microseconds - second_microseconds
+              : second_microseconds - first_microseconds) <= maximum_age_microseconds;
 }
 
 std::optional<GpuThermalSample> make_ada_tlimit_thermal_sample(
@@ -59,15 +62,16 @@ GpuThermalSample sample_nvml_gpu_thermal(const std::string& gpu_uuid) {
                                  ? NVML_ERROR_INVALID_ARGUMENT
                                  : nvmlDeviceGetHandleByUUID(
                                        gpu_uuid.c_str(), &device);
-  unsigned int temperature = 0U;
+  nvmlTemperature_t temperature_reading{};
+  temperature_reading.version = nvmlTemperature_v1;
+  temperature_reading.sensorType = NVML_TEMPERATURE_GPU;
   nvmlFieldValue_t tlimits[2]{};
   tlimits[0].fieldId = NVML_FI_DEV_TEMPERATURE_GPU_MAX_TLIMIT;
   tlimits[1].fieldId = NVML_FI_DEV_TEMPERATURE_SLOWDOWN_TLIMIT;
   unsigned long long throttle_reasons = 0ULL;
   const auto temperature_status =
       handle_status == NVML_SUCCESS
-          ? nvmlDeviceGetTemperature(device, NVML_TEMPERATURE_GPU,
-                                     &temperature)
+          ? nvmlDeviceGetTemperatureV(device, &temperature_reading)
           : NVML_ERROR_UNKNOWN;
   const auto field_query_start = std::chrono::duration_cast<std::chrono::microseconds>(
       std::chrono::system_clock::now().time_since_epoch()).count();
@@ -79,8 +83,7 @@ GpuThermalSample sample_nvml_gpu_thermal(const std::string& gpu_uuid) {
       std::chrono::system_clock::now().time_since_epoch()).count();
   const auto throttle_status =
       handle_status == NVML_SUCCESS
-          ? nvmlDeviceGetCurrentClocksThrottleReasons(device,
-                                                       &throttle_reasons)
+          ? nvmlDeviceGetCurrentClocksEventReasons(device, &throttle_reasons)
           : NVML_ERROR_UNKNOWN;
   (void)nvmlShutdown();
   const auto captured = monotonic_time_milliseconds();
@@ -95,12 +98,13 @@ GpuThermalSample sample_nvml_gpu_thermal(const std::string& gpu_uuid) {
           static_cast<std::uint64_t>(tlimits[1].timestamp),
           static_cast<std::uint64_t>(field_query_start),
           static_cast<std::uint64_t>(field_query_end), 500'000U) ||
-      throttle_status != NVML_SUCCESS ||
+      throttle_status != NVML_SUCCESS || temperature_reading.temperature < 0 ||
       captured == 0U) {
     return sample;
   }
   const auto converted = make_ada_tlimit_thermal_sample(
-      temperature, tlimits[0].value.uiVal, tlimits[1].value.siVal, captured,
+      static_cast<std::uint32_t>(temperature_reading.temperature),
+      tlimits[0].value.uiVal, tlimits[1].value.siVal, captured,
       (throttle_reasons & nvmlClocksThrottleReasonHwThermalSlowdown) != 0ULL,
       (throttle_reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) != 0ULL);
   if (converted) sample = *converted;
