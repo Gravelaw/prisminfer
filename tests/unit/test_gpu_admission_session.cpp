@@ -322,8 +322,29 @@ int main(int argc, char** argv) {
   (void)argc;
   (void)argv;
   auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 7, 11U);
-  if (expect(!acquired.session.has_value(),
-             "non-Windows session cannot claim Windows containment")) {
+  if (expect(acquired.session.has_value(),
+             "portable policy session can acquire its process lease") ||
+      expect(acquired.session->admit_pre_context(pre_request(10'100U)).admitted,
+             "portable Stage A policy remains testable")) {
+    return 1;
+  }
+  prisminfer::NativeWorkerTrustCatalog catalog({});
+  prisminfer::NativeWorkerRequest request;
+  request.executable_path = "/unavailable/prisminfer-worker";
+  request.timeout_ms = 1'000U;
+  const auto worker = acquired.session->run_contained_worker(
+      catalog, request, 100U,
+      [](std::uint32_t pid, std::uint64_t ready) {
+        return post_request(ready, pid);
+      },
+      [](std::uint32_t pid, std::uint64_t, std::uint64_t heartbeat) {
+        return watchdog_sample(heartbeat, pid);
+      });
+  if (expect(!worker.ok &&
+                 worker.failure_reason == "native_worker_windows_required" &&
+                 acquired.session->state() ==
+                     prisminfer::GpuAdmissionSessionState::Quarantined,
+             "non-Windows production containment fails closed")) {
     return 1;
   }
 #endif
