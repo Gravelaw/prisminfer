@@ -97,11 +97,36 @@ try {
     $supervisor = Join-Path $workspace 'build/c2-clearance/Release/prism-c2-supervisor.exe'
     $worker = Join-Path $workspace 'build/c2-clearance/Release/prism-c2-synthetic-worker.exe'
     foreach ($caseName in @('success', 'post-context-telemetry-loss', 'heartbeat-loss', 'watchdog-cancel')) {
-        & $supervisor --worker $worker --output-root $resolvedOutput --case $caseName `
-            --workflow-run-id $env:GITHUB_RUN_ID --authorization-id $AuthorizationId `
-            --gpu-uuid $GpuUuid --adapter-index $AdapterIndex `
-            --payload-bytes $PayloadBytes
-        if ($LASTEXITCODE -ne 0) {
+        $savedErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $caseOutput = @(& $supervisor --worker $worker --output-root $resolvedOutput --case $caseName `
+                    --workflow-run-id $env:GITHUB_RUN_ID --authorization-id $AuthorizationId `
+                    --gpu-uuid $GpuUuid --adapter-index $AdapterIndex `
+                    --payload-bytes $PayloadBytes 2>&1)
+            $caseExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $savedErrorActionPreference
+        }
+        $caseOutput | ForEach-Object { Write-Host "$_" }
+        if ($caseExitCode -ne 0) {
+            $typedReason = @($caseOutput | ForEach-Object { "$_" } |
+                    Where-Object { $_ -match '^[a-z0-9][a-z0-9_.:-]{0,255}$' } |
+                    Select-Object -Last 1)
+            if ($typedReason.Count -ne 1) {
+                $typedReason = @("supervisor_exit_$caseExitCode")
+            }
+            [ordered]@{
+                schema_version = 'prisminfer-c2-promotion-status-v1'
+                promotable = $false
+                c2_credit = $false
+                review_status = 'not-run'
+                reason = $typedReason[0]
+                reviewed_sha = $ReviewedSha
+                source_tree_sha = $SourceTreeSha
+                authorization_id = $AuthorizationId
+                workflow_run_id = $env:GITHUB_RUN_ID
+            } | ConvertTo-Json -Compress | Set-Content -LiteralPath $statusPath -Encoding utf8
             throw "C2 worker case '$caseName' failed; automatic retry is forbidden."
         }
     }

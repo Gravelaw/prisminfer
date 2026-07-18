@@ -55,8 +55,31 @@ struct PreContextGpuSample {
   std::uint64_t dxgi_local_current_usage_bytes{0};
 };
 
+enum class GpuThermalUnavailableReason : std::uint8_t {
+  None = 0,
+  NvmlInitializationFailed,
+  GpuUuidInvalid,
+  DeviceHandleFailed,
+  TemperatureQueryFailed,
+  TlimitFieldQueryFailed,
+  TargetTlimitFieldFailed,
+  SlowdownTlimitFieldFailed,
+  TargetTlimitTypeInvalid,
+  SlowdownTlimitTypeInvalid,
+  FieldQueryClockInvalid,
+  FieldTimestampInvalidOrStale,
+  ClockEventQueryFailed,
+  TemperatureValueInvalid,
+  MonotonicClockInvalid,
+  TlimitConversionInvalid,
+  NvmlShutdownFailed,
+  CudaProbeDisabled,
+};
+
 struct GpuThermalSample {
   bool available{false};
+  GpuThermalUnavailableReason unavailable_reason{
+      GpuThermalUnavailableReason::None};
   std::uint64_t captured_monotonic_milliseconds{0};
   std::int32_t current_celsius{0};
   std::optional<std::int32_t> reported_target_celsius;
