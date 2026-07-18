@@ -34,11 +34,17 @@ int main() {
     return 1;
   }
   if (!expect(prisminfer::nvml_field_timestamps_are_fresh(
-                  1'000'000U, 1'000'000U, 1'100'000U, 1'100'100U, 500'000U),
-              "recent matching fields accept") ||
+                  1'000'000U, 1'000'001U, 1'100'000U, 1'100'100U, 500'000U),
+              "recent bounded-skew fields accept") ||
+      !expect(prisminfer::nvml_field_timestamps_are_fresh(
+                  600'000U, 1'100'000U, 1'100'000U, 1'100'100U, 500'000U),
+              "maximum bounded skew accepts") ||
       !expect(!prisminfer::nvml_field_timestamps_are_fresh(
                    1U, 1U, 1'100'000U, 1'100'100U, 500'000U),
               "stale fields reject") ||
+      !expect(!prisminfer::nvml_field_timestamps_are_fresh(
+                   1'100'000U, 1U, 1'100'000U, 1'100'100U, 500'000U),
+              "stale second field rejects") ||
       !expect(!prisminfer::nvml_field_timestamps_are_fresh(
                    1'700'000U, 1'700'000U, 1'100'000U, 1'100'100U, 500'000U),
               "future fields reject") ||
@@ -46,8 +52,11 @@ int main() {
                    1'100'101U, 1'100'101U, 1'100'000U, 1'100'100U, 500'000U),
               "future boundary rejects") ||
       !expect(!prisminfer::nvml_field_timestamps_are_fresh(
-                   1'000'000U, 1'000'001U, 1'100'000U, 1'100'100U, 500'000U),
-              "unequal fields reject") ||
+                   1'100'000U, 1'100'101U, 1'100'000U, 1'100'100U, 500'000U),
+              "future second field rejects") ||
+      !expect(!prisminfer::nvml_field_timestamps_are_fresh(
+                   599'999U, 1'100'000U, 1'100'000U, 1'100'100U, 500'000U),
+              "excessive skew rejects") ||
       !expect(!prisminfer::nvml_field_timestamps_are_fresh(
                    0U, 0U, 1'100'000U, 1'100'100U, 500'000U),
               "zero fields reject")) {
