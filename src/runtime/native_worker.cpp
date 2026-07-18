@@ -237,9 +237,41 @@ struct TreeMemoryAccumulator {
   std::uint64_t root_peak_private_commit_bytes{0};
   std::uint64_t tree_peak_working_set_bytes{0};
   std::uint32_t peak_active_processes{0};
+  bool per_process_memory_reconciled{true};
   std::unordered_set<ULONG_PTR> observed_process_ids;
+  std::unordered_set<ULONG_PTR> assigned_process_ids;
   std::vector<RetainedProcess> observed_processes;
 };
+
+bool job_process_is_absent(HANDLE job, std::uint32_t maximum_processes,
+                           ULONG_PTR expected_process_id, bool* absent) {
+  if (job == nullptr || maximum_processes == 0U ||
+      expected_process_id == 0U || absent == nullptr) {
+    return false;
+  }
+  const std::size_t bytes =
+      offsetof(JOBOBJECT_BASIC_PROCESS_ID_LIST, ProcessIdList) +
+      static_cast<std::size_t>(maximum_processes) * sizeof(ULONG_PTR);
+  std::vector<std::byte> storage(bytes);
+  auto* process_ids =
+      reinterpret_cast<JOBOBJECT_BASIC_PROCESS_ID_LIST*>(storage.data());
+  if (!QueryInformationJobObject(job, JobObjectBasicProcessIdList,
+                                 process_ids, static_cast<DWORD>(bytes),
+                                 nullptr) ||
+      process_ids->NumberOfProcessIdsInList !=
+          process_ids->NumberOfAssignedProcesses) {
+    return false;
+  }
+  *absent = true;
+  for (DWORD index = 0U; index < process_ids->NumberOfProcessIdsInList;
+       ++index) {
+    if (process_ids->ProcessIdList[index] == expected_process_id) {
+      *absent = false;
+      break;
+    }
+  }
+  return true;
+}
 
 bool checked_add_size(std::uint64_t left, SIZE_T right,
                       std::uint64_t* output) {
@@ -305,6 +337,7 @@ bool sample_job_tree(HANDLE job, DWORD root_process_id,
        ++index) {
     const ULONG_PTR process_id = process_ids->ProcessIdList[index];
     if (process_id == 0U || process_id > MAXDWORD) return false;
+    accumulator->assigned_process_ids.insert(process_id);
     UniqueHandle process(OpenProcess(PROCESS_QUERY_INFORMATION |
                                          PROCESS_VM_READ | SYNCHRONIZE,
                                      FALSE,
@@ -325,8 +358,15 @@ bool sample_job_tree(HANDLE job, DWORD root_process_id,
           [process_id](const TreeMemoryAccumulator::RetainedProcess& entry) {
             return entry.process_id == process_id;
           });
-      if (retained != accumulator->observed_processes.end() &&
-          WaitForSingleObject(retained->handle.get(), 0U) == WAIT_OBJECT_0) {
+      const bool retained_exit =
+          retained != accumulator->observed_processes.end() &&
+          WaitForSingleObject(retained->handle.get(), 0U) == WAIT_OBJECT_0;
+      bool absent = false;
+      if (retained_exit ||
+          (job_process_is_absent(job, maximum_processes, process_id,
+                                 &absent) &&
+           absent)) {
+        accumulator->per_process_memory_reconciled = false;
         continue;
       }
       return false;
@@ -1396,9 +1436,10 @@ NativeWorkerResult run_native_worker_impl(
     return fail("native_worker_evidence_unavailable");
   }
   if (job_io.BasicInfo.TotalProcesses == 0U ||
-      tree_memory.observed_process_ids.size() !=
+      tree_memory.assigned_process_ids.size() !=
           job_io.BasicInfo.TotalProcesses ||
-      tree_memory.observed_process_ids.count(process.dwProcessId) != 1U ||
+      tree_memory.assigned_process_ids.count(process.dwProcessId) != 1U ||
+      (exit_code == 0U && !tree_memory.per_process_memory_reconciled) ||
       tree_memory.peak_active_processes == 0U ||
       tree_memory.peak_active_processes > request.max_active_processes ||
       tree_memory.root_peak_working_set_bytes == 0U ||
@@ -1427,6 +1468,8 @@ NativeWorkerResult run_native_worker_impl(
   result.worker_exit_observed = true;
   result.job_tree_empty = true;
   result.job_accounting_reconciled = true;
+  result.per_process_memory_reconciled =
+      tree_memory.per_process_memory_reconciled;
   result.artifact_handles_closed = true;
   result.temporary_files_reconciled = true;
   result.ok = !result.timed_out && result.exit_code == 0U;

@@ -528,14 +528,30 @@ int main(int argc, char** argv) {
                   << "\n";
       }
     }
+    prisminfer::NativeWorkerResult incomplete_outer_evidence;
+    const auto incomplete_receipt =
+        prisminfer::record_evidence_provider_fail_stop(
+            incomplete_outer_evidence, 20, 24U, 100U, 1'500U);
+    const auto incomplete_retry =
+        prisminfer::acquire_exclusive_gpu_lease(20, 24U);
+    const bool incomplete_fail_stop_quarantined =
+        !incomplete_receipt.accepted &&
+        incomplete_receipt.non_promotable &&
+        incomplete_receipt.quarantined &&
+        incomplete_receipt.retry_prohibited &&
+        incomplete_retry.status ==
+            prisminfer::ExclusiveGpuLeaseStatus::AlreadyHeldInProcess;
     const auto temporary_outputs_after = temporary_output_artifacts();
-    if (expect(all_fail_stops_verified &&
+    if (expect(all_fail_stops_verified && incomplete_fail_stop_quarantined &&
                    temporary_outputs_after == temporary_outputs_before,
                "uncooperative producer fail-stops under parent receipt and "
                "durable quarantine")) {
       std::cerr << "temporary outputs before="
                 << temporary_outputs_before.size()
                 << " after=" << temporary_outputs_after.size()
+                << " incomplete_receipt=" << incomplete_receipt.reason
+                << " incomplete_retry_status="
+                << static_cast<int>(incomplete_retry.status)
                 << "\n";
       return 1;
     }

@@ -749,6 +749,16 @@ EvidenceProviderFailStopReceipt record_evidence_provider_fail_stop(
     std::uint64_t maximum_elapsed_milliseconds) {
   EvidenceProviderFailStopReceipt receipt;
   receipt.reason = "evidence_provider_fail_stop_unverified";
+  auto acquired =
+      acquire_exclusive_gpu_lease(adapter_luid_high, adapter_luid_low);
+  if (acquired.status != ExclusiveGpuLeaseStatus::Acquired ||
+      !acquired.lease) {
+    receipt.reason = "evidence_provider_fail_stop_quarantine_failed";
+    return receipt;
+  }
+  acquired.lease->quarantine_for_process_lifetime();
+  receipt.quarantined = true;
+  receipt.retry_prohibited = true;
   const bool exact_outer_evidence =
       maximum_elapsed_milliseconds != 0U &&
       observed_elapsed_milliseconds <= maximum_elapsed_milliseconds &&
@@ -761,17 +771,7 @@ EvidenceProviderFailStopReceipt record_evidence_provider_fail_stop(
       supervisor_result.temporary_files_reconciled &&
       supervisor_result.output_path.empty();
   if (!exact_outer_evidence) return receipt;
-  auto acquired =
-      acquire_exclusive_gpu_lease(adapter_luid_high, adapter_luid_low);
-  if (acquired.status != ExclusiveGpuLeaseStatus::Acquired ||
-      !acquired.lease) {
-    receipt.reason = "evidence_provider_fail_stop_quarantine_failed";
-    return receipt;
-  }
-  acquired.lease->quarantine_for_process_lifetime();
   receipt.accepted = true;
-  receipt.quarantined = true;
-  receipt.retry_prohibited = true;
   receipt.reason = "evidence_provider_timeout_fail_stop";
   return receipt;
 }

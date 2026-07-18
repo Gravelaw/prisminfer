@@ -217,6 +217,12 @@ lease in process-lifetime quarantine. That path is not `Cleaned`, cannot
 publish success evidence, and prohibits automatic same-cell retry. A future
 contained evidence-helper process may replace this last-resort supervisor
 fail-stop without weakening the parent receipt.
+Incomplete outer accounting still forces quarantine and prohibits retry even
+though the receipt remains unaccepted. Job assignment and aggregate accounting
+are recorded separately from per-process memory reconciliation: incomplete
+per-process memory rejects every successful worker, while a dedicated nonzero
+fail-stop receipt may retain authoritative Job aggregates only and remains
+explicitly non-promotable.
 
 The native worker additionally retains approved read-only artifact root and
 leaf handles without write/delete sharing from byte-hash verification through

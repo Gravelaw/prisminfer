@@ -68,6 +68,7 @@ struct NativeWorkerResult {
   bool worker_exit_observed{false};
   bool job_tree_empty{false};
   bool job_accounting_reconciled{false};
+  bool per_process_memory_reconciled{false};
   bool artifact_handles_closed{false};
   bool temporary_files_reconciled{false};
   std::uint32_t root_process_id{0};
