@@ -516,6 +516,11 @@ PostContextAdmissionDecision evaluate_post_context_admission(
   if (!owned.available || !owned.reconciled ||
       !owned.process_device_corroboration_available ||
       !owned.adapter_identity_available ||
+      owned.captured_monotonic_milliseconds !=
+          request.gpu.captured_monotonic_milliseconds ||
+      !sample_is_fresh(owned.captured_monotonic_milliseconds,
+                       request.evaluation_monotonic_milliseconds,
+                       request.timing.maximum_guard_age_milliseconds) ||
       owned.adapter_luid_high != request.gpu.adapter_luid_high ||
       owned.adapter_luid_low != request.gpu.adapter_luid_low ||
       owned.unknown_unreconciled_bytes != 0 || !reconciled ||

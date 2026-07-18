@@ -191,7 +191,12 @@ decision; and any stale, contradictory, resource, thermal, heartbeat, deadline,
 or context-fatal sample immediately blocks submissions. Cancellation retains
 the T-105 acknowledgement, exit, Job-abort, and cleanup deadlines, and cleanup
 cannot release the lease as `Cleaned` when the Job tree or resources remain
-unreconciled.
+unreconciled. Normal cleanup requires an observed worker exit and empty Job
+tree plus reconciled Job accounting, device resources, artifact handles, and
+temporary files. It retains the terminal reason and canonical hashes for the
+last good sample and terminal evidence bundle. Any premature destruction or
+unreconciled terminal path quarantines the adapter lease until the supervisor
+process exits.
 
 ## Provider subordination
 

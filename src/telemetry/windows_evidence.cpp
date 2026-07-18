@@ -364,7 +364,15 @@ WindowsEvidenceDecision classify_windows_evidence(
     return downgrade("authoritative_system_host_evidence_required");
   }
   if (!evidence.gpu.available || !evidence.gpu.reconciled ||
-      !evidence.gpu.process_device_corroboration_available) {
+      !evidence.gpu.process_device_corroboration_available ||
+      evidence.gpu.captured_monotonic_milliseconds == 0U ||
+      evidence.maximum_owned_gpu_sample_age_milliseconds == 0U ||
+      evidence.maximum_owned_gpu_sample_age_milliseconds > 500U ||
+      evidence.evaluation_monotonic_milliseconds <
+          evidence.gpu.captured_monotonic_milliseconds ||
+      evidence.evaluation_monotonic_milliseconds -
+              evidence.gpu.captured_monotonic_milliseconds >
+          evidence.maximum_owned_gpu_sample_age_milliseconds) {
     return downgrade("owned_gpu_reconciliation_required");
   }
   if (evidence.gpu.unknown_unreconciled_bytes != 0U) {
@@ -419,7 +427,15 @@ WindowsEvidenceDecision classify_windows_evidence(
     return downgrade("ordinary_run_required_for_residency_claim");
   }
   if (!evidence.wddm.available ||
+      evidence.wddm.captured_monotonic_milliseconds == 0U ||
       evidence.maximum_wddm_sample_age_milliseconds == 0U ||
+      evidence.maximum_wddm_sample_age_milliseconds > 500U ||
+      evidence.wddm.adapter_description.empty() ||
+      evidence.wddm.local_budget_bytes == 0U ||
+      evidence.wddm.local_available_for_reservation_bytes >
+          evidence.wddm.local_budget_bytes ||
+      evidence.wddm.nonlocal_available_for_reservation_bytes >
+          evidence.wddm.nonlocal_budget_bytes ||
       evidence.evaluation_monotonic_milliseconds <
           evidence.wddm.captured_monotonic_milliseconds ||
       evidence.evaluation_monotonic_milliseconds -

@@ -201,7 +201,9 @@ identity to suspended non-breakaway Job containment, explicit process/memory/
 time limits, exact child-tree cleanup, fresh independent Windows evidence,
 workload-relative #109 host admission, exclusive device lease, staged one-shot
 tokens, watchdog submission blocking, cooperative-cancel/Job-abort deadlines,
-and cleanup quarantine. This receipt is not the packet exit: C2 stays closed
+and receipt-bound cleanup quarantine. Owned-GPU and WDDM evidence carry bounded
+capture freshness, and executable approval rejects unheld intermediate path
+components. This receipt is not the packet exit: C2 stays closed
 until final hosted checks and a fresh independent exact-head safety/security
 review accept the complete tree. No CUDA, model, calibration, capacity, or
 performance evidence was produced.

@@ -460,6 +460,8 @@ bool write_probe_manifest(const std::filesystem::path& path,
       << inputs.wddm.nonlocal_available_for_reservation_bytes << ",\n"
       << "  \"owned_gpu_available\": "
       << (inputs.owned_gpu.available ? "true" : "false") << ",\n"
+      << "  \"owned_gpu_captured_monotonic_milliseconds\": "
+      << inputs.owned_gpu.captured_monotonic_milliseconds << ",\n"
       << "  \"owned_gpu_source_reconciled\": "
       << (inputs.owned_gpu.reconciled ? "true" : "false") << ",\n"
       << "  \"owned_gpu_process_device_corroboration_available\": "

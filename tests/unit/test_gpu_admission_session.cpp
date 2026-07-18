@@ -100,6 +100,8 @@ prisminfer::PostContextAdmissionRequest post_request(
   request.thermal = pre.thermal;
   request.thermal.captured_monotonic_milliseconds = 10'200;
   request.owned_gpu.available = true;
+  request.owned_gpu.captured_monotonic_milliseconds =
+      request.gpu.captured_monotonic_milliseconds;
   request.owned_gpu.reconciled = true;
   request.owned_gpu.process_device_corroboration_available = true;
   request.owned_gpu.adapter_identity_available = true;
@@ -136,6 +138,21 @@ prisminfer::ContainedWorkerEvidence contained_worker() {
   return evidence;
 }
 
+prisminfer::SupervisorCleanupEvidence cleanup_evidence(bool complete = true) {
+  prisminfer::SupervisorCleanupEvidence evidence;
+  if (!complete) return evidence;
+  evidence.worker_exit_observed = true;
+  evidence.job_tree_empty = true;
+  evidence.job_accounting_reconciled = true;
+  evidence.device_resources_reconciled = true;
+  evidence.artifact_handles_closed = true;
+  evidence.temporary_files_reconciled = true;
+  evidence.terminal_reason = "completed";
+  evidence.last_good_sample_sha256 = std::string(64U, 'a');
+  evidence.evidence_bundle_sha256 = std::string(64U, 'b');
+  return evidence;
+}
+
 prisminfer::SupervisorWatchdogSample watchdog_sample() {
   const auto base = pre_request();
   prisminfer::SupervisorWatchdogSample sample;
@@ -148,6 +165,8 @@ prisminfer::SupervisorWatchdogSample watchdog_sample() {
   sample.gpu.dxgi_local_budget_bytes = 14 * kGiB;
   sample.gpu.dxgi_local_current_usage_bytes = 2 * kGiB;
   sample.owned_gpu.available = true;
+  sample.owned_gpu.captured_monotonic_milliseconds =
+      sample.gpu.captured_monotonic_milliseconds;
   sample.owned_gpu.reconciled = true;
   sample.owned_gpu.process_device_corroboration_available = true;
   sample.owned_gpu.adapter_identity_available = true;
@@ -188,7 +207,7 @@ int main() {
 
   {
     auto out_of_order =
-        prisminfer::acquire_gpu_admission_session(cell(), 7, 11);
+        prisminfer::acquire_gpu_admission_session(cell(), 6, 10);
     if (expect(out_of_order.session &&
                    out_of_order.session->issue_token(10'400, 100).status ==
                        prisminfer::AdmissionTokenStatus::
@@ -243,17 +262,25 @@ int main() {
                    prisminfer::AdmissionTokenStatus::Consumed &&
                    acquired.session->state() ==
                        GpuAdmissionSessionState::TokenConsumed,
-               "session consumes its exact token once") ||
-        expect(acquired.session->issue_token(10'400, 100).status ==
-                   prisminfer::AdmissionTokenStatus::SupervisorStateInvalid &&
-                   acquired.session->state() ==
-                       GpuAdmissionSessionState::FailedClosed,
-               "duplicate token transition fails closed") ||
+               "session consumes its exact token once")) {
+      return 1;
+    }
+    const auto safe = watchdog_sample();
+    if (expect(acquired.session->evaluate_watchdog(safe).continue_work,
+               "normal run activates watchdog") ||
+        expect(acquired.session->record_normal_worker_exit(10'500, true),
+               "normal exit requires an empty contained Job tree") ||
         expect(acquired.session->begin_cleanup(10'500),
-               "failed-closed session enters bounded cleanup") ||
-        expect(acquired.session->cleanup(true, 10'600) ==
+               "verified normal exit enters bounded cleanup") ||
+        expect(acquired.session->cleanup(cleanup_evidence(), 10'600) ==
                    GpuAdmissionSessionState::Cleaned,
                "reconciled cleanup releases session resources")) {
+      return 1;
+    }
+    const auto terminal = acquired.session->terminal_evidence();
+    if (expect(terminal && terminal->terminal_reason == "completed" &&
+                   terminal->last_good_sample_sha256 == std::string(64U, 'a'),
+               "terminal cleanup evidence remains auditable")) {
       return 1;
     }
   }
@@ -265,14 +292,14 @@ int main() {
   }
 
   {
-    auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 7, 11);
+    auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 8, 10);
     const auto rejected = acquired.session->admit_pre_context(pre_request(cell(2)));
     if (expect(!rejected.admitted && acquired.session->state() ==
                                         GpuAdmissionSessionState::FailedClosed,
                "session rejects another valid run cell") ||
         expect(acquired.session->begin_cleanup(10'500),
                "rejected session enters cleanup") ||
-        expect(acquired.session->cleanup(false, 10'600) ==
+        expect(acquired.session->cleanup(cleanup_evidence(false), 10'600) ==
                    GpuAdmissionSessionState::Quarantined,
                "unreconciled cleanup quarantines")) {
       return 1;
@@ -323,9 +350,14 @@ int main() {
                "empty terminated Job tree permits cleanup") ||
         expect(acquired.session->begin_cleanup(11'600),
                "aborted run starts bounded cleanup") ||
-        expect(acquired.session->cleanup(true, 11'700) ==
+        expect(acquired.session->cleanup(cleanup_evidence(), 11'700) ==
                    GpuAdmissionSessionState::Cleaned,
                "reconciled aborted run releases the lease")) {
+      return 1;
+    }
+    if (expect(prisminfer::acquire_exclusive_gpu_lease(8, 10).status ==
+                   ExclusiveGpuLeaseStatus::AlreadyHeldInProcess,
+               "quarantine retains the adapter lease until supervisor exit")) {
       return 1;
     }
   }
@@ -369,7 +401,7 @@ int main() {
                "late exit still requires supervisor Job reconciliation") ||
         expect(acquired.session->begin_cleanup(13'100),
                "cooperative timeout enters cleanup") ||
-        expect(acquired.session->cleanup(true, 16'001) ==
+        expect(acquired.session->cleanup(cleanup_evidence(), 16'001) ==
                    GpuAdmissionSessionState::Quarantined,
                "cleanup beyond the cancel-relative deadline quarantines")) {
       return 1;
@@ -377,8 +409,10 @@ int main() {
   }
 
   {
-    auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 7, 11);
+    auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 8, 12);
     auto pre = pre_request();
+    pre.gpu.adapter_luid_high = 8;
+    pre.gpu.adapter_luid_low = 12;
     auto invalid_worker = contained_worker();
     invalid_worker.kill_on_close = false;
     if (expect(acquired.session->admit_pre_context(pre).admitted,
@@ -389,7 +423,7 @@ int main() {
                "worker without kill-on-close containment fails closed") ||
         expect(acquired.session->begin_cleanup(12'000),
                "invalid worker enters zero-resource cleanup") ||
-        expect(acquired.session->cleanup(false, 12'100) ==
+        expect(acquired.session->cleanup(cleanup_evidence(false), 12'100) ==
                    GpuAdmissionSessionState::Quarantined,
                "unreconciled containment failure quarantines")) {
       return 1;

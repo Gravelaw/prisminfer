@@ -258,6 +258,29 @@ int main(int argc, char** argv) {
              "multi-link executable identity is rejected")) {
     return 1;
   }
+  const auto nested_directory = request.executable_path.parent_path() /
+                                L"prisminfer-unheld-nested-root";
+  const auto nested_executable = nested_directory / L"worker-copy.exe";
+  std::error_code nested_error;
+  std::filesystem::create_directories(nested_directory, nested_error);
+  std::filesystem::copy_file(request.executable_path, nested_executable,
+                             std::filesystem::copy_options::overwrite_existing,
+                             nested_error);
+  if (expect(!nested_error, "nested executable fixture is created")) return 1;
+  prisminfer::NativeWorkerTrustCatalog nested_catalog({{
+      nested_executable, request.executable_path.parent_path(), test_hash,
+      "nested-approval"}});
+  auto nested_request = request;
+  nested_request.executable_path = nested_executable;
+  const auto nested_result =
+      prisminfer::run_native_worker(nested_catalog, nested_request);
+  std::filesystem::remove_all(nested_directory, nested_error);
+  if (expect(!nested_result.ok &&
+                 nested_result.failure_reason ==
+                     "native_worker_executable_identity_rejected",
+             "unheld intermediate directory identity is rejected")) {
+    return 1;
+  }
   const auto& output_text = child.captured_output;
   bool path_tamper_written = false;
   {

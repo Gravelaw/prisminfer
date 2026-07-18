@@ -637,6 +637,7 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
       executable_info.nNumberOfLinks != 1U ||
       final_executable.empty() ||
       !is_under_root(final_executable, final_trusted_root) ||
+      final_executable.parent_path() != final_trusted_root ||
       !hash_open_file(executable_handle.get(), &executable_hash) ||
       lowercase(executable_hash) != lowercase(approval->expected_executable_sha256)) {
     return fail("native_worker_executable_identity_rejected");

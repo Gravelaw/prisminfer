@@ -28,6 +28,7 @@ class ExclusiveGpuLease {
   [[nodiscard]] std::int32_t adapter_luid_high() const;
   [[nodiscard]] std::uint32_t adapter_luid_low() const;
   [[nodiscard]] const std::string& lease_id() const;
+  void quarantine_for_process_lifetime() noexcept;
 
  private:
   friend ExclusiveGpuLeaseAcquireResult acquire_exclusive_gpu_lease(

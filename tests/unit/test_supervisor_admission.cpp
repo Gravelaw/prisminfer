@@ -113,6 +113,8 @@ prisminfer::PostContextAdmissionRequest valid_post_request() {
   request.thermal.captured_monotonic_milliseconds = 10'200;
 
   request.owned_gpu.available = true;
+  request.owned_gpu.captured_monotonic_milliseconds =
+      request.gpu.captured_monotonic_milliseconds;
   request.owned_gpu.reconciled = true;
   request.owned_gpu.process_device_corroboration_available = true;
   request.owned_gpu.adapter_identity_available = true;

@@ -6,6 +6,20 @@
 
 namespace prisminfer {
 
+namespace {
+
+bool is_sha256(const std::string& value) {
+  if (value.size() != 64U) return false;
+  for (const char character : value) {
+    const bool digit = character >= '0' && character <= '9';
+    const bool lower = character >= 'a' && character <= 'f';
+    if (!digit && !lower) return false;
+  }
+  return true;
+}
+
+}  // namespace
+
 struct GpuAdmissionSession::Impl {
   AdmissionCellIdentity cell;
   std::int32_t adapter_luid_high{0};
@@ -17,6 +31,7 @@ struct GpuAdmissionSession::Impl {
   std::optional<ContainedWorkerEvidence> worker;
   std::uint64_t cancel_requested_monotonic_milliseconds{0};
   std::uint64_t cleanup_started_monotonic_milliseconds{0};
+  std::optional<SupervisorCleanupEvidence> terminal_evidence;
   AdmissionTokenIssuer token_issuer;
   mutable std::mutex mutex;
 };
@@ -26,7 +41,13 @@ GpuAdmissionSession::GpuAdmissionSession(std::unique_ptr<Impl> impl)
 
 GpuAdmissionSession::GpuAdmissionSession(GpuAdmissionSession&&) noexcept =
     default;
-GpuAdmissionSession::~GpuAdmissionSession() = default;
+GpuAdmissionSession::~GpuAdmissionSession() {
+  if (!impl_) return;
+  std::lock_guard lock(impl_->mutex);
+  if (impl_->lease && impl_->state != GpuAdmissionSessionState::Cleaned) {
+    impl_->lease->quarantine_for_process_lifetime();
+  }
+}
 
 GpuAdmissionSessionState GpuAdmissionSession::state() const {
   if (!impl_) return GpuAdmissionSessionState::FailedClosed;
@@ -258,13 +279,28 @@ CancellationDecision GpuAdmissionSession::record_job_abort(
   return decision;
 }
 
+bool GpuAdmissionSession::record_normal_worker_exit(std::uint64_t now,
+                                                    bool job_tree_empty) {
+  if (!impl_ || now == 0U) return false;
+  std::lock_guard lock(impl_->mutex);
+  if (impl_->state != GpuAdmissionSessionState::WatchdogActive ||
+      !impl_->post_receipt || !job_tree_empty) {
+    impl_->state = GpuAdmissionSessionState::Quarantined;
+    if (impl_->lease) impl_->lease->quarantine_for_process_lifetime();
+    return false;
+  }
+  impl_->state = GpuAdmissionSessionState::WorkerExited;
+  return true;
+}
+
 bool GpuAdmissionSession::begin_cleanup(std::uint64_t now) {
   if (!impl_ || now == 0) return false;
   std::lock_guard lock(impl_->mutex);
   if (impl_->state != GpuAdmissionSessionState::WorkerExited &&
-      impl_->state != GpuAdmissionSessionState::WatchdogActive &&
-      impl_->state != GpuAdmissionSessionState::FailedClosed) {
+      (impl_->state != GpuAdmissionSessionState::FailedClosed ||
+       impl_->worker.has_value())) {
     impl_->state = GpuAdmissionSessionState::Quarantined;
+    if (impl_->lease) impl_->lease->quarantine_for_process_lifetime();
     return false;
   }
   impl_->cleanup_started_monotonic_milliseconds = now;
@@ -273,7 +309,7 @@ bool GpuAdmissionSession::begin_cleanup(std::uint64_t now) {
 }
 
 GpuAdmissionSessionState GpuAdmissionSession::cleanup(
-    bool resources_reconciled, std::uint64_t now) {
+    const SupervisorCleanupEvidence& evidence, std::uint64_t now) {
   if (!impl_) return GpuAdmissionSessionState::FailedClosed;
   std::lock_guard lock(impl_->mutex);
   if (impl_->state == GpuAdmissionSessionState::Cleaned ||
@@ -295,11 +331,31 @@ GpuAdmissionSessionState GpuAdmissionSession::cleanup(
   impl_->pre_receipt.reset();
   impl_->post_receipt.reset();
   impl_->worker.reset();
+  const bool evidence_complete =
+      evidence.worker_exit_observed && evidence.job_tree_empty &&
+      evidence.job_accounting_reconciled &&
+      evidence.device_resources_reconciled &&
+      evidence.artifact_handles_closed &&
+      evidence.temporary_files_reconciled &&
+      !evidence.terminal_reason.empty() &&
+      is_sha256(evidence.last_good_sample_sha256) &&
+      is_sha256(evidence.evidence_bundle_sha256);
+  impl_->terminal_evidence = evidence;
+  const bool cleaned = evidence_complete && deadline_met;
+  if (!cleaned && impl_->lease) {
+    impl_->lease->quarantine_for_process_lifetime();
+  }
   impl_->lease.reset();
-  impl_->state = resources_reconciled && deadline_met
-                     ? GpuAdmissionSessionState::Cleaned
-                     : GpuAdmissionSessionState::Quarantined;
+  impl_->state = cleaned ? GpuAdmissionSessionState::Cleaned
+                         : GpuAdmissionSessionState::Quarantined;
   return impl_->state;
+}
+
+std::optional<SupervisorCleanupEvidence>
+GpuAdmissionSession::terminal_evidence() const {
+  if (!impl_) return std::nullopt;
+  std::lock_guard lock(impl_->mutex);
+  return impl_->terminal_evidence;
 }
 
 GpuAdmissionSessionAcquireResult acquire_gpu_admission_session(

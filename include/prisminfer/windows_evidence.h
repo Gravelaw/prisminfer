@@ -67,6 +67,7 @@ FileEvidenceValidationResult validate_file_io_evidence(
 
 struct OwnedGpuMemoryEvidence {
   bool available{false};
+  std::uint64_t captured_monotonic_milliseconds{0};
   bool reconciled{false};
   bool process_device_corroboration_available{false};
   bool adapter_identity_available{false};
@@ -119,6 +120,7 @@ struct WindowsEvidenceBundle {
   bool real_execution{false};
   std::uint64_t evaluation_monotonic_milliseconds{0};
   std::uint64_t maximum_host_sample_age_milliseconds{0};
+  std::uint64_t maximum_owned_gpu_sample_age_milliseconds{0};
   std::uint64_t maximum_wddm_sample_age_milliseconds{0};
   OwnedGpuMemoryEvidence gpu;
   WddmMemorySample wddm;

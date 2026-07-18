@@ -18,7 +18,9 @@ prisminfer::WindowsEvidenceBundle valid_owned() {
   evidence.real_execution = true;
   evidence.evaluation_monotonic_milliseconds = 250;
   evidence.maximum_host_sample_age_milliseconds = 500;
+  evidence.maximum_owned_gpu_sample_age_milliseconds = 500;
   evidence.gpu.available = true;
+  evidence.gpu.captured_monotonic_milliseconds = 200;
   evidence.gpu.reconciled = true;
   evidence.gpu.process_device_corroboration_available = true;
   evidence.gpu.hard_cap_bytes = 1024;
@@ -176,10 +178,14 @@ int main() {
   physical.evaluation_monotonic_milliseconds = 1000;
   physical.system_host_pre.captured_monotonic_milliseconds = 900;
   physical.system_host_post.captured_monotonic_milliseconds = 950;
+  physical.gpu.captured_monotonic_milliseconds = 950;
+  physical.maximum_owned_gpu_sample_age_milliseconds = 100;
   physical.maximum_wddm_sample_age_milliseconds = 100;
   physical.wddm.available = true;
   physical.wddm.captured_monotonic_milliseconds = 950;
+  physical.wddm.adapter_description = "test-adapter";
   physical.wddm.local_budget_bytes = 1024;
+  physical.wddm.local_available_for_reservation_bytes = 512;
   physical.wddm.local_current_usage_bytes = 512;
   physical.wddm.adapter_luid_high = 1;
   physical.wddm.adapter_luid_low = 2;
@@ -233,6 +239,7 @@ int main() {
 
   physical.instrumentation_mode = "ordinary";
   physical.evaluation_monotonic_milliseconds = 1100;
+  physical.gpu.captured_monotonic_milliseconds = 1100;
   const auto stale = prisminfer::classify_windows_evidence(physical);
   if (expect(
           !stale.promotable && stale.reason == "fresh_wddm_evidence_required",
@@ -271,6 +278,28 @@ int main() {
   storage.files.front().hard_link_count = 2;
   if (expect_downgrade(storage, "opened_handle_file_identity_required",
                        "multi-link file identity remains ambiguous")) {
+    return 1;
+  }
+
+  auto zero_timestamp = physical;
+  zero_timestamp.wddm.captured_monotonic_milliseconds = 0;
+  if (expect_downgrade(zero_timestamp, "fresh_wddm_evidence_required",
+                       "zero WDDM timestamp fails closed")) {
+    return 1;
+  }
+
+  auto excessive_freshness = physical;
+  excessive_freshness.maximum_wddm_sample_age_milliseconds = 501;
+  if (expect_downgrade(excessive_freshness,
+                       "fresh_wddm_evidence_required",
+                       "WDDM freshness cannot exceed T-103")) {
+    return 1;
+  }
+
+  auto incomplete_wddm = physical;
+  incomplete_wddm.wddm.adapter_description.clear();
+  if (expect_downgrade(incomplete_wddm, "fresh_wddm_evidence_required",
+                       "incomplete WDDM structure fails closed")) {
     return 1;
   }
   storage.files.front().hard_link_count = 1;

@@ -101,6 +101,13 @@ std::uint32_t ExclusiveGpuLease::adapter_luid_low() const {
 
 const std::string& ExclusiveGpuLease::lease_id() const { return lease_id_; }
 
+void ExclusiveGpuLease::quarantine_for_process_lifetime() noexcept {
+  // Intentionally retain the OS authority and in-process registry entry. The
+  // OS releases it at supervisor exit; this adapter cannot be reused after an
+  // unreconciled terminal path in the current supervisor process.
+  native_handle_ = nullptr;
+}
+
 void ExclusiveGpuLease::release() {
   if (!native_handle_) return;
 #ifdef _WIN32

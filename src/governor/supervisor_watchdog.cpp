@@ -108,6 +108,10 @@ SupervisorWatchdogDecision evaluate_supervisor_watchdog(
   if (!sample.owned_gpu.available || !sample.owned_gpu.reconciled ||
       !sample.owned_gpu.process_device_corroboration_available ||
       !sample.owned_gpu.adapter_identity_available || !owned_total ||
+      sample.owned_gpu.captured_monotonic_milliseconds !=
+          sample.gpu.captured_monotonic_milliseconds ||
+      !fresh(sample.owned_gpu.captured_monotonic_milliseconds,
+             sample.evaluated_monotonic_milliseconds, maximum_age) ||
       *owned_total != sample.owned_gpu.owned_current_bytes ||
       sample.owned_gpu.unknown_unreconciled_bytes != 0 ||
       sample.owned_gpu.cuda_context_runtime_current_bytes == 0 ||

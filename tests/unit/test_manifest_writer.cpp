@@ -107,6 +107,7 @@ int main() {
   wddm.local_current_usage_bytes = 4096;
   prisminfer::OwnedGpuMemoryEvidence owned_gpu;
   owned_gpu.available = true;
+  owned_gpu.captured_monotonic_milliseconds = 12346;
   owned_gpu.reconciled = true;
   owned_gpu.hard_cap_bytes = 8192;
   owned_gpu.owned_current_bytes = 2048;
@@ -294,6 +295,12 @@ int main() {
                      "\"owned_gpu_unknown_unreconciled_bytes\": 0") !=
                      std::string::npos,
              "owned GPU peak categories and unknown bytes are retained")) {
+      return 1;
+  }
+  if (expect(content.find(
+                 "\"owned_gpu_captured_monotonic_milliseconds\": 12346") !=
+                 std::string::npos,
+             "owned GPU evidence preserves capture time")) {
     return 1;
   }
   if (expect(content.find("\"file_evidence\": [") != std::string::npos &&

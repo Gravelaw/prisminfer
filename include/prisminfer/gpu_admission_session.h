@@ -56,6 +56,18 @@ struct CancellationDecision {
   GpuAdmissionSessionState state{GpuAdmissionSessionState::FailedClosed};
 };
 
+struct SupervisorCleanupEvidence {
+  bool worker_exit_observed{false};
+  bool job_tree_empty{false};
+  bool job_accounting_reconciled{false};
+  bool device_resources_reconciled{false};
+  bool artifact_handles_closed{false};
+  bool temporary_files_reconciled{false};
+  std::string terminal_reason;
+  std::string last_good_sample_sha256;
+  std::string evidence_bundle_sha256;
+};
+
 struct GpuAdmissionSessionAcquireResult;
 
 class GpuAdmissionSession {
@@ -87,11 +99,15 @@ class GpuAdmissionSession {
       bool job_tree_empty);
   [[nodiscard]] CancellationDecision record_job_abort(
       std::uint64_t now_monotonic_milliseconds, bool job_tree_empty);
+  [[nodiscard]] bool record_normal_worker_exit(
+      std::uint64_t now_monotonic_milliseconds, bool job_tree_empty);
   [[nodiscard]] bool begin_cleanup(
       std::uint64_t now_monotonic_milliseconds);
   [[nodiscard]] GpuAdmissionSessionState cleanup(
-      bool resources_reconciled,
+      const SupervisorCleanupEvidence& evidence,
       std::uint64_t now_monotonic_milliseconds);
+  [[nodiscard]] std::optional<SupervisorCleanupEvidence> terminal_evidence()
+      const;
 
  private:
   struct Impl;

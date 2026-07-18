@@ -29,6 +29,16 @@ int expect_eq(const std::string& actual,
 int main() {
   {
     prisminfer::MemorySample sample;
+    sample.process_gpu_peak_bytes = 0;
+    sample.allocator_peak_bytes = 0;
+    sample.device_delta_bytes = 2;
+    if (expect(!prisminfer::certify_cap(sample, 1).certified,
+               "device delta cannot bypass the cap when process peak is zero"))
+      return 1;
+  }
+
+  {
+    prisminfer::MemorySample sample;
     const auto result = prisminfer::certify_cap(sample, 1024);
     if (expect(result.certified, "empty sample certifies under cap")) return 1;
   }
