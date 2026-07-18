@@ -341,6 +341,10 @@ add_executable(test_c2_case_policy tests/unit/test_c2_case_policy.cpp)
 target_link_libraries(test_c2_case_policy PRIVATE prisminfer_core)
 add_test(NAME test_c2_case_policy COMMAND test_c2_case_policy)
 
+add_executable(test_gpu_thermal tests/unit/test_gpu_thermal.cpp)
+target_link_libraries(test_gpu_thermal PRIVATE prisminfer_core)
+add_test(NAME test_gpu_thermal COMMAND test_gpu_thermal)
+
 add_executable(test_allocator_tracker tests/unit/test_allocator_tracker.cpp)
 target_link_libraries(test_allocator_tracker PRIVATE prisminfer_core)
 add_test(NAME test_allocator_tracker COMMAND test_allocator_tracker)
