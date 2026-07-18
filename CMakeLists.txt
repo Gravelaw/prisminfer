@@ -381,6 +381,12 @@ add_executable(test_supervisor_admission tests/unit/test_supervisor_admission.cp
 target_link_libraries(test_supervisor_admission PRIVATE prisminfer_core)
 add_test(NAME test_supervisor_admission COMMAND test_supervisor_admission)
 
+if(WIN32)
+  add_test(NAME test_c2_supervisor_invocation
+    COMMAND powershell -NoProfile -ExecutionPolicy Bypass -File
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/test_c2_supervisor_invocation.ps1)
+endif()
+
 add_executable(test_windows_evidence tests/unit/test_windows_evidence.cpp)
 target_link_libraries(test_windows_evidence PRIVATE prisminfer_core)
 add_test(NAME test_windows_evidence COMMAND test_windows_evidence)

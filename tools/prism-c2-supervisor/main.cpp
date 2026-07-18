@@ -503,6 +503,9 @@ int main(int argc, char** argv) {
             << "|host_memory=" << host.system_memory_available_bytes
             << "|host_commit=" << host.system_commit_available_bytes
             << "|thermal_available=" << thermal.available
+            << "|thermal_reason="
+            << prisminfer::gpu_thermal_unavailable_reason_name(
+                   thermal.unavailable_reason)
             << "|thermal_ms=" << thermal.captured_monotonic_milliseconds
             << "|temperature=" << thermal.current_celsius
             << "|slowdown="

@@ -561,6 +561,16 @@ int main() {
       return 1;
     }
     request = valid_request();
+    request.thermal.available = false;
+    request.thermal.unavailable_reason =
+        prisminfer::GpuThermalUnavailableReason::SlowdownTlimitTypeInvalid;
+    if (expect(prisminfer::evaluate_pre_context_admission(request).reason ==
+                   "pre_context_gpu_thermal_telemetry_invalid_or_stale:"
+                   "nvml_slowdown_tlimit_type_invalid",
+               "typed thermal acquisition failure is retained")) {
+      return 1;
+    }
+    request = valid_request();
     request.thermal.current_celsius = 78;
     if (expect(prisminfer::evaluate_pre_context_admission(request).reason ==
                    "pre_context_gpu_thermal_state_unsafe",

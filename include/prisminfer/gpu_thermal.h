@@ -8,6 +8,9 @@
 
 namespace prisminfer {
 
+[[nodiscard]] const char* gpu_thermal_unavailable_reason_name(
+    GpuThermalUnavailableReason reason) noexcept;
+
 // Ada-and-later NVML T.Limit offsets are signed relative to the reported GPU
 // target temperature. Invalid or nonphysical conversions stay unavailable.
 [[nodiscard]] std::optional<GpuThermalSample>

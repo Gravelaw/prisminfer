@@ -7,6 +7,7 @@
 
 #include "prisminfer/checked_arithmetic.h"
 #include "prisminfer/gpu_cap_policy.h"
+#include "prisminfer/gpu_thermal.h"
 
 namespace prisminfer {
 
@@ -239,8 +240,8 @@ constexpr std::uint64_t kMaximumCleanupMilliseconds = 5'000;
 constexpr std::uint64_t kMaximumDispatchBoundMilliseconds = 500;
 
 PreContextAdmissionDecision reject(PreContextAdmissionDecision decision,
-                                   const char* reason) {
-  decision.reason = reason;
+                                   std::string reason) {
+  decision.reason = std::move(reason);
   return decision;
 }
 
@@ -527,8 +528,16 @@ PreContextAdmissionDecision evaluate_pre_context_admission(
       request.thermal, request.evaluation_monotonic_milliseconds,
       timing.maximum_guard_age_milliseconds);
   if (!thermal) {
-    return reject(decision,
-                  "pre_context_gpu_thermal_telemetry_invalid_or_stale");
+    std::string reason =
+        "pre_context_gpu_thermal_telemetry_invalid_or_stale";
+    if (!request.thermal.available &&
+        request.thermal.unavailable_reason !=
+            GpuThermalUnavailableReason::None) {
+      reason += ":";
+      reason += gpu_thermal_unavailable_reason_name(
+          request.thermal.unavailable_reason);
+    }
+    return reject(decision, reason);
   }
   decision.gpu_warning_celsius = thermal->warning_celsius;
   decision.gpu_stop_celsius = thermal->stop_celsius;

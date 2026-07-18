@@ -28,6 +28,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'c2-supervisor-invocation.ps1')
 $mutex = $null
 $hasMutex = $false
 
@@ -96,12 +97,48 @@ try {
 
     $supervisor = Join-Path $workspace 'build/c2-clearance/Release/prism-c2-supervisor.exe'
     $worker = Join-Path $workspace 'build/c2-clearance/Release/prism-c2-synthetic-worker.exe'
+    if (-not (Test-Path -LiteralPath $supervisor -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $worker -PathType Leaf)) {
+        throw 'C2 supervisor or worker build output is missing.'
+    }
     foreach ($caseName in @('success', 'post-context-telemetry-loss', 'heartbeat-loss', 'watchdog-cancel')) {
-        & $supervisor --worker $worker --output-root $resolvedOutput --case $caseName `
-            --workflow-run-id $env:GITHUB_RUN_ID --authorization-id $AuthorizationId `
-            --gpu-uuid $GpuUuid --adapter-index $AdapterIndex `
-            --payload-bytes $PayloadBytes
-        if ($LASTEXITCODE -ne 0) {
+        $arguments = @(
+            '--worker', $worker,
+            '--output-root', $resolvedOutput,
+            '--case', $caseName,
+            '--workflow-run-id', $env:GITHUB_RUN_ID,
+            '--authorization-id', $AuthorizationId,
+            '--gpu-uuid', $GpuUuid,
+            '--adapter-index', "$AdapterIndex",
+            '--payload-bytes', "$PayloadBytes"
+        )
+        $invocation = Invoke-C2SupervisorProcess -Supervisor $supervisor `
+            -Arguments $arguments
+        $caseOutput = @($invocation.Output | ForEach-Object { ("$_").Trim() })
+        $caseExitCode = $invocation.ExitCode
+        $caseOutput | ForEach-Object { Write-Host "$_" }
+        if (-not $invocation.LaunchSucceeded -or $caseExitCode -ne 0) {
+            $typedReason = @($caseOutput |
+                    Where-Object { $_ -match '^[a-z0-9][a-z0-9_.:-]{0,255}$' } |
+                    Select-Object -Last 1)
+            if ($typedReason.Count -ne 1) {
+                $typedReason = if ($invocation.LaunchSucceeded) {
+                    @("supervisor_exit_$caseExitCode")
+                } else {
+                    @('supervisor_launch_failed')
+                }
+            }
+            [ordered]@{
+                schema_version = 'prisminfer-c2-promotion-status-v1'
+                promotable = $false
+                c2_credit = $false
+                review_status = 'not-run'
+                reason = $typedReason[0]
+                reviewed_sha = $ReviewedSha
+                source_tree_sha = $SourceTreeSha
+                authorization_id = $AuthorizationId
+                workflow_run_id = $env:GITHUB_RUN_ID
+            } | ConvertTo-Json -Compress | Set-Content -LiteralPath $statusPath -Encoding utf8
             throw "C2 worker case '$caseName' failed; automatic retry is forbidden."
         }
     }
