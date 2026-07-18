@@ -82,6 +82,53 @@ int expect_downgrade(const prisminfer::WindowsEvidenceBundle& evidence,
 }  // namespace
 
 int main() {
+  const auto independent =
+      prisminfer::reconcile_process_device_memory_candidates(
+          42U, 1, 2U, 100U,
+          {{"nvml-compute", 4096U}, {"nvml-graphics", 4096U}});
+  if (expect(independent.available &&
+                 independent.source == "nvml-process" &&
+                 independent.process_id == 42U &&
+                 independent.current_bytes == 4096U &&
+                 independent.adapter_luid_high == 1 &&
+                 independent.adapter_luid_low == 2U,
+             "independent process-device reports bind PID and adapter")) {
+    return 1;
+  }
+  const auto contradictory =
+      prisminfer::reconcile_process_device_memory_candidates(
+          42U, 1, 2U, 100U,
+          {{"nvml-compute", 4096U}, {"nvml-graphics", 8192U}});
+  if (expect(!contradictory.available &&
+                 contradictory.unavailable_reason ==
+                     "process_device_reports_contradictory",
+             "contradictory driver reports fail closed")) {
+    return 1;
+  }
+  const auto duplicate =
+      prisminfer::reconcile_process_device_memory_candidates(
+          42U, 1, 2U, 100U,
+          {{"nvml-compute", 4096U}, {"nvml-compute", 4096U}});
+  if (expect(!duplicate.available &&
+                 duplicate.unavailable_reason ==
+                     "process_device_source_invalid",
+             "duplicate engine reports cannot inflate confidence")) {
+    return 1;
+  }
+  const auto invalid_live =
+      prisminfer::sample_process_device_memory(0U, 1, 2U);
+  if (expect(!invalid_live.available &&
+#if defined(_WIN32)
+                 invalid_live.unavailable_reason ==
+                     "process_device_pid_required",
+#else
+                 invalid_live.unavailable_reason ==
+                     "process_device_telemetry_not_available_for_platform",
+#endif
+             "live collector rejects an unbound process identity")) {
+    return 1;
+  }
+
   const auto owned = prisminfer::classify_windows_evidence(valid_owned());
   if (expect(owned.promotable &&
                  owned.classification == "owned-allocation-cap-certified",

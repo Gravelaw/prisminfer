@@ -63,6 +63,11 @@ struct NativeWorkerResult {
   std::string captured_output;
   std::uint32_t exit_code{0};
   bool timed_out{false};
+  bool worker_exit_observed{false};
+  bool job_tree_empty{false};
+  bool job_accounting_reconciled{false};
+  bool artifact_handles_closed{false};
+  bool temporary_files_reconciled{false};
   std::uint32_t root_process_id{0};
   std::string job_identity;
   std::uint32_t job_total_processes{0};
@@ -83,6 +88,48 @@ struct NativeWorkerResult {
   std::string approval_identity;
 };
 
+struct NativeWorkerContainmentIdentity {
+  std::uint32_t root_process_id{0};
+  std::string job_identity;
+  std::string executable_identity;
+  std::uint32_t maximum_active_processes{0};
+  std::uint64_t job_memory_limit_bytes{0};
+  std::uint32_t job_cpu_time_limit_milliseconds{0};
+};
+
+struct NativeWorkerAdmissionGrant {
+  bool admitted{false};
+  std::uint64_t token_id{0};
+  std::uint64_t effective_cap_bytes{0};
+  std::string failure_reason;
+};
+
+// The runner invokes this authority only from inside the lifetime of its
+// retained process and Job handles. Protocol messages are nonce-bound and
+// cannot create containment evidence or cleanup evidence by themselves.
+class NativeWorkerProtocolSupervisor {
+ public:
+  virtual ~NativeWorkerProtocolSupervisor() = default;
+  virtual bool bind_owned_worker(
+      const NativeWorkerContainmentIdentity& identity) = 0;
+  virtual NativeWorkerAdmissionGrant context_ready(
+      std::uint64_t now_monotonic_milliseconds) = 0;
+  virtual bool token_consumed(
+      std::uint64_t token_id,
+      std::uint64_t now_monotonic_milliseconds) = 0;
+  virtual bool heartbeat(std::uint64_t sequence,
+                         std::uint64_t now_monotonic_milliseconds) = 0;
+  virtual void cooperative_cancel_acknowledged(
+      std::uint64_t now_monotonic_milliseconds) = 0;
+};
+
+struct NativeWorkerProtocolPolicy {
+  std::uint32_t context_ready_timeout_ms{2'000U};
+  std::uint32_t heartbeat_timeout_ms{500U};
+  std::uint32_t cooperative_cancel_ack_timeout_ms{500U};
+  std::uint32_t worker_exit_timeout_ms{2'000U};
+};
+
 // Quotes one argv element using the CommandLineToArgvW-compatible rules used
 // by CreateProcessW children built with the Microsoft C runtime.
 std::wstring quote_windows_argument(const std::wstring& argument);
@@ -100,5 +147,15 @@ std::string sha256_regular_file(const std::filesystem::path& path);
 // opens a model or initializes CUDA.
 NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
                                      const NativeWorkerRequest& request);
+
+// Launches the same contained boundary but retains bidirectional protocol
+// handles. The worker must announce CONTEXT_READY before receiving a one-shot
+// admission token, echo TOKEN_CONSUMED exactly once, and then emit monotonic
+// HEARTBEAT records. Any malformed, duplicate, stale, or rejected message
+// causes cooperative cancellation followed by Job termination.
+NativeWorkerResult run_supervised_native_worker(
+    const NativeWorkerTrustCatalog& catalog, const NativeWorkerRequest& request,
+    const NativeWorkerProtocolPolicy& policy,
+    NativeWorkerProtocolSupervisor& supervisor);
 
 }  // namespace prisminfer

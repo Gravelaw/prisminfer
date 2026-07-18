@@ -236,16 +236,19 @@ record is never by itself terminal evidence.
 ### Packet B implementation binding
 
 The CPU-only implementation binds the normative states through
-`GpuAdmissionSession`: an owned OS-wide lease precedes Stage A; a complete
-contained-worker receipt precedes Stage B; the Stage-B receipt can mint and
-consume only one exact-cell token; and the first accepted watchdog sample
-activates submissions. Every rejected watchdog sample blocks submissions and
-records `CancelRequested` in the supervisor. The session retains a timely
-cooperative acknowledgement only within T-105, requires Job abort when the
-acknowledgement or worker-exit deadline is missed, and permits lease release
-only after bounded cleanup. A nonempty Job tree, missed cleanup deadline, or
-unreconciled resource state ends in `Quarantined`. These are CPU/simulation
-contracts; they do not themselves record live device or model evidence.
+`GpuAdmissionSession`: an owned OS-wide lease precedes Stage A, then the
+session itself launches the approved image suspended, assigns the non-
+breakaway kill-on-close Job, retains the process/Job/control handles, and only
+then resumes it. A nonce-bound `CONTEXT_READY` message permits Stage B; the
+session delivers one exact-cell token once and requires one matching
+`TOKEN_CONSUMED` acknowledgement before accepting monotonic heartbeats.
+Protocol deadlines come from the immutable receipt. Every rejected or stale
+watchdog sample blocks submissions and causes `CANCEL`, a bounded
+`CANCEL_ACK`, and Job termination when the worker does not exit. Only the
+runner's observed process exit, empty Job tree, accounting, and closed artifact
+handles can permit final cleanup; caller booleans cannot advance those states.
+These are CPU/simulation contracts and do not themselves record live device or
+model evidence.
 
 ## Clearance Binding
 

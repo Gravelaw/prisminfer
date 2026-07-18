@@ -1,11 +1,14 @@
 #include "prisminfer/windows_evidence.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <iomanip>
 #include <iterator>
 #include <limits>
+#include <optional>
 #include <sstream>
+#include <unordered_set>
 #include <vector>
 
 #include "prisminfer/gpu_cap_policy.h"
@@ -131,6 +134,184 @@ std::string hex_bytes(const unsigned char* bytes, std::size_t count) {
 #endif
 
 }  // namespace
+
+ProcessDeviceMemorySample reconcile_process_device_memory_candidates(
+    std::uint32_t process_id, std::int32_t adapter_luid_high,
+    std::uint32_t adapter_luid_low,
+    std::uint64_t captured_monotonic_milliseconds,
+    const std::vector<ProcessDeviceMemoryCandidate>& candidates) {
+  ProcessDeviceMemorySample sample;
+  sample.process_id = process_id;
+  sample.adapter_luid_high = adapter_luid_high;
+  sample.adapter_luid_low = adapter_luid_low;
+  sample.captured_monotonic_milliseconds = captured_monotonic_milliseconds;
+  if (process_id == 0U || captured_monotonic_milliseconds == 0U) {
+    sample.unavailable_reason = "process_device_identity_invalid";
+    return sample;
+  }
+  if (candidates.empty()) {
+    sample.unavailable_reason = "process_device_pid_not_reported";
+    return sample;
+  }
+  std::optional<std::uint64_t> exact_bytes;
+  std::unordered_set<std::string> sources;
+  for (const auto& candidate : candidates) {
+    if ((candidate.source != "nvml-compute" &&
+         candidate.source != "nvml-graphics") ||
+        !sources.insert(candidate.source).second) {
+      sample.unavailable_reason = "process_device_source_invalid";
+      return sample;
+    }
+    if (exact_bytes && *exact_bytes != candidate.bytes) {
+      sample.unavailable_reason = "process_device_reports_contradictory";
+      return sample;
+    }
+    exact_bytes = candidate.bytes;
+  }
+  sample.available = true;
+  sample.source = "nvml-process";
+  sample.current_bytes = *exact_bytes;
+  return sample;
+}
+
+ProcessDeviceMemorySample sample_process_device_memory(
+    std::uint32_t process_id, std::int32_t adapter_luid_high,
+    std::uint32_t adapter_luid_low) {
+  ProcessDeviceMemorySample unavailable;
+  unavailable.process_id = process_id;
+  unavailable.adapter_luid_high = adapter_luid_high;
+  unavailable.adapter_luid_low = adapter_luid_low;
+#if !defined(_WIN32)
+  unavailable.unavailable_reason =
+      "process_device_telemetry_not_available_for_platform";
+  return unavailable;
+#else
+  if (process_id == 0U) {
+    unavailable.unavailable_reason = "process_device_pid_required";
+    return unavailable;
+  }
+  using NvmlReturn = int;
+  using NvmlDevice = void*;
+  struct NvmlProcessInfo {
+    unsigned int pid;
+    unsigned long long used_gpu_memory;
+    unsigned int gpu_instance_id;
+    unsigned int compute_instance_id;
+  };
+  using Init = NvmlReturn(__cdecl*)();
+  using Shutdown = NvmlReturn(__cdecl*)();
+  using DeviceCount = NvmlReturn(__cdecl*)(unsigned int*);
+  using DeviceByIndex = NvmlReturn(__cdecl*)(unsigned int, NvmlDevice*);
+  using DeviceLuid = NvmlReturn(__cdecl*)(NvmlDevice, char*, unsigned int*);
+  using RunningProcesses =
+      NvmlReturn(__cdecl*)(NvmlDevice, unsigned int*, NvmlProcessInfo*);
+  constexpr NvmlReturn kSuccess = 0;
+  constexpr NvmlReturn kInsufficientSize = 7;
+  constexpr unsigned long long kValueNotAvailable = ~0ULL;
+  struct ModuleGuard {
+    HMODULE value{nullptr};
+    ~ModuleGuard() {
+      if (value != nullptr) FreeLibrary(value);
+    }
+  } module{LoadLibraryExW(L"nvml.dll", nullptr,
+                          LOAD_LIBRARY_SEARCH_SYSTEM32)};
+  if (module.value == nullptr) {
+    unavailable.unavailable_reason = "nvml_provider_unavailable";
+    return unavailable;
+  }
+  const auto symbol = [&](const char* name) {
+    return GetProcAddress(module.value, name);
+  };
+  const auto init = reinterpret_cast<Init>(symbol("nvmlInit_v2"));
+  const auto shutdown = reinterpret_cast<Shutdown>(symbol("nvmlShutdown"));
+  const auto count_devices =
+      reinterpret_cast<DeviceCount>(symbol("nvmlDeviceGetCount_v2"));
+  const auto device_by_index = reinterpret_cast<DeviceByIndex>(
+      symbol("nvmlDeviceGetHandleByIndex_v2"));
+  const auto device_luid =
+      reinterpret_cast<DeviceLuid>(symbol("nvmlDeviceGetLuid"));
+  const auto compute = reinterpret_cast<RunningProcesses>(
+      symbol("nvmlDeviceGetComputeRunningProcesses_v3"));
+  const auto graphics = reinterpret_cast<RunningProcesses>(
+      symbol("nvmlDeviceGetGraphicsRunningProcesses_v3"));
+  if (!init || !shutdown || !count_devices || !device_by_index ||
+      !device_luid || !compute || !graphics || init() != kSuccess) {
+    unavailable.unavailable_reason = "nvml_contract_unavailable";
+    return unavailable;
+  }
+  struct ShutdownGuard {
+    Shutdown shutdown;
+    ~ShutdownGuard() { (void)shutdown(); }
+  } guard{shutdown};
+  unsigned int count = 0U;
+  if (count_devices(&count) != kSuccess || count == 0U || count > 64U) {
+    unavailable.unavailable_reason = "nvml_device_enumeration_failed";
+    return unavailable;
+  }
+  NvmlDevice matched = nullptr;
+  for (unsigned int index = 0U; index < count; ++index) {
+    NvmlDevice device = nullptr;
+    std::array<char, 8> luid{};
+    unsigned int node_mask = 0U;
+    if (device_by_index(index, &device) != kSuccess || device == nullptr ||
+        device_luid(device, luid.data(), &node_mask) != kSuccess) {
+      continue;
+    }
+    LUID expected{};
+    expected.HighPart = adapter_luid_high;
+    expected.LowPart = adapter_luid_low;
+    if (std::equal(luid.begin(), luid.end(),
+                   reinterpret_cast<const char*>(&expected))) {
+      if (matched != nullptr) {
+        unavailable.unavailable_reason = "nvml_adapter_luid_ambiguous";
+        return unavailable;
+      }
+      matched = device;
+    }
+  }
+  if (matched == nullptr) {
+    unavailable.unavailable_reason = "nvml_adapter_luid_not_found";
+    return unavailable;
+  }
+  std::vector<ProcessDeviceMemoryCandidate> candidates;
+  const auto collect = [&](RunningProcesses query, const char* source) {
+    unsigned int entries = 0U;
+    NvmlReturn status = query(matched, &entries, nullptr);
+    if (status == kSuccess && entries == 0U) return true;
+    if (status != kInsufficientSize || entries == 0U || entries > 65536U) {
+      return false;
+    }
+    std::vector<NvmlProcessInfo> processes(entries);
+    status = query(matched, &entries, processes.data());
+    if (status != kSuccess || entries > processes.size()) return false;
+    for (unsigned int index = 0U; index < entries; ++index) {
+      if (processes[index].pid == process_id) {
+        if (processes[index].used_gpu_memory == kValueNotAvailable) {
+          return false;
+        }
+        candidates.push_back({source, processes[index].used_gpu_memory});
+        break;
+      }
+    }
+    return true;
+  };
+  if (!collect(compute, "nvml-compute") ||
+      !collect(graphics, "nvml-graphics")) {
+    unavailable.unavailable_reason = "nvml_process_query_failed";
+    return unavailable;
+  }
+  const auto captured = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch())
+                            .count();
+  if (captured <= 0) {
+    unavailable.unavailable_reason = "monotonic_clock_invalid";
+    return unavailable;
+  }
+  return reconcile_process_device_memory_candidates(
+      process_id, adapter_luid_high, adapter_luid_low,
+      static_cast<std::uint64_t>(captured), candidates);
+#endif
+}
 
 WddmMemorySample sample_wddm_memory(std::uint32_t adapter_index) {
   WddmMemorySample sample;

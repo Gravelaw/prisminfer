@@ -476,7 +476,8 @@ std::filesystem::path final_path_from_handle(HANDLE handle) {
   return std::filesystem::path(std::wstring(buffer.data(), written));
 }
 
-std::vector<wchar_t> minimal_environment() {
+std::vector<wchar_t> minimal_environment(const std::string& protocol_nonce,
+                                         std::uintptr_t protocol_output) {
   wchar_t system_root[MAX_PATH + 1]{};
   const DWORD length = GetEnvironmentVariableW(L"SystemRoot", system_root,
                                                 MAX_PATH + 1);
@@ -487,8 +488,30 @@ std::vector<wchar_t> minimal_environment() {
   block += L"SystemDrive=";
   block += std::filesystem::path(system_root).root_name().wstring();
   block.push_back(L'\0');
+  if (!protocol_nonce.empty()) {
+    block += L"PRISMINFER_PROTOCOL_NONCE=";
+    block.append(protocol_nonce.begin(), protocol_nonce.end());
+    block.push_back(L'\0');
+    block += L"PRISMINFER_PROTOCOL_OUT_HANDLE=";
+    block += std::to_wstring(protocol_output);
+    block.push_back(L'\0');
+  }
   block.push_back(L'\0');
   return std::vector<wchar_t>(block.begin(), block.end());
+}
+
+std::string random_protocol_nonce() {
+  std::array<unsigned char, 16> bytes{};
+  if (BCryptGenRandom(nullptr, bytes.data(), static_cast<ULONG>(bytes.size()),
+                      BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0) {
+    return {};
+  }
+  std::ostringstream encoded;
+  encoded << std::hex << std::setfill('0');
+  for (const auto byte : bytes) {
+    encoded << std::setw(2) << static_cast<unsigned int>(byte);
+  }
+  return encoded.str();
 }
 
 bool create_opaque_output_artifact(
@@ -538,15 +561,33 @@ std::wstring build_command_line(const std::filesystem::path& executable,
 }  // namespace
 #endif
 
-NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
-                                     const NativeWorkerRequest& request) {
+namespace {
+
+NativeWorkerResult run_native_worker_impl(
+    const NativeWorkerTrustCatalog& catalog, const NativeWorkerRequest& request,
+    const NativeWorkerProtocolPolicy* protocol_policy,
+    NativeWorkerProtocolSupervisor* protocol_supervisor) {
 #if !defined(_WIN32)
   (void)catalog;
   (void)request;
+  (void)protocol_policy;
+  (void)protocol_supervisor;
   NativeWorkerResult result;
   result.failure_reason = "native_worker_windows_required";
   return result;
 #else
+  const bool protocol_enabled =
+      protocol_policy != nullptr && protocol_supervisor != nullptr;
+  if ((protocol_policy == nullptr) != (protocol_supervisor == nullptr)) {
+    return fail("native_worker_protocol_configuration_invalid");
+  }
+  if (protocol_enabled &&
+      (protocol_policy->context_ready_timeout_ms == 0U ||
+       protocol_policy->heartbeat_timeout_ms == 0U ||
+       protocol_policy->cooperative_cancel_ack_timeout_ms == 0U ||
+       protocol_policy->worker_exit_timeout_ms == 0U)) {
+    return fail("native_worker_protocol_deadline_invalid");
+  }
   if (request.timeout_ms == 0U) {
     return fail("native_worker_timeout_required");
   }
@@ -699,7 +740,33 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
     retained_input_roots.push_back(std::move(input_root_handle));
     retained_inputs.push_back(std::move(input_handle));
   }
-  const auto environment = minimal_environment();
+  const std::string protocol_nonce =
+      protocol_enabled ? random_protocol_nonce() : std::string{};
+  if (protocol_enabled && protocol_nonce.empty()) {
+    return fail("native_worker_protocol_nonce_failed");
+  }
+  SECURITY_ATTRIBUTES pipe_security{};
+  pipe_security.nLength = sizeof(pipe_security);
+  pipe_security.bInheritHandle = TRUE;
+  UniqueHandle protocol_output_read;
+  UniqueHandle protocol_output_write;
+  if (protocol_enabled) {
+    HANDLE control_read_raw = nullptr;
+    HANDLE control_write_raw = nullptr;
+    if (!CreatePipe(&control_read_raw, &control_write_raw, &pipe_security,
+                    4096U)) {
+      return fail("native_worker_protocol_output_pipe_failed");
+    }
+    protocol_output_read.reset(control_read_raw);
+    protocol_output_write.reset(control_write_raw);
+    if (!SetHandleInformation(protocol_output_read.get(), HANDLE_FLAG_INHERIT,
+                              0U)) {
+      return fail("native_worker_protocol_output_inherit_failed");
+    }
+  }
+  const auto environment = minimal_environment(
+      protocol_nonce,
+      reinterpret_cast<std::uintptr_t>(protocol_output_write.get()));
   if (environment.empty()) {
     return fail("native_worker_environment_or_dll_policy_failed");
   }
@@ -720,9 +787,6 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
   result.output_limit_bytes = request.max_output_bytes;
   result.job_memory_limit_bytes = request.max_job_memory_bytes;
   result.job_cpu_time_limit_milliseconds = request.timeout_ms;
-  SECURITY_ATTRIBUTES pipe_security{};
-  pipe_security.nLength = sizeof(pipe_security);
-  pipe_security.bInheritHandle = TRUE;
   HANDLE output_read_raw = nullptr;
   HANDLE output_write_raw = nullptr;
   if (!CreatePipe(&output_read_raw, &output_write_raw, &pipe_security, 4096U)) {
@@ -733,13 +797,30 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
   if (!SetHandleInformation(output_read.get(), HANDLE_FLAG_INHERIT, 0U)) {
     return fail("native_worker_output_inherit_failed");
   }
-  UniqueHandle null_input(CreateFileW(L"NUL", GENERIC_READ, FILE_SHARE_READ |
-                                               FILE_SHARE_WRITE,
-                                      nullptr, OPEN_EXISTING, 0, nullptr));
-  if (null_input.get() == INVALID_HANDLE_VALUE ||
-      !SetHandleInformation(null_input.get(), HANDLE_FLAG_INHERIT,
-                            HANDLE_FLAG_INHERIT)) {
-    return fail("native_worker_stdio_setup_failed");
+  UniqueHandle null_input;
+  UniqueHandle protocol_input_read;
+  UniqueHandle protocol_input_write;
+  if (protocol_enabled) {
+    HANDLE input_read_raw = nullptr;
+    HANDLE input_write_raw = nullptr;
+    if (!CreatePipe(&input_read_raw, &input_write_raw, &pipe_security, 4096U)) {
+      return fail("native_worker_protocol_pipe_failed");
+    }
+    protocol_input_read.reset(input_read_raw);
+    protocol_input_write.reset(input_write_raw);
+    if (!SetHandleInformation(protocol_input_write.get(), HANDLE_FLAG_INHERIT,
+                              0U)) {
+      return fail("native_worker_protocol_inherit_failed");
+    }
+  } else {
+    null_input.reset(CreateFileW(L"NUL", GENERIC_READ,
+                                 FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                 OPEN_EXISTING, 0, nullptr));
+    if (null_input.get() == INVALID_HANDLE_VALUE ||
+        !SetHandleInformation(null_input.get(), HANDLE_FLAG_INHERIT,
+                              HANDLE_FLAG_INHERIT)) {
+      return fail("native_worker_stdio_setup_failed");
+    }
   }
 
   UniqueHandle job(CreateJobObjectW(nullptr, nullptr));
@@ -773,10 +854,15 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
     LPPROC_THREAD_ATTRIBUTE_LIST attributes;
     ~AttributeListCleanup() { DeleteProcThreadAttributeList(attributes); }
   } cleanup{attributes};
-  HANDLE inherited_handles[] = {null_input.get(), output_write.get()};
+  HANDLE inherited_handles[] = {
+      protocol_enabled ? protocol_input_read.get() : null_input.get(),
+      output_write.get(), protocol_output_write.get()};
+  const SIZE_T inherited_handle_bytes =
+      protocol_enabled ? sizeof(inherited_handles)
+                       : 2U * sizeof(inherited_handles[0]);
   if (!UpdateProcThreadAttribute(attributes, 0U,
                                  PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-                                 inherited_handles, sizeof(inherited_handles),
+                                 inherited_handles, inherited_handle_bytes,
                                  nullptr, nullptr)) {
     return fail("native_worker_handle_restriction_failed");
   }
@@ -794,7 +880,8 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
   STARTUPINFOEXW startup{};
   startup.StartupInfo.cb = sizeof(startup);
   startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
-  startup.StartupInfo.hStdInput = null_input.get();
+  startup.StartupInfo.hStdInput =
+      protocol_enabled ? protocol_input_read.get() : null_input.get();
   startup.StartupInfo.hStdOutput = output_write.get();
   startup.StartupInfo.hStdError = output_write.get();
   startup.lpAttributeList = attributes;
@@ -830,6 +917,8 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
       std::to_string(process.dwProcessId) + ":" +
       std::to_string(launch_identity_ticks);
   output_write.reset();
+  protocol_input_read.reset();
+  protocol_output_write.reset();
   if (!AssignProcessToJobObject(job.get(), process_handle.get())) {
     if (!TerminateProcess(process_handle.get(), 1U) ||
         WaitForSingleObject(process_handle.get(), request.timeout_ms) !=
@@ -850,6 +939,17 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
     }
     return fail("native_worker_tree_sample_failed");
   }
+  if (protocol_enabled && !protocol_supervisor->bind_owned_worker(
+                              {process.dwProcessId, result.job_identity,
+                               executable_hash, request.max_active_processes,
+                               request.max_job_memory_bytes,
+                               request.timeout_ms})) {
+    if (!terminate_job_tree(job.get(), process_handle.get(), tree_memory,
+                            request.timeout_ms)) {
+      return fail("native_worker_protocol_bind_cleanup_failed");
+    }
+    return fail("native_worker_protocol_bind_rejected");
+  }
   if (ResumeThread(thread_handle.get()) == static_cast<DWORD>(-1)) {
     if (!terminate_job_tree(job.get(), process_handle.get(), tree_memory,
                             request.timeout_ms)) {
@@ -858,12 +958,134 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
     return fail("native_worker_resume_failed");
   }
   const ULONGLONG deadline = GetTickCount64() + request.timeout_ms;
+  const ULONGLONG protocol_started = GetTickCount64();
   DWORD wait = WAIT_TIMEOUT;
   bool tree_complete = false;
   bool job_query_failed = false;
   bool output_limit_exceeded = false;
   std::string captured_output;
   captured_output.reserve(static_cast<std::size_t>(request.max_output_bytes));
+  enum class ProtocolState {
+    AwaitContext,
+    TokenDelivered,
+    Active,
+    CancelSent,
+    CancelAcknowledged,
+  };
+  ProtocolState protocol_state = ProtocolState::AwaitContext;
+  std::uint64_t protocol_token_id = 0U;
+  std::uint64_t heartbeat_sequence = 0U;
+  ULONGLONG last_heartbeat = protocol_started;
+  ULONGLONG cancel_sent_at = 0U;
+  std::string protocol_pending;
+  std::string protocol_failure;
+  const auto write_protocol = [&](const std::string& message) {
+    if (!protocol_enabled || protocol_input_write.get() == nullptr) return false;
+    DWORD written = 0U;
+    return message.size() <= MAXDWORD &&
+           WriteFile(protocol_input_write.get(), message.data(),
+                     static_cast<DWORD>(message.size()), &written, nullptr) &&
+           written == message.size();
+  };
+  const auto request_protocol_cancel = [&](const std::string& reason) {
+    if (!protocol_enabled || protocol_state == ProtocolState::CancelSent ||
+        protocol_state == ProtocolState::CancelAcknowledged) {
+      return;
+    }
+    protocol_failure = reason;
+    const std::string message = "PRISMINFER/1 CANCEL " + protocol_nonce + "\n";
+    if (!write_protocol(message) && protocol_failure.empty()) {
+      protocol_failure = "native_worker_protocol_cancel_write_failed";
+    }
+    protocol_state = ProtocolState::CancelSent;
+    cancel_sent_at = GetTickCount64();
+  };
+  const auto process_protocol_line = [&](std::string line) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (!protocol_enabled || line.size() > 512U ||
+        line.find('\r') != std::string::npos) {
+      request_protocol_cancel("native_worker_protocol_message_invalid");
+      return;
+    }
+    std::istringstream parsed(line);
+    std::string version;
+    std::string type;
+    std::string nonce;
+    parsed >> version >> type >> nonce;
+    if (version != "PRISMINFER/1" || nonce != protocol_nonce) {
+      request_protocol_cancel("native_worker_protocol_identity_mismatch");
+      return;
+    }
+    const auto now = static_cast<std::uint64_t>(GetTickCount64());
+    if (type == "CONTEXT_READY") {
+      std::string extra;
+      if (protocol_state != ProtocolState::AwaitContext || parsed >> extra) {
+        request_protocol_cancel("native_worker_protocol_context_duplicate");
+        return;
+      }
+      const auto grant = protocol_supervisor->context_ready(now);
+      if (!grant.admitted || grant.token_id == 0U ||
+          grant.effective_cap_bytes == 0U) {
+        request_protocol_cancel(
+            grant.failure_reason.empty()
+                ? "native_worker_protocol_admission_rejected"
+                : "native_worker_protocol_admission_rejected:" +
+                      grant.failure_reason);
+        return;
+      }
+      protocol_token_id = grant.token_id;
+      const std::string message =
+          "PRISMINFER/1 ADMIT " + protocol_nonce + " " +
+          std::to_string(grant.token_id) + " " +
+          std::to_string(grant.effective_cap_bytes) + "\n";
+      if (!write_protocol(message)) {
+        request_protocol_cancel("native_worker_protocol_token_write_failed");
+        return;
+      }
+      protocol_state = ProtocolState::TokenDelivered;
+      return;
+    }
+    if (type == "TOKEN_CONSUMED") {
+      std::uint64_t token_id = 0U;
+      std::string extra;
+      if (protocol_state != ProtocolState::TokenDelivered ||
+          !(parsed >> token_id) || parsed >> extra ||
+          token_id != protocol_token_id ||
+          !protocol_supervisor->token_consumed(token_id, now)) {
+        request_protocol_cancel("native_worker_protocol_token_rejected");
+        return;
+      }
+      protocol_state = ProtocolState::Active;
+      last_heartbeat = GetTickCount64();
+      return;
+    }
+    if (type == "HEARTBEAT") {
+      std::uint64_t sequence = 0U;
+      std::string extra;
+      if (protocol_state != ProtocolState::Active || !(parsed >> sequence) ||
+          parsed >> extra || sequence != heartbeat_sequence + 1U) {
+        request_protocol_cancel("native_worker_protocol_heartbeat_invalid");
+        return;
+      }
+      heartbeat_sequence = sequence;
+      last_heartbeat = GetTickCount64();
+      if (!protocol_supervisor->heartbeat(sequence, now)) {
+        request_protocol_cancel("native_worker_protocol_watchdog_rejected");
+      }
+      return;
+    }
+    if (type == "CANCEL_ACK") {
+      std::string extra;
+      if (protocol_state != ProtocolState::CancelSent || parsed >> extra) {
+        request_protocol_cancel("native_worker_protocol_cancel_ack_invalid");
+        return;
+      }
+      protocol_state = ProtocolState::CancelAcknowledged;
+      protocol_supervisor->cooperative_cancel_acknowledged(now);
+      return;
+    }
+    request_protocol_cancel("native_worker_protocol_message_unknown");
+  };
   const auto drain_output = [&]() {
     for (;;) {
       DWORD available = 0U;
@@ -888,10 +1110,61 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
                              buffer.data() + read);
     }
   };
+  const auto drain_protocol = [&]() {
+    if (!protocol_enabled) return true;
+    for (;;) {
+      DWORD available = 0U;
+      if (!PeekNamedPipe(protocol_output_read.get(), nullptr, 0U, nullptr,
+                         &available, nullptr)) {
+        return GetLastError() == ERROR_BROKEN_PIPE;
+      }
+      if (available == 0U) return true;
+      std::array<char, 1024U> buffer{};
+      DWORD read = 0U;
+      if (!ReadFile(protocol_output_read.get(), buffer.data(),
+                    std::min<DWORD>(available,
+                                    static_cast<DWORD>(buffer.size())),
+                    &read, nullptr)) {
+        return GetLastError() == ERROR_BROKEN_PIPE;
+      }
+      protocol_pending.append(buffer.data(), read);
+      if (protocol_pending.size() > 1024U) {
+        request_protocol_cancel("native_worker_protocol_buffer_exceeded");
+        protocol_pending.clear();
+      }
+      std::size_t newline = 0U;
+      while ((newline = protocol_pending.find('\n')) != std::string::npos) {
+        const std::string line = protocol_pending.substr(0U, newline);
+        protocol_pending.erase(0U, newline + 1U);
+        process_protocol_line(line);
+      }
+    }
+  };
   while (GetTickCount64() < deadline) {
     wait = WaitForSingleObject(process_handle.get(), 10U);
     if (!drain_output()) return fail("native_worker_output_read_failed");
+    if (!drain_protocol()) return fail("native_worker_protocol_read_failed");
     if (output_limit_exceeded) break;
+    if (protocol_enabled) {
+      const ULONGLONG now = GetTickCount64();
+      if (protocol_state == ProtocolState::AwaitContext &&
+          now - protocol_started >= protocol_policy->context_ready_timeout_ms) {
+        request_protocol_cancel("native_worker_protocol_context_timeout");
+      } else if (protocol_state == ProtocolState::Active &&
+                 now - last_heartbeat >=
+                     protocol_policy->heartbeat_timeout_ms) {
+        request_protocol_cancel("native_worker_protocol_heartbeat_timeout");
+      }
+      if (protocol_state == ProtocolState::CancelSent &&
+          now - cancel_sent_at >=
+              protocol_policy->cooperative_cancel_ack_timeout_ms) {
+        break;
+      }
+      if (protocol_state == ProtocolState::CancelAcknowledged &&
+          now - cancel_sent_at >= protocol_policy->worker_exit_timeout_ms) {
+        break;
+      }
+    }
     if (!sample_job_tree(job.get(), process.dwProcessId,
                          request.max_active_processes, &tree_memory)) {
       job_query_failed = true;
@@ -913,6 +1186,29 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
     } else if (wait == WAIT_FAILED) {
       break;
     }
+  }
+  if (!drain_protocol()) return fail("native_worker_protocol_read_failed");
+  if (protocol_enabled && !protocol_failure.empty()) {
+    if (!tree_complete &&
+        !terminate_job_tree(job.get(), process_handle.get(), tree_memory,
+                            protocol_policy->worker_exit_timeout_ms)) {
+      return fail("native_worker_protocol_abort_cleanup_failed");
+    }
+    result.failure_reason = protocol_failure;
+    result.worker_exit_observed = true;
+    result.job_tree_empty = true;
+    result.artifact_handles_closed = true;
+    result.temporary_files_reconciled = true;
+    return result;
+  }
+  if (protocol_enabled && tree_complete &&
+      protocol_state != ProtocolState::Active) {
+    result.failure_reason = "native_worker_protocol_incomplete";
+    result.worker_exit_observed = true;
+    result.job_tree_empty = true;
+    result.artifact_handles_closed = true;
+    result.temporary_files_reconciled = true;
+    return result;
   }
   if (job_query_failed) {
     if (!terminate_job_tree(job.get(), process_handle.get(), tree_memory,
@@ -1021,6 +1317,11 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
   result.read_bytes = job_io.IoInfo.ReadTransferCount;
   result.write_bytes = job_io.IoInfo.WriteTransferCount;
   result.evidence_available = true;
+  result.worker_exit_observed = true;
+  result.job_tree_empty = true;
+  result.job_accounting_reconciled = true;
+  result.artifact_handles_closed = true;
+  result.temporary_files_reconciled = true;
   result.ok = !result.timed_out && result.exit_code == 0U;
   result.failure_reason = result.ok ? "" :
       (result.timed_out ? "native_worker_timeout" : "native_worker_child_failed");
@@ -1035,6 +1336,20 @@ NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
   }
   return result;
 #endif
+}
+
+}  // namespace
+
+NativeWorkerResult run_native_worker(const NativeWorkerTrustCatalog& catalog,
+                                     const NativeWorkerRequest& request) {
+  return run_native_worker_impl(catalog, request, nullptr, nullptr);
+}
+
+NativeWorkerResult run_supervised_native_worker(
+    const NativeWorkerTrustCatalog& catalog, const NativeWorkerRequest& request,
+    const NativeWorkerProtocolPolicy& policy,
+    NativeWorkerProtocolSupervisor& supervisor) {
+  return run_native_worker_impl(catalog, request, &policy, &supervisor);
 }
 
 }  // namespace prisminfer

@@ -192,9 +192,23 @@ int finish_probe(const prisminfer::RuntimeConfig& config,
       config.worker_evidence_available || cuda.context_created;
   windows_bundle.gpu.available = cuda.available && cuda.context_created;
   windows_bundle.gpu.reconciled = sample.telemetry_agreement;
-  // Generic allocator/CUDA telemetry is not an independent process-device
-  // measurement. A future trusted producer must populate the typed
-  // process-device contract before owned-allocation certification is possible.
+  const auto process_device = prisminfer::sample_process_device_memory(
+      config.worker_root_process_id, wddm.adapter_luid_high,
+      wddm.adapter_luid_low);
+  windows_bundle.gpu.process_device_corroboration_available =
+      process_device.available;
+  windows_bundle.gpu.process_device_source = process_device.source;
+  windows_bundle.gpu.process_id = process_device.process_id;
+  windows_bundle.gpu.process_device_captured_monotonic_milliseconds =
+      process_device.captured_monotonic_milliseconds;
+  windows_bundle.gpu.process_device_current_bytes =
+      process_device.current_bytes;
+  windows_bundle.gpu.adapter_identity_available =
+      process_device.available && wddm.available;
+  windows_bundle.gpu.adapter_luid_high = process_device.adapter_luid_high;
+  windows_bundle.gpu.adapter_luid_low = process_device.adapter_luid_low;
+  windows_bundle.gpu.captured_monotonic_milliseconds =
+      process_device.captured_monotonic_milliseconds;
   windows_bundle.gpu.hard_cap_bytes = config.hard_cap_bytes;
   windows_bundle.gpu.owned_current_bytes = sample.allocator_bytes;
   windows_bundle.gpu.owned_peak_bytes = sample.allocator_peak_bytes;

@@ -412,6 +412,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate-plan-projec
   until Packet B's final exact-head safety review and exit. #76 and #83 are `Ready`;
   dependency-gated #77-#78 and #84-#89 are `Blocked`; later work remains
   `Backlog` except independently admission-blocked #99/#100.
+- The current Packet B review candidate closes the three prior binding
+  implementation gaps in CPU-safe code: session-owned process/Job/control and
+  cleanup authority; a nonce-bound context-ready, one-shot-token, heartbeat,
+  cancellation and watchdog protocol; and an independent NVML process-memory
+  producer bound to the worker PID and DXGI adapter LUID. Llama GPU execution
+  fails closed until it speaks that protocol. This earns no live hardware,
+  model, calibration, performance, or C2 credit before fresh exact-head review.
 - PR #111 is merged Packet A history. Draft PR #112 is the freshly ported
   Packet B integration work and remains merge-gated by final exact-head safety
   review and hosted checks. It preserves the V2 owner documents and does not

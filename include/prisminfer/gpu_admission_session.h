@@ -1,12 +1,14 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 
 #include "prisminfer/admission_token.h"
 #include "prisminfer/exclusive_gpu_lease.h"
+#include "prisminfer/native_worker.h"
 #include "prisminfer/supervisor_watchdog.h"
 
 namespace prisminfer {
@@ -27,21 +29,6 @@ enum class GpuAdmissionSessionState {
   FailedClosed,
   Cleaned,
   Quarantined,
-};
-
-struct ContainedWorkerEvidence {
-  bool created_suspended{false};
-  bool job_assigned_before_resume{false};
-  bool non_breakaway_job{false};
-  bool kill_on_close{false};
-  bool controlled_environment{false};
-  bool controlled_inherited_handles{false};
-  std::uint32_t root_process_id{0};
-  std::uint32_t maximum_active_processes{0};
-  std::uint64_t job_memory_limit_bytes{0};
-  std::uint32_t job_cpu_time_limit_milliseconds{0};
-  std::string job_identity;
-  std::string executable_identity;
 };
 
 enum class CancellationAction {
@@ -68,6 +55,20 @@ struct SupervisorCleanupEvidence {
   std::string evidence_bundle_sha256;
 };
 
+struct DeviceCleanupEvidence {
+  bool device_resources_reconciled{false};
+  std::string terminal_reason;
+  std::string last_good_sample_sha256;
+  std::string evidence_bundle_sha256;
+};
+
+using PostContextEvidenceProducer = std::function<PostContextAdmissionRequest(
+    std::uint32_t worker_process_id,
+    std::uint64_t context_ready_monotonic_milliseconds)>;
+using WatchdogEvidenceProducer = std::function<SupervisorWatchdogSample(
+    std::uint32_t worker_process_id, std::uint64_t heartbeat_sequence,
+    std::uint64_t heartbeat_monotonic_milliseconds)>;
+
 struct GpuAdmissionSessionAcquireResult;
 
 class GpuAdmissionSession {
@@ -82,8 +83,22 @@ class GpuAdmissionSession {
   [[nodiscard]] std::string lease_id() const;
   [[nodiscard]] PreContextAdmissionDecision admit_pre_context(
       PreContextAdmissionRequest request);
-  [[nodiscard]] bool bind_contained_worker(
-      const ContainedWorkerEvidence& evidence);
+  // This is the only production worker entry point. The session invokes the
+  // secure launcher itself and therefore owns the live process, Job,
+  // bidirectional control channel, cancellation, and fail-closed teardown.
+  [[nodiscard]] NativeWorkerResult run_contained_worker(
+      const NativeWorkerTrustCatalog& catalog,
+      const NativeWorkerRequest& request,
+      std::uint64_t token_validity_milliseconds,
+      PostContextEvidenceProducer post_context_evidence,
+      WatchdogEvidenceProducer watchdog_evidence);
+  [[nodiscard]] GpuAdmissionSessionState finalize_cleanup(
+      const DeviceCleanupEvidence& evidence,
+      std::uint64_t now_monotonic_milliseconds);
+  [[nodiscard]] std::optional<SupervisorCleanupEvidence> terminal_evidence()
+      const;
+
+ private:
   [[nodiscard]] PostContextAdmissionDecision admit_post_context(
       PostContextAdmissionRequest request);
   [[nodiscard]] AdmissionTokenIssueResult issue_token(
@@ -93,6 +108,8 @@ class GpuAdmissionSession {
       AdmissionToken& token, std::uint64_t now_monotonic_milliseconds);
   [[nodiscard]] SupervisorWatchdogDecision evaluate_watchdog(
       const SupervisorWatchdogSample& sample);
+  [[nodiscard]] bool bind_owned_worker(
+      const NativeWorkerContainmentIdentity& identity);
   [[nodiscard]] CancellationDecision advance_cancellation(
       std::uint64_t now_monotonic_milliseconds,
       bool cooperative_cancel_acknowledged, bool worker_exited,
@@ -103,13 +120,9 @@ class GpuAdmissionSession {
       std::uint64_t now_monotonic_milliseconds, bool job_tree_empty);
   [[nodiscard]] bool begin_cleanup(
       std::uint64_t now_monotonic_milliseconds);
-  [[nodiscard]] GpuAdmissionSessionState cleanup(
+  [[nodiscard]] GpuAdmissionSessionState cleanup_owned(
       const SupervisorCleanupEvidence& evidence,
       std::uint64_t now_monotonic_milliseconds);
-  [[nodiscard]] std::optional<SupervisorCleanupEvidence> terminal_evidence()
-      const;
-
- private:
   struct Impl;
   friend struct GpuAdmissionSessionAcquireResult;
   friend GpuAdmissionSessionAcquireResult acquire_gpu_admission_session(

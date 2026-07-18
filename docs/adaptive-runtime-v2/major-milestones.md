@@ -209,13 +209,20 @@ review accept the complete tree. No CUDA, model, calibration, capacity, or
 performance evidence was produced.
 
 The first fresh review of head `2effb8497c2b44328faeb7c8f93e1fcc0ea4deed`
-rejected packet exit. It found mutable deadline, host-envelope and thermal
-state; an unbound worker token; asserted process/device corroboration; missing
-Packet A model-byte binding; and a deeper lifecycle gap in which
-`GpuAdmissionSession` did not own the live Job/process/cancel/cleanup
-authority. The CPU-safe follow-up binds the immutable receipt/token/evidence
-and artifact fields, but the live native-worker lifecycle finding remains a
-packet-exit blocker. No tracker state or clearance changes on this receipt.
+rejected packet exit. The CPU-safe follow-up now removes caller-assembled
+containment, token-consumption, cancellation, and Job-cleanup transitions from
+the production session API. `GpuAdmissionSession` launches the approved image,
+retains the process/Job/control authority through exit, derives protocol
+deadlines from the immutable Stage-A receipt, and owns one-shot token delivery,
+heartbeat rejection, cooperative cancellation, Job termination, and cleanup
+facts. A dedicated nonce-bound control pipe is separate from worker output.
+Duplicate consumption, missing context readiness, heartbeat loss, and cleanup
+are covered by contained CPU worker tests. The production llama GPU path fails
+closed until it implements this context-ready protocol. The Windows evidence
+producer dynamically queries NVML, binds PID plus DXGI LUID, and rejects
+missing or contradictory compute/graphics reports. This remains review-state
+implementation only: no tracker state or clearance changes occur until fresh
+exact-head review and hosted checks accept the final tree.
 
 ## M3: Packet C - exact admission and supervised foundation evidence
 

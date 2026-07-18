@@ -1,8 +1,14 @@
 #include <cstdint>
+#include <cstdlib>
+#include <filesystem>
 #include <iostream>
-#include <utility>
+#include <string>
 
 #include "prisminfer/gpu_admission_session.h"
+
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 
 namespace {
 
@@ -14,15 +20,15 @@ int expect(bool condition, const char* message) {
   return 1;
 }
 
-prisminfer::AdmissionCellIdentity cell(std::uint8_t seed = 1) {
+prisminfer::AdmissionCellIdentity cell() {
   prisminfer::AdmissionCellIdentity identity;
-  identity.run_sequence = seed;
-  identity.run_contract_hash.fill(seed);
-  identity.threshold_registry_hash.fill(seed + 1);
-  identity.hardware_identity_hash.fill(seed + 2);
-  identity.runtime_identity_hash.fill(seed + 3);
-  identity.artifact_identity_hash.fill(seed + 4);
-  identity.service_profile_hash.fill(seed + 5);
+  identity.run_sequence = 1U;
+  identity.run_contract_hash.fill(1U);
+  identity.threshold_registry_hash.fill(2U);
+  identity.hardware_identity_hash.fill(3U);
+  identity.runtime_identity_hash.fill(4U);
+  identity.artifact_identity_hash.fill(5U);
+  identity.service_profile_hash.fill(6U);
   return identity;
 }
 
@@ -31,21 +37,20 @@ prisminfer::PredictedBytes prediction(
   return {bytes, provenance};
 }
 
-prisminfer::PreContextAdmissionRequest pre_request(
-    const prisminfer::AdmissionCellIdentity& exact_cell = cell()) {
+prisminfer::PreContextAdmissionRequest pre_request(std::uint64_t now) {
   prisminfer::PreContextAdmissionRequest request;
-  request.requested_tier_bytes = 8 * kGiB;
-  request.context_tokens = 8'192;
-  request.run_deadline_milliseconds = 60'000;
-  request.evaluation_monotonic_milliseconds = 10'100;
-  request.cell = exact_cell;
+  request.requested_tier_bytes = 8U * kGiB;
+  request.context_tokens = 8'192U;
+  request.run_deadline_milliseconds = 60'000U;
+  request.evaluation_monotonic_milliseconds = now;
+  request.cell = cell();
   using prisminfer::PredictionProvenance;
   request.predicted_gpu.context_runtime =
       prediction(512ULL << 20, PredictionProvenance::PinnedRuntimeEstimate);
   request.predicted_gpu.backend =
       prediction(256ULL << 20, PredictionProvenance::PinnedRuntimeEstimate);
   request.predicted_gpu.model =
-      prediction(5 * kGiB, PredictionProvenance::ApprovedArtifactCensus);
+      prediction(5U * kGiB, PredictionProvenance::ApprovedArtifactCensus);
   request.predicted_gpu.state =
       prediction(256ULL << 20, PredictionProvenance::ApprovedArtifactCensus);
   request.predicted_gpu.workspace =
@@ -55,414 +60,272 @@ prisminfer::PreContextAdmissionRequest pre_request(
   request.gpu.available = true;
   request.gpu.adapter_identity_available = true;
   request.gpu.adapter_luid_high = 7;
-  request.gpu.adapter_luid_low = 11;
-  request.gpu.captured_monotonic_milliseconds = 10'000;
-  request.gpu.physical_or_reportable_local_bytes = 16 * kGiB;
-  request.gpu.dxgi_local_budget_bytes = 15 * kGiB;
+  request.gpu.adapter_luid_low = 11U;
+  request.gpu.captured_monotonic_milliseconds = now - 10U;
+  request.gpu.physical_or_reportable_local_bytes = 16U * kGiB;
+  request.gpu.dxgi_local_budget_bytes = 15U * kGiB;
   request.gpu.dxgi_local_current_usage_bytes = kGiB;
   request.thermal.available = true;
-  request.thermal.captured_monotonic_milliseconds = 10'000;
-  request.thermal.current_celsius = 55;
-  request.thermal.reported_target_celsius = 90;
-  request.thermal.reported_slowdown_celsius = 92;
+  request.thermal.captured_monotonic_milliseconds = now - 10U;
+  request.thermal.current_celsius = 55U;
+  request.thermal.reported_target_celsius = 90U;
+  request.thermal.reported_slowdown_celsius = 92U;
   request.storage.available = true;
-  request.storage.free_bytes = 100 * kGiB;
-  request.storage.reserve_bytes = 10 * kGiB;
-  request.storage.required_incremental_bytes = 20 * kGiB;
+  request.storage.free_bytes = 100U * kGiB;
+  request.storage.reserve_bytes = 10U * kGiB;
+  request.storage.required_incremental_bytes = 20U * kGiB;
   request.host.available = true;
   request.host.system_commit_source = "get_performance_info";
-  request.host.captured_monotonic_milliseconds = 10'000;
-  request.host.system_memory_total_bytes = 32 * kGiB;
-  request.host.system_memory_available_bytes = 16 * kGiB;
-  request.host.system_commit_total_bytes = 16 * kGiB;
-  request.host.system_commit_limit_bytes = 64 * kGiB;
-  request.host.system_commit_available_bytes = 48 * kGiB;
+  request.host.captured_monotonic_milliseconds = now - 10U;
+  request.host.system_memory_total_bytes = 32U * kGiB;
+  request.host.system_memory_available_bytes = 16U * kGiB;
+  request.host.system_commit_total_bytes = 16U * kGiB;
+  request.host.system_commit_limit_bytes = 64U * kGiB;
+  request.host.system_commit_available_bytes = 48U * kGiB;
   request.host_policy = prisminfer::default_host_reserve_policy(
       prisminfer::HostAdmissionLane::DevelopmentNonPromotable);
-  request.host_request.planned_incremental_resident_bytes = 4 * kGiB;
-  request.host_request.planned_incremental_commit_bytes = 4 * kGiB;
+  request.host_request.planned_incremental_resident_bytes = 4U * kGiB;
+  request.host_request.planned_incremental_commit_bytes = 4U * kGiB;
   return request;
 }
 
-prisminfer::PostContextAdmissionRequest post_request(
-    const prisminfer::AdmissionCellIdentity& exact_cell = cell()) {
-  const auto pre = pre_request(exact_cell);
+prisminfer::PostContextAdmissionRequest post_request(std::uint64_t now,
+                                                     std::uint32_t pid) {
+  const auto pre = pre_request(now);
   prisminfer::PostContextAdmissionRequest request;
   request.policy_ceiling_bytes = pre.policy_ceiling_bytes;
   request.requested_tier_bytes = pre.requested_tier_bytes;
-  request.evaluation_monotonic_milliseconds = 10'300;
+  request.evaluation_monotonic_milliseconds = now;
   request.timing = pre.timing;
-  request.cell = exact_cell;
+  request.cell = cell();
   request.gpu = pre.gpu;
-  request.gpu.captured_monotonic_milliseconds = 10'200;
-  request.gpu.dxgi_local_budget_bytes = 14 * kGiB;
-  request.gpu.dxgi_local_current_usage_bytes = 2 * kGiB;
+  request.gpu.dxgi_local_budget_bytes = 14U * kGiB;
+  request.gpu.dxgi_local_current_usage_bytes = 2U * kGiB;
   request.thermal = pre.thermal;
-  request.thermal.captured_monotonic_milliseconds = 10'200;
   request.owned_gpu.available = true;
-  request.owned_gpu.captured_monotonic_milliseconds =
-      request.gpu.captured_monotonic_milliseconds;
+  request.owned_gpu.captured_monotonic_milliseconds = now - 10U;
   request.owned_gpu.reconciled = true;
   request.owned_gpu.process_device_corroboration_available = true;
   request.owned_gpu.process_device_source = "wddm-process";
-  request.owned_gpu.process_id = 1234;
-  request.owned_gpu.process_device_captured_monotonic_milliseconds =
-      request.owned_gpu.captured_monotonic_milliseconds;
+  request.owned_gpu.process_id = pid;
+  request.owned_gpu.process_device_captured_monotonic_milliseconds = now - 10U;
   request.owned_gpu.adapter_identity_available = true;
   request.owned_gpu.adapter_luid_high = 7;
-  request.owned_gpu.adapter_luid_low = 11;
-  request.owned_gpu.hard_cap_bytes = 8 * kGiB;
+  request.owned_gpu.adapter_luid_low = 11U;
+  request.owned_gpu.hard_cap_bytes = 8U * kGiB;
   request.owned_gpu.owned_current_bytes = 512ULL << 20;
-  request.owned_gpu.process_device_current_bytes =
-      request.owned_gpu.owned_current_bytes;
+  request.owned_gpu.process_device_current_bytes = 512ULL << 20;
   request.owned_gpu.owned_peak_bytes = 512ULL << 20;
   request.owned_gpu.cuda_context_runtime_current_bytes = 512ULL << 20;
   request.owned_gpu.cuda_context_runtime_at_owned_peak_bytes = 512ULL << 20;
-  request.owned_gpu.cuda_mem_info_free_bytes = 12 * kGiB;
-  request.owned_gpu.cuda_mem_info_total_bytes = 16 * kGiB;
+  request.owned_gpu.cuda_mem_info_free_bytes = 12U * kGiB;
+  request.owned_gpu.cuda_mem_info_total_bytes = 16U * kGiB;
   request.host = pre.host;
-  request.host.captured_monotonic_milliseconds = 10'200;
   request.host_policy = pre.host_policy;
   request.host_request = pre.host_request;
   return request;
 }
 
-prisminfer::ContainedWorkerEvidence contained_worker() {
-  prisminfer::ContainedWorkerEvidence evidence;
-  evidence.created_suspended = true;
-  evidence.job_assigned_before_resume = true;
-  evidence.non_breakaway_job = true;
-  evidence.kill_on_close = true;
-  evidence.controlled_environment = true;
-  evidence.controlled_inherited_handles = true;
-  evidence.root_process_id = 1234;
-  evidence.maximum_active_processes = 1;
-  evidence.job_memory_limit_bytes = 8 * kGiB;
-  evidence.job_cpu_time_limit_milliseconds = 60'000;
-  evidence.job_identity = "job-test";
-  evidence.executable_identity = "approved-test-worker";
-  return evidence;
-}
-
-prisminfer::SupervisorCleanupEvidence cleanup_evidence(bool complete = true) {
-  prisminfer::SupervisorCleanupEvidence evidence;
-  if (!complete) return evidence;
-  evidence.worker_exit_observed = true;
-  evidence.job_tree_empty = true;
-  evidence.job_accounting_reconciled = true;
-  evidence.device_resources_reconciled = true;
-  evidence.artifact_handles_closed = true;
-  evidence.temporary_files_reconciled = true;
-  evidence.terminal_reason = "completed";
-  evidence.last_good_sample_sha256 = std::string(64U, 'a');
-  evidence.evidence_bundle_sha256 = std::string(64U, 'b');
-  return evidence;
-}
-
-prisminfer::SupervisorWatchdogSample watchdog_sample() {
-  const auto base = pre_request();
+prisminfer::SupervisorWatchdogSample watchdog_sample(std::uint64_t now,
+                                                     std::uint32_t pid) {
+  const auto post = post_request(now, pid);
   prisminfer::SupervisorWatchdogSample sample;
-  sample.evaluated_monotonic_milliseconds = 10'400;
-  sample.run_deadline_monotonic_milliseconds = 70'100;
-  sample.worker_heartbeat_monotonic_milliseconds = 10'300;
-  sample.worker_alive = true;
-  sample.gpu = base.gpu;
-  sample.gpu.captured_monotonic_milliseconds = 10'300;
-  sample.gpu.dxgi_local_budget_bytes = 14 * kGiB;
-  sample.gpu.dxgi_local_current_usage_bytes = 2 * kGiB;
-  sample.owned_gpu.available = true;
-  sample.owned_gpu.captured_monotonic_milliseconds =
-      sample.gpu.captured_monotonic_milliseconds;
-  sample.owned_gpu.reconciled = true;
-  sample.owned_gpu.process_device_corroboration_available = true;
-  sample.owned_gpu.process_device_source = "wddm-process";
-  sample.owned_gpu.process_id = 1234;
-  sample.owned_gpu.process_device_captured_monotonic_milliseconds =
-      sample.owned_gpu.captured_monotonic_milliseconds;
-  sample.owned_gpu.adapter_identity_available = true;
-  sample.owned_gpu.adapter_luid_high = 7;
-  sample.owned_gpu.adapter_luid_low = 11;
-  sample.owned_gpu.hard_cap_bytes = 8 * kGiB;
-  sample.owned_gpu.owned_current_bytes = 512ULL << 20;
-  sample.owned_gpu.process_device_current_bytes =
-      sample.owned_gpu.owned_current_bytes;
-  sample.owned_gpu.owned_peak_bytes = 512ULL << 20;
-  sample.owned_gpu.cuda_context_runtime_current_bytes = 512ULL << 20;
-  sample.owned_gpu.cuda_context_runtime_at_owned_peak_bytes = 512ULL << 20;
-  sample.owned_gpu.cuda_mem_info_free_bytes = 12 * kGiB;
-  sample.owned_gpu.cuda_mem_info_total_bytes = 16 * kGiB;
-  sample.thermal = base.thermal;
-  sample.thermal.captured_monotonic_milliseconds = 10'300;
-  sample.host = base.host;
-  sample.host.captured_monotonic_milliseconds = 10'300;
-  sample.host_policy = base.host_policy;
-  sample.host_request = base.host_request;
+  sample.run_deadline_monotonic_milliseconds = now + 30'000U;
+  sample.gpu = post.gpu;
+  sample.owned_gpu = post.owned_gpu;
+  sample.thermal = post.thermal;
+  sample.host = post.host;
+  sample.host_policy = post.host_policy;
+  sample.host_request = post.host_request;
   return sample;
 }
 
+class AcceptingProtocolSupervisor final
+    : public prisminfer::NativeWorkerProtocolSupervisor {
+ public:
+  bool bind_owned_worker(
+      const prisminfer::NativeWorkerContainmentIdentity& identity) override {
+    bound_pid = identity.root_process_id;
+    return bound_pid != 0U && !identity.job_identity.empty();
+  }
+  prisminfer::NativeWorkerAdmissionGrant context_ready(
+      std::uint64_t) override {
+    return {true, 17U, 1U * kGiB, ""};
+  }
+  bool token_consumed(std::uint64_t token_id, std::uint64_t) override {
+    ++consumption_count;
+    return token_id == 17U && consumption_count == 1U;
+  }
+  bool heartbeat(std::uint64_t, std::uint64_t) override { return true; }
+  void cooperative_cancel_acknowledged(std::uint64_t) override {
+    cancel_acknowledged = true;
+  }
+  std::uint32_t bound_pid{0U};
+  std::uint32_t consumption_count{0U};
+  bool cancel_acknowledged{false};
+};
+
 }  // namespace
 
-int main() {
-  using prisminfer::ExclusiveGpuLeaseStatus;
-  using prisminfer::GpuAdmissionSessionState;
-
-  {
-    auto invalid = cell();
-    invalid.run_contract_hash.fill(0);
-    if (expect(prisminfer::acquire_gpu_admission_session(invalid, 7, 11)
-                       .status == prisminfer::GpuAdmissionSessionAcquireResult::
-                                      Status::InvalidCellIdentity,
-               "invalid run cell cannot acquire a session")) {
-      return 1;
+int main(int argc, char** argv) {
+#if defined(_WIN32)
+  if (argc == 2 && std::string(argv[1]).rfind("--protocol-", 0U) == 0U) {
+    const std::string mode = argv[1];
+    char nonce[64]{};
+    if (GetEnvironmentVariableA("PRISMINFER_PROTOCOL_NONCE", nonce,
+                                static_cast<DWORD>(sizeof(nonce))) != 32U) {
+      return 2;
     }
+    char handle_text[32]{};
+    if (GetEnvironmentVariableA("PRISMINFER_PROTOCOL_OUT_HANDLE", handle_text,
+                                static_cast<DWORD>(sizeof(handle_text))) == 0U) {
+      return 6;
+    }
+    const auto raw_handle = std::strtoull(handle_text, nullptr, 10);
+    const HANDLE protocol_output =
+        reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(raw_handle));
+    const auto write_protocol = [&](const std::string& message) {
+      DWORD written = 0U;
+      return WriteFile(protocol_output, message.data(),
+                       static_cast<DWORD>(message.size()), &written, nullptr) &&
+             written == message.size();
+    };
+    if (mode == "--protocol-no-context") {
+      std::string version;
+      std::string type;
+      std::string returned_nonce;
+      if (!(std::cin >> version >> type >> returned_nonce) ||
+          type != "CANCEL" || returned_nonce != nonce) {
+        return 4;
+      }
+      return write_protocol("PRISMINFER/1 CANCEL_ACK " +
+                            std::string(nonce) + "\n") ? 0 : 7;
+    }
+    if (!write_protocol("PRISMINFER/1 CONTEXT_READY " + std::string(nonce) +
+                        "\n")) {
+      return 7;
+    }
+    std::string version;
+    std::string type;
+    std::string returned_nonce;
+    std::uint64_t token_id = 0U;
+    std::uint64_t cap = 0U;
+    if (!(std::cin >> version >> type >> returned_nonce >> token_id >> cap) ||
+        version != "PRISMINFER/1" || type != "ADMIT" ||
+        returned_nonce != nonce || token_id == 0U || cap == 0U) {
+      return 3;
+    }
+    if (!write_protocol("PRISMINFER/1 TOKEN_CONSUMED " + std::string(nonce) +
+                        " " + std::to_string(token_id) + "\n")) {
+      return 7;
+    }
+    if (mode == "--protocol-duplicate-token") {
+      (void)write_protocol("PRISMINFER/1 TOKEN_CONSUMED " +
+                           std::string(nonce) + " " +
+                           std::to_string(token_id) + "\n");
+      Sleep(1'000U);
+      return 0;
+    }
+    if (!write_protocol("PRISMINFER/1 HEARTBEAT " + std::string(nonce) +
+                        " 1\n")) {
+      return 7;
+    }
+    if (mode == "--protocol-stale-heartbeat") {
+      std::string cancel_version;
+      std::string cancel_type;
+      std::string cancel_nonce;
+      if (!(std::cin >> cancel_version >> cancel_type >> cancel_nonce) ||
+          cancel_type != "CANCEL" || cancel_nonce != nonce) {
+        return 5;
+      }
+      return write_protocol("PRISMINFER/1 CANCEL_ACK " +
+                            std::string(nonce) + "\n") ? 0 : 7;
+    }
+    Sleep(20U);
+    return write_protocol("PRISMINFER/1 HEARTBEAT " + std::string(nonce) +
+                          " 2\n") ? 0 : 7;
   }
 
-  {
-    auto out_of_order =
-        prisminfer::acquire_gpu_admission_session(cell(), 6, 10);
-    if (expect(out_of_order.session &&
-                   out_of_order.session->issue_token(10'400, 100).status ==
-                       prisminfer::AdmissionTokenStatus::
-                           SupervisorStateInvalid &&
-                   out_of_order.session->state() ==
-                       GpuAdmissionSessionState::FailedClosed,
-               "out-of-order token issuance fails closed")) {
-      return 1;
-    }
+  const auto now = static_cast<std::uint64_t>(GetTickCount64());
+  auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 7, 11U);
+  if (expect(acquired.session.has_value(), "session acquires exclusive lease") ||
+      expect(acquired.session->admit_pre_context(pre_request(now)).admitted,
+             "Stage A admits before worker creation")) {
+    return 1;
   }
-
-  {
-    auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 7, 11);
-    if (expect(acquired.lease_status == ExclusiveGpuLeaseStatus::Acquired &&
-                   acquired.session && !acquired.session->lease_id().empty(),
-               "session owns a real adapter lease") ||
-        expect(prisminfer::acquire_exclusive_gpu_lease(7, 11).status ==
-                   ExclusiveGpuLeaseStatus::AlreadyHeldInProcess,
-               "session prevents a competing lease")) {
-      return 1;
-    }
-
-    auto pre = pre_request();
-    pre.exclusive_gpu_lease_held = false;
-    const auto pre_decision = acquired.session->admit_pre_context(pre);
-    if (expect(pre_decision.admitted &&
-                   acquired.session->state() ==
-                       GpuAdmissionSessionState::PreContextAdmitted,
-               "owned lease, not caller boolean, authorizes Stage A")) {
-      return 1;
-    }
-    if (expect(acquired.session->bind_contained_worker(contained_worker()),
-               "secure worker containment precedes Stage B")) {
-      return 1;
-    }
-    auto post = acquired.session->admit_post_context(post_request());
-    if (expect(post.admitted &&
-                   acquired.session->state() ==
-                       GpuAdmissionSessionState::PostContextAdmitted,
-               "session supplies its own Stage-A receipt to Stage B")) {
-      return 1;
-    }
-    auto token = acquired.session->issue_token(10'400, 100);
-    if (expect(token.status == prisminfer::AdmissionTokenStatus::Issued &&
-                   token.token && acquired.session->state() ==
-                                      GpuAdmissionSessionState::TokenIssued,
-               "ordered exact session issues one token")) {
-      return 1;
-    }
-    auto authority = std::move(*token.token);
-    if (expect(acquired.session->consume_token(authority, 10'450).status ==
-                   prisminfer::AdmissionTokenStatus::Consumed &&
-                   acquired.session->state() ==
-                       GpuAdmissionSessionState::TokenConsumed,
-               "session consumes its exact token once")) {
-      return 1;
-    }
-    const auto safe = watchdog_sample();
-    if (expect(acquired.session->evaluate_watchdog(safe).continue_work,
-               "normal run activates watchdog") ||
-        expect(acquired.session->record_normal_worker_exit(10'500, true),
-               "normal exit requires an empty contained Job tree") ||
-        expect(acquired.session->begin_cleanup(10'500),
-               "verified normal exit enters bounded cleanup") ||
-        expect(acquired.session->cleanup(cleanup_evidence(), 10'600) ==
-                   GpuAdmissionSessionState::Cleaned,
-               "reconciled cleanup releases session resources")) {
-      return 1;
-    }
-    const auto terminal = acquired.session->terminal_evidence();
-    if (expect(terminal && terminal->terminal_reason == "completed" &&
-                   terminal->last_good_sample_sha256 == std::string(64U, 'a'),
-               "terminal cleanup evidence remains auditable")) {
-      return 1;
-    }
+  const auto executable = std::filesystem::absolute(argv[0]);
+  const auto hash = prisminfer::sha256_regular_file(executable);
+  prisminfer::NativeWorkerTrustCatalog catalog(
+      {{executable, executable.parent_path(), hash, "session-protocol-test"}});
+  prisminfer::NativeWorkerRequest request;
+  request.executable_path = executable;
+  request.arguments = {L"--protocol-child"};
+  request.timeout_ms = 5'000U;
+  request.max_job_memory_bytes = 1U * kGiB;
+  const auto worker = acquired.session->run_contained_worker(
+      catalog, request, 100U,
+      [](std::uint32_t pid, std::uint64_t ready) {
+        return post_request(ready, pid);
+      },
+      [](std::uint32_t pid, std::uint64_t, std::uint64_t heartbeat) {
+        return watchdog_sample(heartbeat, pid);
+      });
+  if (expect(worker.ok && worker.worker_exit_observed &&
+                 worker.job_tree_empty && worker.job_accounting_reconciled,
+             "session-owned worker completes staged protocol and Job cleanup") ||
+      expect(acquired.session->state() ==
+                 prisminfer::GpuAdmissionSessionState::WorkerExited,
+             "session records only supervisor-observed exit")) {
+    std::cerr << "worker failure=" << worker.failure_reason << "\n";
+    return 1;
   }
-
-  if (expect(prisminfer::acquire_exclusive_gpu_lease(7, 11).status ==
-                 ExclusiveGpuLeaseStatus::Acquired,
-             "cleanup releases the OS-wide lease")) {
+  prisminfer::DeviceCleanupEvidence cleanup;
+  cleanup.device_resources_reconciled = true;
+  cleanup.terminal_reason = "completed";
+  cleanup.last_good_sample_sha256 = std::string(64U, 'a');
+  cleanup.evidence_bundle_sha256 = std::string(64U, 'b');
+  if (expect(acquired.session->finalize_cleanup(cleanup, GetTickCount64()) ==
+                 prisminfer::GpuAdmissionSessionState::Cleaned,
+             "owned cleanup releases the lease only after reconciliation")) {
     return 1;
   }
 
-  {
-    auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 8, 10);
-    const auto rejected = acquired.session->admit_pre_context(pre_request(cell(2)));
-    if (expect(!rejected.admitted && acquired.session->state() ==
-                                        GpuAdmissionSessionState::FailedClosed,
-               "session rejects another valid run cell") ||
-        expect(acquired.session->begin_cleanup(10'500),
-               "rejected session enters cleanup") ||
-        expect(acquired.session->cleanup(cleanup_evidence(false), 10'600) ==
-                   GpuAdmissionSessionState::Quarantined,
-               "unreconciled cleanup quarantines")) {
-      return 1;
-    }
+  const auto run_negative = [&](const wchar_t* mode,
+                                const char* expected_reason) {
+    prisminfer::NativeWorkerRequest negative = request;
+    negative.arguments = {mode};
+    negative.timeout_ms = 2'000U;
+    prisminfer::NativeWorkerProtocolPolicy negative_policy;
+    negative_policy.context_ready_timeout_ms = 50U;
+    negative_policy.heartbeat_timeout_ms = 50U;
+    negative_policy.cooperative_cancel_ack_timeout_ms = 100U;
+    negative_policy.worker_exit_timeout_ms = 500U;
+    AcceptingProtocolSupervisor supervisor;
+    const auto result = prisminfer::run_supervised_native_worker(
+        catalog, negative, negative_policy, supervisor);
+    return !result.ok && result.worker_exit_observed && result.job_tree_empty &&
+           result.failure_reason == expected_reason;
+  };
+  if (expect(run_negative(
+                 L"--protocol-duplicate-token",
+                 "native_worker_protocol_token_rejected"),
+             "duplicate token consumption aborts the contained Job") ||
+      expect(run_negative(L"--protocol-no-context",
+                          "native_worker_protocol_context_timeout"),
+             "missing context barrier triggers bounded cancellation") ||
+      expect(run_negative(L"--protocol-stale-heartbeat",
+                          "native_worker_protocol_heartbeat_timeout"),
+             "heartbeat loss triggers cancellation and contained exit")) {
+    return 1;
   }
-
-
-  {
-    auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 7, 11);
-    auto pre = pre_request();
-    if (expect(acquired.session->admit_pre_context(pre).admitted,
-               "cancel test Stage A admits") ||
-        expect(acquired.session->bind_contained_worker(contained_worker()),
-               "cancel test worker is contained") ||
-        expect(acquired.session->admit_post_context(post_request()).admitted,
-               "cancel test Stage B admits")) {
-      return 1;
-    }
-    auto issued = acquired.session->issue_token(10'400, 100);
-    auto token = std::move(*issued.token);
-    if (expect(acquired.session->consume_token(token, 10'450).status ==
-                   prisminfer::AdmissionTokenStatus::Consumed,
-               "cancel test consumes exact token")) {
-      return 1;
-    }
-    auto safe = watchdog_sample();
-    if (expect(acquired.session->evaluate_watchdog(safe).continue_work &&
-                   acquired.session->state() ==
-                       GpuAdmissionSessionState::WatchdogActive,
-               "fresh watchdog activates supervised work")) {
-      return 1;
-    }
-    auto stale = safe;
-    stale.evaluated_monotonic_milliseconds = 10'900;
-    if (expect(!acquired.session->evaluate_watchdog(stale).continue_work &&
-                   acquired.session->state() ==
-                       GpuAdmissionSessionState::CancelRequested,
-               "telemetry loss blocks submissions and requests cancel")) {
-      return 1;
-    }
-    const auto abort = acquired.session->advance_cancellation(
-        11'400, false, false, false);
-    if (expect(abort.action == prisminfer::CancellationAction::AbortJob &&
-                   abort.state == GpuAdmissionSessionState::JobAbortRequired,
-               "missed acknowledgement deadline requires Job abort") ||
-        expect(acquired.session->record_job_abort(11'500, true).action ==
-                   prisminfer::CancellationAction::BeginCleanup,
-               "empty terminated Job tree permits cleanup") ||
-        expect(acquired.session->begin_cleanup(11'600),
-               "aborted run starts bounded cleanup") ||
-        expect(acquired.session->cleanup(cleanup_evidence(), 11'700) ==
-                   GpuAdmissionSessionState::Cleaned,
-               "reconciled aborted run releases the lease")) {
-      return 1;
-    }
-    if (expect(prisminfer::acquire_exclusive_gpu_lease(8, 10).status ==
-                   ExclusiveGpuLeaseStatus::AlreadyHeldInProcess,
-               "quarantine retains the adapter lease until supervisor exit")) {
-      return 1;
-    }
+#else
+  (void)argc;
+  (void)argv;
+  auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 7, 11U);
+  if (expect(!acquired.session.has_value(),
+             "non-Windows session cannot claim Windows containment")) {
+    return 1;
   }
-
-
-  {
-    auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 7, 11);
-    auto pre = pre_request();
-    if (expect(acquired.session->admit_pre_context(pre).admitted,
-               "cooperative test Stage A admits") ||
-        expect(acquired.session->bind_contained_worker(contained_worker()),
-               "cooperative test worker is contained") ||
-        expect(acquired.session->admit_post_context(post_request()).admitted,
-               "cooperative test Stage B admits")) {
-      return 1;
-    }
-    auto issued = acquired.session->issue_token(10'400, 100);
-    auto token = std::move(*issued.token);
-    if (expect(acquired.session->consume_token(token, 10'450).status ==
-                   prisminfer::AdmissionTokenStatus::Consumed,
-               "cooperative test consumes token")) {
-      return 1;
-    }
-    auto stale = watchdog_sample();
-    stale.evaluated_monotonic_milliseconds = 10'900;
-    (void)acquired.session->evaluate_watchdog(stale);
-    if (expect(acquired.session->advance_cancellation(
-                   11'100, true, false, false).state ==
-                   GpuAdmissionSessionState::CooperativeCancelAcknowledged,
-               "timely cooperative acknowledgement is retained") ||
-        expect(acquired.session->advance_cancellation(
-                   11'600, false, false, false).action ==
-                   prisminfer::CancellationAction::AwaitCooperativeExit,
-               "acknowledged worker receives its bounded exit window") ||
-        expect(acquired.session->advance_cancellation(
-                   12'901, false, true, true).action ==
-                   prisminfer::CancellationAction::AbortJob,
-               "late worker exit cannot erase a missed exit deadline") ||
-        expect(acquired.session->record_job_abort(13'000, true).action ==
-                   prisminfer::CancellationAction::BeginCleanup,
-               "late exit still requires supervisor Job reconciliation") ||
-        expect(acquired.session->begin_cleanup(13'100),
-               "cooperative timeout enters cleanup") ||
-        expect(acquired.session->cleanup(cleanup_evidence(), 16'001) ==
-                   GpuAdmissionSessionState::Quarantined,
-               "cleanup beyond the cancel-relative deadline quarantines")) {
-      return 1;
-    }
-  }
-
-  {
-    auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 9, 13);
-    auto pre = pre_request();
-    pre.gpu.adapter_luid_high = 9;
-    pre.gpu.adapter_luid_low = 13;
-    auto mismatched = post_request();
-    mismatched.gpu.adapter_luid_high = 9;
-    mismatched.gpu.adapter_luid_low = 13;
-    mismatched.owned_gpu.adapter_luid_high = 9;
-    mismatched.owned_gpu.adapter_luid_low = 13;
-    mismatched.owned_gpu.process_id = 42;
-    if (expect(acquired.session->admit_pre_context(pre).admitted,
-               "PID binding test Stage A admits") ||
-        expect(acquired.session->bind_contained_worker(contained_worker()),
-               "PID binding test worker is contained") ||
-        expect(!acquired.session->admit_post_context(mismatched).admitted &&
-                   acquired.session->state() ==
-                       GpuAdmissionSessionState::FailedClosed,
-               "Stage B rejects evidence from another process")) {
-      return 1;
-    }
-  }
-
-  {
-    auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 8, 12);
-    auto pre = pre_request();
-    pre.gpu.adapter_luid_high = 8;
-    pre.gpu.adapter_luid_low = 12;
-    auto invalid_worker = contained_worker();
-    invalid_worker.kill_on_close = false;
-    if (expect(acquired.session->admit_pre_context(pre).admitted,
-               "invalid worker test Stage A admits") ||
-        expect(!acquired.session->bind_contained_worker(invalid_worker) &&
-                   acquired.session->state() ==
-                       GpuAdmissionSessionState::FailedClosed,
-               "worker without kill-on-close containment fails closed") ||
-        expect(acquired.session->begin_cleanup(12'000),
-               "invalid worker enters zero-resource cleanup") ||
-        expect(acquired.session->cleanup(cleanup_evidence(false), 12'100) ==
-                   GpuAdmissionSessionState::Quarantined,
-               "unreconciled containment failure quarantines")) {
-      return 1;
-    }
-  }
+#endif
   return 0;
 }

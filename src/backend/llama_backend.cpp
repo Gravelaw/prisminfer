@@ -241,6 +241,12 @@ class LlamaBackendAdapter final : public BackendAdapter {
                              CappedAllocatorTracker& allocator) override {
     BackendWarmupResult result;
     result.memory_sample = allocator.sample();
+    if (config.gpu_layers != 0U || gpu_requested(config.mode)) {
+      result.ok = false;
+      result.failure_reason =
+          "llama_gpu_requires_supervised_context_protocol";
+      return result;
+    }
     const auto executable = resolve_llama_executable(config);
     if (executable.empty()) {
       result.ok = false;

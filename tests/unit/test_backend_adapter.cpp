@@ -98,6 +98,15 @@ int main(int argc, char** argv) {
     prisminfer::RuntimeConfig config;
     config.backend = prisminfer::BackendKind::Llama;
     prisminfer::CappedAllocatorTracker allocator(config.hard_cap_bytes);
+    config.gpu_layers = 1U;
+    const auto unsupervised_gpu = backend->warmup(config, allocator);
+    if (expect(!unsupervised_gpu.ok &&
+                   unsupervised_gpu.failure_reason ==
+                       "llama_gpu_requires_supervised_context_protocol",
+               "GPU-capable llama cannot bypass staged supervision")) {
+      return 1;
+    }
+    config.gpu_layers = 0U;
     const auto warmup = backend->warmup(config, allocator);
     if (expect(!warmup.ok, "llama backend requires executable")) return 1;
     if (expect(warmup.failure_reason == "llama_executable_required",

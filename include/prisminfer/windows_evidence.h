@@ -28,6 +28,39 @@ struct WddmMemorySample {
 
 WddmMemorySample sample_wddm_memory(std::uint32_t adapter_index = 0U);
 
+struct ProcessDeviceMemoryCandidate {
+  std::string source;
+  std::uint64_t bytes{0};
+};
+
+struct ProcessDeviceMemorySample {
+  bool available{false};
+  std::string unavailable_reason;
+  std::string source;
+  std::uint32_t process_id{0};
+  std::uint64_t captured_monotonic_milliseconds{0};
+  std::int32_t adapter_luid_high{0};
+  std::uint32_t adapter_luid_low{0};
+  std::uint64_t current_bytes{0};
+};
+
+// Reconciles independent per-engine reports for one PID. Duplicate compute
+// and graphics reports are accepted only when they agree; contradictory
+// values fail closed rather than being added or selected heuristically.
+ProcessDeviceMemorySample reconcile_process_device_memory_candidates(
+    std::uint32_t process_id, std::int32_t adapter_luid_high,
+    std::uint32_t adapter_luid_low,
+    std::uint64_t captured_monotonic_milliseconds,
+    const std::vector<ProcessDeviceMemoryCandidate>& candidates);
+
+// Dynamically queries the installed Windows NVML provider and binds the
+// result to both the contained worker PID and the DXGI adapter LUID. This is
+// an independent OS/driver producer; absence or ambiguity is typed as
+// unavailable and never replaced with allocator self-reporting.
+ProcessDeviceMemorySample sample_process_device_memory(
+    std::uint32_t process_id, std::int32_t adapter_luid_high,
+    std::uint32_t adapter_luid_low);
+
 struct FileIoEvidence {
   bool identity_available{false};
   std::string unavailable_reason;

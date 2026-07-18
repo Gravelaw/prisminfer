@@ -1,6 +1,7 @@
 #include "prisminfer/gpu_admission_session.h"
 
 #include <cerrno>
+#include <functional>
 #include <mutex>
 #include <utility>
 
@@ -18,6 +19,33 @@ bool is_sha256(const std::string& value) {
   return true;
 }
 
+class CallbackProtocolSupervisor final
+    : public NativeWorkerProtocolSupervisor {
+ public:
+  std::function<bool(const NativeWorkerContainmentIdentity&)> bind;
+  std::function<NativeWorkerAdmissionGrant(std::uint64_t)> ready;
+  std::function<bool(std::uint64_t, std::uint64_t)> consumed;
+  std::function<bool(std::uint64_t, std::uint64_t)> beat;
+  std::function<void(std::uint64_t)> cancel_ack;
+
+  bool bind_owned_worker(
+      const NativeWorkerContainmentIdentity& identity) override {
+    return bind(identity);
+  }
+  NativeWorkerAdmissionGrant context_ready(std::uint64_t now) override {
+    return ready(now);
+  }
+  bool token_consumed(std::uint64_t token_id, std::uint64_t now) override {
+    return consumed(token_id, now);
+  }
+  bool heartbeat(std::uint64_t sequence, std::uint64_t now) override {
+    return beat(sequence, now);
+  }
+  void cooperative_cancel_acknowledged(std::uint64_t now) override {
+    cancel_ack(now);
+  }
+};
+
 }  // namespace
 
 struct GpuAdmissionSession::Impl {
@@ -28,7 +56,13 @@ struct GpuAdmissionSession::Impl {
   GpuAdmissionSessionState state{GpuAdmissionSessionState::LeaseHeld};
   std::optional<PreContextAdmissionReceipt> pre_receipt;
   std::optional<PostContextAdmissionReceipt> post_receipt;
-  std::optional<ContainedWorkerEvidence> worker;
+  std::optional<NativeWorkerContainmentIdentity> worker;
+  std::optional<AdmissionToken> pending_token;
+  bool owned_worker_exit_observed{false};
+  bool owned_job_tree_empty{false};
+  bool owned_job_accounting_reconciled{false};
+  bool owned_artifact_handles_closed{false};
+  bool owned_temporary_files_reconciled{false};
   std::uint64_t cancel_requested_monotonic_milliseconds{0};
   std::uint64_t cleanup_started_monotonic_milliseconds{0};
   std::optional<SupervisorCleanupEvidence> terminal_evidence;
@@ -55,16 +89,13 @@ GpuAdmissionSessionState GpuAdmissionSession::state() const {
   return impl_->state;
 }
 
-bool GpuAdmissionSession::bind_contained_worker(
-    const ContainedWorkerEvidence& evidence) {
+bool GpuAdmissionSession::bind_owned_worker(
+    const NativeWorkerContainmentIdentity& evidence) {
   if (!impl_) return false;
   std::lock_guard lock(impl_->mutex);
   const bool valid =
       impl_->state == GpuAdmissionSessionState::PreContextAdmitted &&
-      evidence.created_suspended && evidence.job_assigned_before_resume &&
-      evidence.non_breakaway_job && evidence.kill_on_close &&
-      evidence.controlled_environment &&
-      evidence.controlled_inherited_handles && evidence.root_process_id != 0 &&
+      evidence.root_process_id != 0 &&
       evidence.maximum_active_processes != 0 &&
       evidence.job_memory_limit_bytes != 0 &&
       evidence.job_cpu_time_limit_milliseconds != 0 &&
@@ -218,6 +249,159 @@ SupervisorWatchdogDecision GpuAdmissionSession::evaluate_watchdog(
   return decision;
 }
 
+NativeWorkerResult GpuAdmissionSession::run_contained_worker(
+    const NativeWorkerTrustCatalog& catalog,
+    const NativeWorkerRequest& request,
+    std::uint64_t token_validity_milliseconds,
+    PostContextEvidenceProducer post_context_evidence,
+    WatchdogEvidenceProducer watchdog_evidence) {
+  if (!impl_ || token_validity_milliseconds == 0U ||
+      !post_context_evidence || !watchdog_evidence) {
+    NativeWorkerResult rejected;
+    rejected.failure_reason = "supervisor_worker_request_invalid";
+    return rejected;
+  }
+  CallbackProtocolSupervisor protocol;
+  NativeWorkerProtocolPolicy protocol_policy;
+  {
+    std::lock_guard lock(impl_->mutex);
+    if (!impl_->pre_receipt ||
+        impl_->state != GpuAdmissionSessionState::PreContextAdmitted) {
+      NativeWorkerResult rejected;
+      rejected.failure_reason = "supervisor_pre_context_receipt_required";
+      return rejected;
+    }
+    const auto& timing = impl_->pre_receipt->timing();
+    protocol_policy.context_ready_timeout_ms =
+        static_cast<std::uint32_t>(timing.maximum_guard_age_milliseconds);
+    protocol_policy.heartbeat_timeout_ms =
+        static_cast<std::uint32_t>(timing.maximum_guard_age_milliseconds);
+    protocol_policy.cooperative_cancel_ack_timeout_ms =
+        static_cast<std::uint32_t>(
+            timing.cooperative_cancel_ack_milliseconds);
+    protocol_policy.worker_exit_timeout_ms =
+        static_cast<std::uint32_t>(timing.worker_exit_milliseconds);
+  }
+  protocol.bind = [this](const NativeWorkerContainmentIdentity& identity) {
+    return bind_owned_worker(identity);
+  };
+  protocol.ready = [this, &post_context_evidence,
+                    token_validity_milliseconds](std::uint64_t now) {
+    NativeWorkerAdmissionGrant grant;
+    std::uint32_t process_id = 0U;
+    {
+      std::lock_guard lock(impl_->mutex);
+      if (!impl_->worker) return grant;
+      process_id = impl_->worker->root_process_id;
+    }
+    auto request = post_context_evidence(process_id, now);
+    request.owned_gpu.process_id = process_id;
+    const auto admitted = admit_post_context(std::move(request));
+    if (!admitted.admitted) {
+      grant.failure_reason = admitted.reason;
+      return grant;
+    }
+    auto issued = issue_token(now, token_validity_milliseconds);
+    if (issued.status != AdmissionTokenStatus::Issued || !issued.token) {
+      grant.failure_reason = "token_issue_failed";
+      return grant;
+    }
+    grant.admitted = true;
+    grant.token_id = issued.token->token_id();
+    grant.effective_cap_bytes = issued.token->effective_cap_bytes();
+    {
+      std::lock_guard lock(impl_->mutex);
+      impl_->pending_token = std::move(issued.token);
+    }
+    return grant;
+  };
+  protocol.consumed = [this](std::uint64_t token_id, std::uint64_t now) {
+    std::optional<AdmissionToken> token;
+    {
+      std::lock_guard lock(impl_->mutex);
+      if (!impl_->pending_token ||
+          impl_->pending_token->token_id() != token_id) {
+        impl_->state = GpuAdmissionSessionState::FailedClosed;
+        return false;
+      }
+      token = std::move(impl_->pending_token);
+      impl_->pending_token.reset();
+    }
+    return consume_token(*token, now).status == AdmissionTokenStatus::Consumed;
+  };
+  protocol.beat = [this, &watchdog_evidence](std::uint64_t sequence,
+                                             std::uint64_t now) {
+    std::uint32_t process_id = 0U;
+    {
+      std::lock_guard lock(impl_->mutex);
+      if (!impl_->worker) return false;
+      process_id = impl_->worker->root_process_id;
+    }
+    auto sample = watchdog_evidence(process_id, sequence, now);
+    sample.evaluated_monotonic_milliseconds = now;
+    sample.worker_heartbeat_monotonic_milliseconds = now;
+    sample.worker_alive = true;
+    sample.owned_gpu.process_id = process_id;
+    {
+      std::lock_guard lock(impl_->mutex);
+      if (!impl_->post_receipt) return false;
+      sample.run_deadline_monotonic_milliseconds =
+          impl_->post_receipt->run_deadline_monotonic_milliseconds();
+      sample.owned_gpu.hard_cap_bytes =
+          impl_->post_receipt->effective_cap_bytes();
+    }
+    return evaluate_watchdog(sample).continue_work;
+  };
+  protocol.cancel_ack = [this](std::uint64_t now) {
+    (void)advance_cancellation(now, true, false, false);
+  };
+  auto result = run_supervised_native_worker(catalog, request,
+                                             protocol_policy, protocol);
+  {
+    std::lock_guard lock(impl_->mutex);
+    impl_->pending_token.reset();
+    impl_->owned_worker_exit_observed = result.worker_exit_observed;
+    impl_->owned_job_tree_empty = result.job_tree_empty;
+    impl_->owned_job_accounting_reconciled =
+        result.job_accounting_reconciled;
+    impl_->owned_artifact_handles_closed = result.artifact_handles_closed;
+    impl_->owned_temporary_files_reconciled =
+        result.temporary_files_reconciled;
+    if (result.worker_exit_observed && result.job_tree_empty &&
+        impl_->state != GpuAdmissionSessionState::Quarantined) {
+      impl_->state = GpuAdmissionSessionState::WorkerExited;
+    } else if (!result.worker_exit_observed || !result.job_tree_empty) {
+      impl_->state = GpuAdmissionSessionState::Quarantined;
+    }
+    if (impl_->state == GpuAdmissionSessionState::Quarantined && impl_->lease) {
+      impl_->lease->quarantine_for_process_lifetime();
+    }
+  }
+  return result;
+}
+
+GpuAdmissionSessionState GpuAdmissionSession::finalize_cleanup(
+    const DeviceCleanupEvidence& evidence, std::uint64_t now) {
+  if (!impl_ || now == 0U) return GpuAdmissionSessionState::FailedClosed;
+  SupervisorCleanupEvidence owned;
+  {
+    std::lock_guard lock(impl_->mutex);
+    owned.worker_exit_observed = impl_->owned_worker_exit_observed;
+    owned.job_tree_empty = impl_->owned_job_tree_empty;
+    owned.job_accounting_reconciled =
+        impl_->owned_job_accounting_reconciled;
+    owned.artifact_handles_closed = impl_->owned_artifact_handles_closed;
+    owned.temporary_files_reconciled =
+        impl_->owned_temporary_files_reconciled;
+  }
+  owned.device_resources_reconciled = evidence.device_resources_reconciled;
+  owned.terminal_reason = evidence.terminal_reason;
+  owned.last_good_sample_sha256 = evidence.last_good_sample_sha256;
+  owned.evidence_bundle_sha256 = evidence.evidence_bundle_sha256;
+  if (!begin_cleanup(now)) return state();
+  return cleanup_owned(owned, now);
+}
+
 CancellationDecision GpuAdmissionSession::advance_cancellation(
     std::uint64_t now, bool acknowledged, bool worker_exited,
     bool job_tree_empty) {
@@ -321,7 +505,7 @@ bool GpuAdmissionSession::begin_cleanup(std::uint64_t now) {
   return true;
 }
 
-GpuAdmissionSessionState GpuAdmissionSession::cleanup(
+GpuAdmissionSessionState GpuAdmissionSession::cleanup_owned(
     const SupervisorCleanupEvidence& evidence, std::uint64_t now) {
   if (!impl_) return GpuAdmissionSessionState::FailedClosed;
   std::lock_guard lock(impl_->mutex);

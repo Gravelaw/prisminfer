@@ -210,12 +210,15 @@ The native worker additionally retains approved read-only artifact root and
 leaf handles without write/delete sharing from byte-hash verification through
 complete Job-tree exit. The production llama adapter accepts only the Packet A
 artifact record's exact filename, byte count, and SHA-256, plus a sidecar whose
-digest is recomputed from the model bytes. This is still not C2 credit: the
-session must own the live native-worker Job/process authority, cooperative
-cancel signal, abort action, and OS-derived cleanup receipt rather than accept
-caller-assembled containment or cleanup booleans. Until that end-to-end
-lifecycle is implemented and reviewed, Packet B remains in Review and C2 stays
-closed.
+digest is recomputed from the model bytes. The production session now owns the
+live native-worker Job/process authority, dedicated bidirectional control
+handles, cooperative cancel signal, abort action, and OS-derived process/Job/
+artifact cleanup facts. Callers supply only independently sampled post-context
+and watchdog telemetry plus final device-resource reconciliation; they cannot
+assert containment, consume a token, or advance cancellation/Job cleanup. The
+llama GPU adapter fails closed until it speaks the context-ready protocol. This
+is still not C2 credit: Packet B remains in Review and C2 stays closed until
+fresh exact-head safety/security review and hosted checks accept the tree.
 
 ## Provider subordination
 
