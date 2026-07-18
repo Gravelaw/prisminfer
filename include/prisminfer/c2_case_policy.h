@@ -13,4 +13,9 @@ namespace prisminfer {
     const std::string& case_name, const NativeWorkerResult& result,
     GpuAdmissionSessionState cleanup, bool output_removed);
 
+// C2 requires the native Windows WDDM process counter. NVML remains a valid
+// general-runtime fallback but cannot satisfy this clearance evidence class.
+[[nodiscard]] ProcessDeviceMemorySample require_c2_wddm_process_sample(
+    ProcessDeviceMemorySample sample);
+
 }  // namespace prisminfer

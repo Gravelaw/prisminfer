@@ -347,8 +347,9 @@ int main(int argc, char** argv) {
         if (stop.stop_requested()) {
           return prisminfer::ProcessDeviceMemorySample{};
         }
-        auto sample = prisminfer::sample_process_device_memory(
-            pid, luid_high, luid_low);
+        auto sample = prisminfer::require_c2_wddm_process_sample(
+            prisminfer::sample_process_device_memory(pid, luid_high,
+                                                      luid_low));
         {
           std::lock_guard lock(captured.mutex);
           if (!captured.first_process) captured.first_process = sample;

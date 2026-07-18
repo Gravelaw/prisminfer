@@ -50,7 +50,22 @@ int main() {
   auto missing_accounting =
       contained_result("native_worker_protocol_watchdog_rejected");
   missing_accounting.job_accounting_reconciled = false;
-  return expect(!prisminfer::c2_case_result_matches_contract(
-                    "watchdog-cancel", missing_accounting, State::Cleaned, true),
-                "missing containment evidence always rejects");
+  if (expect(!prisminfer::c2_case_result_matches_contract(
+                 "watchdog-cancel", missing_accounting, State::Cleaned, true),
+             "missing containment evidence always rejects")) {
+    return 1;
+  }
+  prisminfer::ProcessDeviceMemorySample wddm;
+  wddm.available = true;
+  wddm.source = "wddm-process";
+  const auto accepted_wddm =
+      prisminfer::require_c2_wddm_process_sample(wddm);
+  auto nvml = wddm;
+  nvml.source = "nvml-process";
+  const auto rejected_nvml =
+      prisminfer::require_c2_wddm_process_sample(nvml);
+  return expect(accepted_wddm.available && !rejected_nvml.available &&
+                    rejected_nvml.unavailable_reason ==
+                        "c2_requires_wddm_process_source:nvml-process",
+                "C2 accepts only the native WDDM process source");
 }

@@ -31,4 +31,16 @@ bool c2_case_result_matches_contract(
   return false;
 }
 
+ProcessDeviceMemorySample require_c2_wddm_process_sample(
+    ProcessDeviceMemorySample sample) {
+  if (!sample.available || sample.source != "wddm-process") {
+    const auto observed_source = sample.source.empty() ? "unavailable"
+                                                       : sample.source;
+    sample.available = false;
+    sample.unavailable_reason =
+        "c2_requires_wddm_process_source:" + observed_source;
+  }
+  return sample;
+}
+
 }  // namespace prisminfer

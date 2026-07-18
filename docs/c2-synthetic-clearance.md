@@ -28,8 +28,14 @@ holds the exclusive adapter-LUID lease for each worker case.
 The approved worker verifies its CUDA device against both the
 supervisor-selected DXGI LUID and the authorization-bound NVML/CUDA GPU UUID
 before announcing context readiness. Thermal samples resolve their NVML handle
-by that UUID rather than a numeric index. The worker reports CUDA memory capacity,
-then consumes the session token before allocating an exact post-admission
+by that UUID rather than a numeric index.
+
+The clearance lane rejects every independent process-memory sample unless its
+source is exactly the native `wddm-process` counter; the general runtime's NVML
+process fallback remains useful outside C2 but cannot satisfy this evidence
+class, and its observed source/rejection is retained in terminal evidence. The
+worker reports CUDA memory capacity, then consumes the session token before
+allocating an exact post-admission
 payload of no more than 64 MiB. Each case has a 10-second worker timeout, no
 automatic retry, bounded Job containment, protocol cancellation, and explicit
 cleanup. The four cases are:
