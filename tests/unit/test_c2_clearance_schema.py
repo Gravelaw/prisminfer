@@ -22,6 +22,7 @@ def valid_receipt():
         "worker_sha256": "3" * 64,
         "worker_approval_identity": "c2-synthetic-worker-v1",
         "workflow_run_id": "unit-test",
+        "authorization_id": "C2-AUTH-unit-test",
         "case_name": "success",
         "status": "candidate-complete",
         "failure_reason": "",

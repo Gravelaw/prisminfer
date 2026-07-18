@@ -7,7 +7,7 @@
   "required": [
     "schema_version", "receipt_class", "repository", "reviewed_sha",
     "source_tree_sha", "worker_sha256", "worker_approval_identity",
-    "workflow_run_id", "case_name", "status", "failure_reason",
+    "workflow_run_id", "authorization_id", "case_name", "status", "failure_reason",
     "cleanup_status", "review_status", "claim_scope", "promotable",
     "c2_credit", "lease_id", "job_identity", "last_good_sample_sha256",
     "evidence_bundle_sha256", "adapter_luid_high", "adapter_luid_low",
@@ -34,6 +34,7 @@
     "worker_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "worker_approval_identity": {"type": "string", "minLength": 1, "maxLength": 128},
     "workflow_run_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "authorization_id": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,128}$"},
     "case_name": {"enum": ["success", "post-context-telemetry-loss", "heartbeat-loss", "watchdog-cancel"]},
     "status": {"enum": ["candidate-complete", "rejected", "aborted"]},
     "failure_reason": {"type": "string", "maxLength": 256},

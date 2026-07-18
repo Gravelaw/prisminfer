@@ -29,6 +29,18 @@ bool bounded_text(const std::string& value, std::size_t maximum,
   return true;
 }
 
+bool authorization_identifier(const std::string& value) {
+  if (value.empty() || value.size() > 128U) return false;
+  for (const char ch : value) {
+    if (!((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
+          (ch >= '0' && ch <= '9') || ch == '_' || ch == '.' || ch == ':' ||
+          ch == '-')) {
+      return false;
+    }
+  }
+  return true;
+}
+
 std::string escaped(const std::string& value) {
   std::string output;
   output.reserve(value.size());
@@ -86,6 +98,8 @@ std::string serialize_c2_clearance_receipt(const C2ClearanceReceipt& receipt) {
       << "  \"worker_approval_identity\":\""
       << escaped(receipt.worker_approval_identity) << "\",\n"
       << "  \"workflow_run_id\":\"" << escaped(receipt.workflow_run_id)
+      << "\",\n"
+      << "  \"authorization_id\":\"" << escaped(receipt.authorization_id)
       << "\",\n"
       << "  \"case_name\":\"" << escaped(receipt.case_name) << "\",\n"
       << "  \"status\":\"" << escaped(receipt.status) << "\",\n"
@@ -171,7 +185,7 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
   static const std::set<std::string> required = {
       "schema_version", "receipt_class", "repository", "reviewed_sha",
       "source_tree_sha", "worker_sha256", "worker_approval_identity",
-      "workflow_run_id", "case_name", "status", "failure_reason",
+      "workflow_run_id", "authorization_id", "case_name", "status", "failure_reason",
       "cleanup_status", "review_status", "claim_scope", "promotable",
       "c2_credit", "lease_id", "job_identity", "last_good_sample_sha256",
       "evidence_bundle_sha256", "adapter_luid_high", "adapter_luid_low",
@@ -207,6 +221,7 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
   std::string worker_sha;
   std::string approval;
   std::string run_id;
+  std::string authorization_id;
   std::string case_name;
   std::string status;
   std::string failure_reason;
@@ -226,6 +241,7 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
       require_string(json, "worker_sha256", &worker_sha) &&
       require_string(json, "worker_approval_identity", &approval) &&
       require_string(json, "workflow_run_id", &run_id) &&
+      require_string(json, "authorization_id", &authorization_id) &&
       require_string(json, "case_name", &case_name) &&
       require_string(json, "status", &status) &&
       require_string(json, "failure_reason", &failure_reason) &&
@@ -243,6 +259,7 @@ bool validate_c2_clearance_receipt_file(const std::filesystem::path& path,
       !bounded_text(repository, 128U) || !lower_hex(reviewed_sha, 40U) ||
       !lower_hex(tree_sha, 40U) || !lower_hex(worker_sha, 64U) ||
       !bounded_text(approval, 128U) || !bounded_text(run_id, 128U) ||
+      !authorization_identifier(authorization_id) ||
       !bounded_text(case_name, 64U) ||
       (status != "candidate-complete" && status != "rejected" &&
        status != "aborted") ||

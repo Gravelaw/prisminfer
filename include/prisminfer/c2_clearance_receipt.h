@@ -17,6 +17,7 @@ struct C2ClearanceReceipt {
   std::string worker_sha256;
   std::string worker_approval_identity;
   std::string workflow_run_id;
+  std::string authorization_id;
   std::string case_name;
   std::string status;
   std::string failure_reason;

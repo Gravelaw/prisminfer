@@ -94,7 +94,8 @@ try {
     $worker = Join-Path $workspace 'build/c2-clearance/Release/prism-c2-synthetic-worker.exe'
     foreach ($caseName in @('success', 'post-context-telemetry-loss', 'heartbeat-loss', 'watchdog-cancel')) {
         & $supervisor --worker $worker --output-root $resolvedOutput --case $caseName `
-            --workflow-run-id $env:GITHUB_RUN_ID --adapter-index $AdapterIndex `
+            --workflow-run-id $env:GITHUB_RUN_ID --authorization-id $AuthorizationId `
+            --adapter-index $AdapterIndex `
             --payload-bytes $PayloadBytes
         if ($LASTEXITCODE -ne 0) {
             throw "C2 worker case '$caseName' failed; automatic retry is forbidden."

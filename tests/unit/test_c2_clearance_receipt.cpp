@@ -22,6 +22,7 @@ prisminfer::C2ClearanceReceipt valid_receipt() {
   receipt.worker_sha256 = std::string(64U, '3');
   receipt.worker_approval_identity = "c2-synthetic-worker-v1";
   receipt.workflow_run_id = "unit-test";
+  receipt.authorization_id = "C2-AUTH-unit-test";
   receipt.case_name = "success";
   receipt.status = "candidate-complete";
   receipt.cleanup_status = "cleaned";

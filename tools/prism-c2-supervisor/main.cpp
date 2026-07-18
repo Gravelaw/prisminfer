@@ -26,6 +26,7 @@ struct Options {
   std::filesystem::path output_root;
   std::string case_name;
   std::string workflow_run_id;
+  std::string authorization_id;
   std::uint32_t adapter_index{0};
   std::uint64_t payload_bytes{0};
 };
@@ -40,7 +41,7 @@ bool parse_integer(const std::string& text, Integer* value) {
 }
 
 bool parse_options(int argc, char** argv, Options* options) {
-  if (argc != 13) return false;
+  if (argc != 15) return false;
   std::map<std::string, std::string> fields;
   for (int index = 1; index + 1 < argc; index += 2) {
     if (std::string(argv[index]).rfind("--", 0U) != 0U ||
@@ -48,9 +49,10 @@ bool parse_options(int argc, char** argv, Options* options) {
       return false;
     }
   }
-  if (fields.size() != 6U || !fields.contains("--worker") ||
+  if (fields.size() != 7U || !fields.contains("--worker") ||
       !fields.contains("--output-root") || !fields.contains("--case") ||
       !fields.contains("--workflow-run-id") ||
+      !fields.contains("--authorization-id") ||
       !fields.contains("--adapter-index") ||
       !fields.contains("--payload-bytes")) {
     return false;
@@ -59,6 +61,13 @@ bool parse_options(int argc, char** argv, Options* options) {
   options->output_root = fields["--output-root"];
   options->case_name = fields["--case"];
   options->workflow_run_id = fields["--workflow-run-id"];
+  options->authorization_id = fields["--authorization-id"];
+  const auto authorization_valid =
+      !options->authorization_id.empty() &&
+      options->authorization_id.size() <= 128U &&
+      options->authorization_id.find_first_not_of(
+          "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.:-") ==
+          std::string::npos;
   return parse_integer(fields["--adapter-index"], &options->adapter_index) &&
          options->adapter_index < 64U &&
          parse_integer(fields["--payload-bytes"], &options->payload_bytes) &&
@@ -66,6 +75,7 @@ bool parse_options(int argc, char** argv, Options* options) {
          options->payload_bytes <= prisminfer::kC2MaximumPayloadBytes &&
          !options->workflow_run_id.empty() &&
          options->workflow_run_id.size() <= 128U &&
+         authorization_valid &&
          (options->case_name == "success" ||
           options->case_name == "post-context-telemetry-loss" ||
           options->case_name == "heartbeat-loss" ||
@@ -357,6 +367,7 @@ int main(int argc, char** argv) {
   receipt.worker_sha256 = worker_sha256;
   receipt.worker_approval_identity = kApprovalIdentity;
   receipt.workflow_run_id = options.workflow_run_id;
+  receipt.authorization_id = options.authorization_id;
   receipt.case_name = options.case_name;
   receipt.status = result.ok ? "candidate-complete" : "rejected";
   receipt.failure_reason = result.failure_reason;
