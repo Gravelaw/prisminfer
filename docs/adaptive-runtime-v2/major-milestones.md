@@ -256,7 +256,7 @@ foundation warmup/baseline uses C3 and its exact admission token.
   foundation comparison for Llama 3.1 8B;
 - 10 GiB and 12 GiB primary requested tiers, physical-device reference, and
   optional 8 GiB stress-only tier;
-- complete security/evidence/claim audit.
+- complete functional/safety/evidence/claim audit.
 
 **Prohibited work.**
 
@@ -477,8 +477,9 @@ for the work that establishes it.
   safety bounds;
 - optional admitted 30B dynamic result;
 - exact 70B and 90B execution only when each corresponding issue is admitted;
-- portability, invalidation, pin-update, recalibration, security, evidence, and
-  claim audits.
+- portability, invalidation, pin-update, recalibration, evidence, and claim
+  audits, followed at #102 by the first mandatory consolidated security review
+  after the applicable implementation and test matrix completes.
 
 **Prohibited work.**
 
@@ -493,7 +494,8 @@ for the work that establishes it.
 - refreshed admission receipts;
 - exact dynamic/scale results or rejections;
 - portability and two-pin seam-maintenance report;
-- final security/evidence/claim classification and runtime-direction decision.
+- final consolidated security/evidence/claim classification and
+  runtime-direction decision.
 
 **Retained artifacts and tests.**
 
