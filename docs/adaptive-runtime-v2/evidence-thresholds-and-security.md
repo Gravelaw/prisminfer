@@ -70,6 +70,24 @@ enumerate and read only the five committed files
 through held handles, verify every identity and hash, and distinguish retained
 bundle integrity from the policy freshness required at publication.
 
+## Security review scheduling and finding disposition
+
+Codex Security scans and dedicated security reviews are deferred until #102,
+after #96 and #101 complete the implementation program and its applicable
+test/evidence matrix. #89 is a usable-runtime functional, safety, evidence, and
+claim audit; it does not require a consolidated security scan.
+
+Security-relevant findings discovered earlier may be recorded and resolved in
+the dependency-safe packet that owns the affected code. Each retained finding
+must name its owner, severity, disposition, target gate, affected exact tree or
+artifact, and invalidation condition. Noncritical deferred findings do not
+block unrelated functionality merely because the consolidated scan has not run.
+Credible critical vulnerabilities and the early-trigger conditions in
+`AGENTS.md` still require immediate review, and concrete safety-floor defects
+remain ordinary functional blockers. #102 cannot close until all reportable
+findings are fixed, explicitly accepted by the repository owner, or classified
+out of scope with retained evidence.
+
 ## Hardware safety and admission thresholds
 
 ### T-100: GPU effective cap
