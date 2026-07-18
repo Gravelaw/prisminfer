@@ -229,12 +229,16 @@ bool is_approval_identity(const std::string& value) {
 }
 
 struct TreeMemoryAccumulator {
+  struct RetainedProcess {
+    ULONG_PTR process_id{0U};
+    UniqueHandle handle;
+  };
   std::uint64_t root_peak_working_set_bytes{0};
   std::uint64_t root_peak_private_commit_bytes{0};
   std::uint64_t tree_peak_working_set_bytes{0};
   std::uint32_t peak_active_processes{0};
   std::unordered_set<ULONG_PTR> observed_process_ids;
-  std::vector<UniqueHandle> observed_process_handles;
+  std::vector<RetainedProcess> observed_processes;
 };
 
 bool checked_add_size(std::uint64_t left, SIZE_T right,
@@ -315,7 +319,14 @@ bool sample_job_tree(HANDLE job, DWORD root_process_id,
       // process query during expected Job teardown. Its earlier retained
       // handle/accounting remains authoritative; a never-observed PID still
       // fails closed because its resource evidence was never captured.
-      if (accumulator->observed_process_ids.count(process_id) != 0U) {
+      const auto retained = std::find_if(
+          accumulator->observed_processes.begin(),
+          accumulator->observed_processes.end(),
+          [process_id](const TreeMemoryAccumulator::RetainedProcess& entry) {
+            return entry.process_id == process_id;
+          });
+      if (retained != accumulator->observed_processes.end() &&
+          WaitForSingleObject(retained->handle.get(), 0U) == WAIT_OBJECT_0) {
         continue;
       }
       return false;
@@ -335,7 +346,8 @@ bool sample_job_tree(HANDLE job, DWORD root_process_id,
                    static_cast<std::uint64_t>(memory.PeakPagefileUsage));
     }
     if (first_observation) {
-      accumulator->observed_process_handles.push_back(std::move(process));
+      accumulator->observed_processes.push_back(
+          {process_id, std::move(process)});
     }
   }
   accumulator->tree_peak_working_set_bytes =
@@ -372,10 +384,10 @@ bool terminate_job_tree(HANDLE job, HANDLE root_process,
       !wait_for_job_empty(job, timeout_ms)) {
     return false;
   }
-  for (const auto& process : accumulator.observed_process_handles) {
+  for (const auto& process : accumulator.observed_processes) {
     const std::uint64_t elapsed = monotonic_time_milliseconds() - started;
     if (elapsed >= timeout_ms ||
-        WaitForSingleObject(process.get(),
+        WaitForSingleObject(process.handle.get(),
                             static_cast<DWORD>(timeout_ms - elapsed)) !=
             WAIT_OBJECT_0) {
       return false;
