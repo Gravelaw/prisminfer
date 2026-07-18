@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <cerrno>
 #include <cwchar>
 #include <cwctype>
@@ -15,6 +14,7 @@
 #include <vector>
 
 #include "prisminfer/gpu_cap_policy.h"
+#include "prisminfer/telemetry.h"
 
 #if defined(_WIN32)
 #define NOMINMAX
@@ -237,17 +237,14 @@ ProcessDeviceMemorySample sample_wddm_process_memory(
     sample.unavailable_reason = "wddm_process_pid_luid_not_reported";
     return sample;
   }
-  const auto captured = std::chrono::duration_cast<std::chrono::milliseconds>(
-                            std::chrono::steady_clock::now().time_since_epoch())
-                            .count();
-  if (captured <= 0) {
+  const auto captured = monotonic_time_milliseconds();
+  if (captured == 0U) {
     sample.unavailable_reason = "monotonic_clock_invalid";
     return sample;
   }
   sample.available = true;
   sample.source = "wddm-process";
-  sample.captured_monotonic_milliseconds =
-      static_cast<std::uint64_t>(captured);
+  sample.captured_monotonic_milliseconds = captured;
   sample.current_bytes = *exact_bytes;
   return sample;
 }
@@ -426,16 +423,14 @@ ProcessDeviceMemorySample sample_process_device_memory(
     unavailable.unavailable_reason = "nvml_process_query_failed";
     return unavailable;
   }
-  const auto captured = std::chrono::duration_cast<std::chrono::milliseconds>(
-                            std::chrono::steady_clock::now().time_since_epoch())
-                            .count();
-  if (captured <= 0) {
+  const auto captured = monotonic_time_milliseconds();
+  if (captured == 0U) {
     unavailable.unavailable_reason = "monotonic_clock_invalid";
     return unavailable;
   }
   return reconcile_process_device_memory_candidates(
       process_id, adapter_luid_high, adapter_luid_low,
-      static_cast<std::uint64_t>(captured), candidates);
+      captured, candidates);
 #endif
 }
 
@@ -514,14 +509,12 @@ WddmMemorySample sample_wddm_memory(std::uint32_t adapter_index) {
     sample.unavailable_reason = "dxgi_video_memory_query_unavailable";
     return sample;
   }
-  const auto captured = std::chrono::duration_cast<std::chrono::milliseconds>(
-                            std::chrono::steady_clock::now().time_since_epoch())
-                            .count();
-  if (captured < 0) {
+  const auto captured = monotonic_time_milliseconds();
+  if (captured == 0U) {
     sample.unavailable_reason = "monotonic_clock_invalid";
     return sample;
   }
-  sample.captured_monotonic_milliseconds = static_cast<std::uint64_t>(captured);
+  sample.captured_monotonic_milliseconds = captured;
   sample.adapter_luid_high = description.AdapterLuid.HighPart;
   sample.adapter_luid_low = description.AdapterLuid.LowPart;
   sample.adapter_description = utf8(description.Description);

@@ -1,6 +1,6 @@
 #include "prisminfer/host_memory_tracker.h"
+#include "prisminfer/telemetry.h"
 
-#include <chrono>
 #include <limits>
 
 #if defined(_WIN32)
@@ -156,14 +156,12 @@ HostTelemetrySample sample_host_telemetry() {
     sample.pagefile_peak_usage_bytes = pagefiles.peak_usage_bytes;
   }
 
-  const auto captured = std::chrono::duration_cast<std::chrono::milliseconds>(
-                            std::chrono::steady_clock::now().time_since_epoch())
-                            .count();
-  if (captured < 0) {
+  const auto captured = monotonic_time_milliseconds();
+  if (captured == 0U) {
     sample.unavailable_reason = "monotonic_clock_invalid";
     return sample;
   }
-  sample.captured_monotonic_milliseconds = static_cast<std::uint64_t>(captured);
+  sample.captured_monotonic_milliseconds = captured;
 
   IO_COUNTERS io{};
   if (GetProcessIoCounters(GetCurrentProcess(), &io) == 0) {

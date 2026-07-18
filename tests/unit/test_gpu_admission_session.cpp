@@ -1,11 +1,14 @@
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <type_traits>
 
 #include "prisminfer/gpu_admission_session.h"
+#include "prisminfer/telemetry.h"
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -250,7 +253,7 @@ int main(int argc, char** argv) {
                           " 2\n") ? 0 : 7;
   }
 
-  const auto now = static_cast<std::uint64_t>(GetTickCount64());
+  const auto now = prisminfer::monotonic_time_milliseconds();
   auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 7, 11U);
   if (expect(acquired.session.has_value(), "session acquires exclusive lease") ||
       expect(acquired.session->admit_pre_context(pre_request(now)).admitted,
@@ -268,10 +271,11 @@ int main(int argc, char** argv) {
   request.max_job_memory_bytes = 1U * kGiB;
   const auto worker = acquired.session->run_contained_worker(
       catalog, request, 100U,
-      [](std::uint32_t pid, std::uint64_t ready) {
+      [](std::stop_token, std::uint32_t pid, std::uint64_t ready) {
         return post_request(ready, pid);
       },
-      [](std::uint32_t pid, std::uint64_t, std::uint64_t heartbeat) {
+      [](std::stop_token, std::uint32_t pid, std::uint64_t,
+         std::uint64_t heartbeat) {
         return watchdog_sample(heartbeat, pid);
       });
   if (expect(!worker.ok && worker.worker_exit_observed &&
@@ -286,8 +290,67 @@ int main(int argc, char** argv) {
     return 1;
   }
   {
+    auto live = prisminfer::acquire_gpu_admission_session(cell(), 9, 13U);
+    auto live_pre =
+        pre_request(prisminfer::monotonic_time_milliseconds());
+    live_pre.gpu.adapter_luid_high = 9;
+    live_pre.gpu.adapter_luid_low = 13U;
+    if (expect(live.session.has_value() &&
+                   live.session->admit_pre_context(live_pre).admitted,
+               "live-evidence test admits Stage A")) {
+      return 1;
+    }
+    const auto live_sample_count =
+        std::make_shared<std::atomic<std::uint32_t>>(0U);
+    const auto live_worker = live.session->run_contained_worker(
+        catalog, request, 1'000U,
+        [](std::stop_token, std::uint32_t pid, std::uint64_t ready) {
+          auto post = post_request(ready, pid);
+          post.gpu.adapter_luid_high = 9;
+          post.gpu.adapter_luid_low = 13U;
+          post.owned_gpu.adapter_luid_high = 9;
+          post.owned_gpu.adapter_luid_low = 13U;
+          return post;
+        },
+        [](std::stop_token, std::uint32_t pid, std::uint64_t,
+           std::uint64_t heartbeat) {
+          auto sample = watchdog_sample(heartbeat, pid);
+          sample.gpu.adapter_luid_high = 9;
+          sample.gpu.adapter_luid_low = 13U;
+          sample.owned_gpu.adapter_luid_high = 9;
+          sample.owned_gpu.adapter_luid_low = 13U;
+          return sample;
+        },
+        [live_sample_count](std::stop_token stop, std::uint32_t pid,
+                            std::int32_t luid_high,
+                            std::uint32_t luid_low) {
+          prisminfer::ProcessDeviceMemorySample sample;
+          if (stop.stop_requested()) return sample;
+          sample.available = true;
+          sample.source = "wddm-process";
+          sample.process_id = pid;
+          sample.captured_monotonic_milliseconds =
+              prisminfer::monotonic_time_milliseconds();
+          sample.adapter_luid_high = luid_high;
+          sample.adapter_luid_low = luid_low;
+          sample.current_bytes = 512ULL << 20;
+          live_sample_count->fetch_add(1U, std::memory_order_relaxed);
+          return sample;
+        });
+    if (expect(live_worker.ok && live_worker.worker_exit_observed &&
+                   live_worker.job_tree_empty &&
+                   live_sample_count->load(std::memory_order_relaxed) >= 2U,
+               "fresh independent evidence admits Stage B and heartbeats")) {
+      std::cerr << "live worker failure=" << live_worker.failure_reason
+                << " samples="
+                << live_sample_count->load(std::memory_order_relaxed) << "\n";
+      return 1;
+    }
+  }
+  {
     auto bounded = prisminfer::acquire_gpu_admission_session(cell(), 8, 12U);
-    auto alternate_pre = pre_request(GetTickCount64());
+    auto alternate_pre =
+        pre_request(prisminfer::monotonic_time_milliseconds());
     alternate_pre.gpu.adapter_luid_high = 8;
     alternate_pre.gpu.adapter_luid_low = 12U;
     if (expect(bounded.session.has_value() &&
@@ -295,25 +358,38 @@ int main(int argc, char** argv) {
                "alternate adapter Stage A admits callback-timeout test")) {
       return 1;
     }
-    const auto started = GetTickCount64();
+    const auto producer_active = std::make_shared<std::atomic<bool>>(false);
+    auto producer_lifetime = std::make_shared<int>(42);
+    const std::weak_ptr<int> producer_lifetime_observer = producer_lifetime;
+    const auto started = prisminfer::monotonic_time_milliseconds();
     const auto timed_out = bounded.session->run_contained_worker(
         catalog, request, 100U,
-        [](std::uint32_t pid, std::uint64_t ready) {
-          Sleep(2'000U);
+        [producer_active, producer_lifetime](std::stop_token stop,
+                                             std::uint32_t pid,
+                                             std::uint64_t ready) {
+          producer_active->store(true, std::memory_order_release);
+          while (!stop.stop_requested()) Sleep(5U);
+          producer_active->store(false, std::memory_order_release);
           auto post = post_request(ready, pid);
           post.gpu.adapter_luid_high = 8;
           post.gpu.adapter_luid_low = 12U;
           post.owned_gpu.adapter_luid_high = 8;
           post.owned_gpu.adapter_luid_low = 12U;
+          (void)producer_lifetime;
           return post;
         },
-        [](std::uint32_t pid, std::uint64_t, std::uint64_t heartbeat) {
+        [](std::stop_token, std::uint32_t pid, std::uint64_t,
+           std::uint64_t heartbeat) {
           return watchdog_sample(heartbeat, pid);
         });
-    const auto elapsed = GetTickCount64() - started;
+    const auto elapsed =
+        prisminfer::monotonic_time_milliseconds() - started;
+    producer_lifetime.reset();
     const bool bounded_abort =
         !timed_out.ok && timed_out.worker_exit_observed &&
         timed_out.job_tree_empty &&
+        !producer_active->load(std::memory_order_acquire) &&
+        producer_lifetime_observer.expired() &&
         timed_out.failure_reason ==
             "native_worker_protocol_admission_rejected:"
             "post_context_evidence_timeout" &&
@@ -323,6 +399,10 @@ int main(int argc, char** argv) {
                 << " worker_exit_observed="
                 << timed_out.worker_exit_observed
                 << " job_tree_empty=" << timed_out.job_tree_empty
+                << " producer_active="
+                << producer_active->load(std::memory_order_acquire)
+                << " producer_lifetime_expired="
+                << producer_lifetime_observer.expired()
                 << " elapsed_ms=" << elapsed
                 << " failure_reason=" << timed_out.failure_reason << "\n";
     }
@@ -347,10 +427,11 @@ int main(int argc, char** argv) {
   request.timeout_ms = 1'000U;
   const auto worker = acquired.session->run_contained_worker(
       catalog, request, 100U,
-      [](std::uint32_t pid, std::uint64_t ready) {
+      [](std::stop_token, std::uint32_t pid, std::uint64_t ready) {
         return post_request(ready, pid);
       },
-      [](std::uint32_t pid, std::uint64_t, std::uint64_t heartbeat) {
+      [](std::stop_token, std::uint32_t pid, std::uint64_t,
+         std::uint64_t heartbeat) {
         return watchdog_sample(heartbeat, pid);
       });
   if (expect(!worker.ok &&

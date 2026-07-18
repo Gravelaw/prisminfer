@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "prisminfer/windows_evidence.h"
+#include "prisminfer/telemetry.h"
 
 namespace prisminfer {
 
@@ -35,10 +36,11 @@ std::optional<Result> bounded_evidence_call(Callable callable,
   };
   if (timeout_ms == 0U) return std::nullopt;
   auto shared = std::make_shared<SharedState>();
-  std::thread([shared, callable = std::move(callable)]() mutable {
+  std::jthread producer([shared, callable = std::move(callable)](
+                            std::stop_token stop) mutable {
     std::optional<Result> result;
     try {
-      result = callable();
+      result = callable(stop);
     } catch (...) {
       result.reset();
     }
@@ -48,13 +50,19 @@ std::optional<Result> bounded_evidence_call(Callable callable,
       shared->completed = true;
     }
     shared->ready.notify_one();
-  }).detach();
+  });
   std::unique_lock lock(shared->mutex);
   if (!shared->ready.wait_for(lock, std::chrono::milliseconds(timeout_ms),
                               [&] { return shared->completed; })) {
+    lock.unlock();
+    producer.request_stop();
+    producer.join();
     return std::nullopt;
   }
-  return std::move(shared->result);
+  auto result = std::move(shared->result);
+  lock.unlock();
+  producer.join();
+  return result;
 }
 
 struct LivePostContextEvidence {
@@ -302,12 +310,24 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
     const NativeWorkerRequest& request,
     std::uint64_t token_validity_milliseconds,
     PostContextEvidenceProducer post_context_evidence,
-    WatchdogEvidenceProducer watchdog_evidence) {
+    WatchdogEvidenceProducer watchdog_evidence,
+    ProcessDeviceEvidenceProducer process_device_evidence) {
   if (!impl_ || token_validity_milliseconds == 0U ||
       !post_context_evidence || !watchdog_evidence) {
     NativeWorkerResult rejected;
     rejected.failure_reason = "supervisor_worker_request_invalid";
     return rejected;
+  }
+  if (!process_device_evidence) {
+    process_device_evidence =
+        [](std::stop_token stop, std::uint32_t process_id,
+           std::int32_t luid_high, std::uint32_t luid_low) {
+          if (stop.stop_requested()) return ProcessDeviceMemorySample{};
+          auto sample = sample_process_device_memory(process_id, luid_high,
+                                                     luid_low);
+          if (stop.stop_requested()) return ProcessDeviceMemorySample{};
+          return sample;
+        };
   }
   CallbackProtocolSupervisor protocol;
   NativeWorkerProtocolPolicy protocol_policy;
@@ -333,7 +353,8 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
   protocol.bind = [this](const NativeWorkerContainmentIdentity& identity) {
     return bind_owned_worker(identity);
   };
-  protocol.ready = [this, &post_context_evidence, protocol_policy,
+  protocol.ready = [this, &post_context_evidence, process_device_evidence,
+                    protocol_policy,
                     token_validity_milliseconds](std::uint64_t now) {
     NativeWorkerAdmissionGrant grant;
     std::uint32_t process_id = 0U;
@@ -350,11 +371,12 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
       luid_low = impl_->adapter_luid_low;
     }
     const auto live = bounded_evidence_call<LivePostContextEvidence>(
-        [producer = post_context_evidence, process_id, now, luid_high,
-         luid_low] {
+        [producer = post_context_evidence,
+         independent_producer = process_device_evidence, process_id, now,
+         luid_high, luid_low](std::stop_token stop) {
           return LivePostContextEvidence{
-              producer(process_id, now),
-              sample_process_device_memory(process_id, luid_high, luid_low)};
+              producer(stop, process_id, now),
+              independent_producer(stop, process_id, luid_high, luid_low)};
         },
         protocol_policy.heartbeat_timeout_ms);
     if (!live) {
@@ -363,11 +385,20 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
       grant.failure_reason = "post_context_evidence_timeout";
       return grant;
     }
+    const auto evaluated_at = monotonic_time_milliseconds();
+    if (evaluated_at == 0U) {
+      std::lock_guard lock(impl_->mutex);
+      impl_->state = GpuAdmissionSessionState::FailedClosed;
+      grant.failure_reason = "monotonic_clock_invalid";
+      return grant;
+    }
     auto request = std::move(live->request);
+    request.evaluation_monotonic_milliseconds = evaluated_at;
     const auto& independent = live->independent;
     if (!bind_process_device_memory_evidence(
             &request.owned_gpu, independent, process_id, luid_high,
-            luid_low, now, protocol_policy.heartbeat_timeout_ms)) {
+            luid_low, evaluated_at,
+            protocol_policy.heartbeat_timeout_ms)) {
       {
         std::lock_guard lock(impl_->mutex);
         impl_->state = GpuAdmissionSessionState::FailedClosed;
@@ -382,7 +413,7 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
       grant.failure_reason = admitted.reason;
       return grant;
     }
-    auto issued = issue_token(now, token_validity_milliseconds);
+    auto issued = issue_token(evaluated_at, token_validity_milliseconds);
     if (issued.status != AdmissionTokenStatus::Issued || !issued.token) {
       grant.failure_reason = "token_issue_failed";
       return grant;
@@ -412,7 +443,8 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
     }
     return consume_token(*token, now).status == AdmissionTokenStatus::Consumed;
   };
-  protocol.beat = [this, &watchdog_evidence, protocol_policy](
+  protocol.beat = [this, &watchdog_evidence, process_device_evidence,
+                   protocol_policy](
                       std::uint64_t sequence, std::uint64_t now) {
     std::uint32_t process_id = 0U;
     {
@@ -429,16 +461,19 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
       luid_low = impl_->adapter_luid_low;
     }
     const auto live = bounded_evidence_call<LiveWatchdogEvidence>(
-        [producer = watchdog_evidence, process_id, sequence, now, luid_high,
-         luid_low] {
+        [producer = watchdog_evidence,
+         independent_producer = process_device_evidence, process_id, sequence,
+         now, luid_high, luid_low](std::stop_token stop) {
           return LiveWatchdogEvidence{
-              producer(process_id, sequence, now),
-              sample_process_device_memory(process_id, luid_high, luid_low)};
+              producer(stop, process_id, sequence, now),
+              independent_producer(stop, process_id, luid_high, luid_low)};
         },
         protocol_policy.heartbeat_timeout_ms);
     if (!live) return false;
+    const auto evaluated_at = monotonic_time_milliseconds();
+    if (evaluated_at == 0U) return false;
     auto sample = std::move(live->sample);
-    sample.evaluated_monotonic_milliseconds = now;
+    sample.evaluated_monotonic_milliseconds = evaluated_at;
     sample.worker_heartbeat_monotonic_milliseconds = now;
     sample.worker_alive = true;
     {
@@ -452,7 +487,8 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
     const auto& independent = live->independent;
     if (!bind_process_device_memory_evidence(
             &sample.owned_gpu, independent, process_id, luid_high,
-            luid_low, now, protocol_policy.heartbeat_timeout_ms)) {
+            luid_low, evaluated_at,
+            protocol_policy.heartbeat_timeout_ms)) {
       return false;
     }
     return evaluate_watchdog(sample).continue_work;

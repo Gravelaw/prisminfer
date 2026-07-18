@@ -1,6 +1,7 @@
 #include "prisminfer/native_worker.h"
 
 #include "prisminfer/checked_arithmetic.h"
+#include "prisminfer/telemetry.h"
 
 
 #include <cstddef>
@@ -320,7 +321,7 @@ bool sample_job_tree(HANDLE job, DWORD root_process_id,
 
 bool wait_for_job_empty(HANDLE job, std::uint32_t timeout_ms) {
   if (job == nullptr || timeout_ms == 0U) return false;
-  const ULONGLONG started = GetTickCount64();
+  const std::uint64_t started = monotonic_time_milliseconds();
   for (;;) {
     JOBOBJECT_BASIC_ACCOUNTING_INFORMATION accounting{};
     if (!QueryInformationJobObject(job, JobObjectBasicAccountingInformation,
@@ -328,7 +329,7 @@ bool wait_for_job_empty(HANDLE job, std::uint32_t timeout_ms) {
       return false;
     }
     if (accounting.ActiveProcesses == 0U) return true;
-    const ULONGLONG elapsed = GetTickCount64() - started;
+    const std::uint64_t elapsed = monotonic_time_milliseconds() - started;
     if (elapsed >= timeout_ms) return false;
     const auto remaining = static_cast<DWORD>(timeout_ms - elapsed);
     Sleep(std::min<DWORD>(10U, remaining));
@@ -342,13 +343,13 @@ bool terminate_job_tree(HANDLE job, HANDLE root_process,
       !TerminateJobObject(job, 1U)) {
     return false;
   }
-  const ULONGLONG started = GetTickCount64();
+  const std::uint64_t started = monotonic_time_milliseconds();
   if (WaitForSingleObject(root_process, timeout_ms) != WAIT_OBJECT_0 ||
       !wait_for_job_empty(job, timeout_ms)) {
     return false;
   }
   for (const auto& process : accumulator.observed_process_handles) {
-    const ULONGLONG elapsed = GetTickCount64() - started;
+    const std::uint64_t elapsed = monotonic_time_milliseconds() - started;
     if (elapsed >= timeout_ms ||
         WaitForSingleObject(process.get(),
                             static_cast<DWORD>(timeout_ms - elapsed)) !=
@@ -888,7 +889,8 @@ NativeWorkerResult run_native_worker_impl(
   startup.StartupInfo.hStdError = output_write.get();
   startup.lpAttributeList = attributes;
   PROCESS_INFORMATION process{};
-  const ULONGLONG launch_identity_ticks = GetTickCount64();
+  const std::uint64_t launch_identity_ticks =
+      monotonic_time_milliseconds();
   auto command_line = build_command_line(final_executable, request.arguments);
   command_line.push_back(L'\0');
   std::filesystem::path working_directory = final_executable.parent_path();
@@ -959,8 +961,9 @@ NativeWorkerResult run_native_worker_impl(
     }
     return fail("native_worker_resume_failed");
   }
-  const ULONGLONG deadline = GetTickCount64() + request.timeout_ms;
-  const ULONGLONG protocol_started = GetTickCount64();
+  const std::uint64_t deadline =
+      monotonic_time_milliseconds() + request.timeout_ms;
+  const std::uint64_t protocol_started = monotonic_time_milliseconds();
   DWORD wait = WAIT_TIMEOUT;
   bool tree_complete = false;
   bool job_query_failed = false;
@@ -977,16 +980,16 @@ NativeWorkerResult run_native_worker_impl(
   ProtocolState protocol_state = ProtocolState::AwaitContext;
   std::uint64_t protocol_token_id = 0U;
   std::uint64_t heartbeat_sequence = 0U;
-  ULONGLONG last_heartbeat = protocol_started;
-  ULONGLONG token_consumption_deadline = 0U;
-  ULONGLONG cancel_sent_at = 0U;
+  std::uint64_t last_heartbeat = protocol_started;
+  std::uint64_t token_consumption_deadline = 0U;
+  std::uint64_t cancel_sent_at = 0U;
   std::string protocol_pending;
   std::string protocol_failure;
   std::atomic<bool> authority_callback_active{false};
-  std::atomic<ULONGLONG> authority_callback_started{0U};
+  std::atomic<std::uint64_t> authority_callback_started{0U};
   std::atomic<bool> emergency_job_abort{false};
   const auto begin_authority_callback = [&]() {
-    authority_callback_started.store(GetTickCount64(),
+    authority_callback_started.store(monotonic_time_milliseconds(),
                                      std::memory_order_release);
     authority_callback_active.store(true, std::memory_order_release);
   };
@@ -1012,7 +1015,7 @@ NativeWorkerResult run_native_worker_impl(
       protocol_failure = "native_worker_protocol_cancel_write_failed";
     }
     protocol_state = ProtocolState::CancelSent;
-    cancel_sent_at = GetTickCount64();
+    cancel_sent_at = monotonic_time_milliseconds();
   };
   const auto process_protocol_line = [&](std::string line) {
     if (!line.empty() && line.back() == '\r') line.pop_back();
@@ -1030,7 +1033,7 @@ NativeWorkerResult run_native_worker_impl(
       request_protocol_cancel("native_worker_protocol_identity_mismatch");
       return;
     }
-    const auto now = static_cast<std::uint64_t>(GetTickCount64());
+    const auto now = monotonic_time_milliseconds();
     if (type == "CONTEXT_READY") {
       std::string extra;
       if (protocol_state != ProtocolState::AwaitContext || parsed >> extra) {
@@ -1089,7 +1092,7 @@ NativeWorkerResult run_native_worker_impl(
         return;
       }
       protocol_state = ProtocolState::Active;
-      last_heartbeat = GetTickCount64();
+      last_heartbeat = monotonic_time_milliseconds();
       return;
     }
     if (type == "HEARTBEAT") {
@@ -1101,7 +1104,7 @@ NativeWorkerResult run_native_worker_impl(
         return;
       }
       heartbeat_sequence = sequence;
-      last_heartbeat = GetTickCount64();
+      last_heartbeat = monotonic_time_milliseconds();
       begin_authority_callback();
       const bool accepted = protocol_supervisor->heartbeat(sequence, now);
       end_authority_callback();
@@ -1182,9 +1185,9 @@ NativeWorkerResult run_native_worker_impl(
       [&](std::stop_token stop) {
         while (!stop.stop_requested()) {
           if (authority_callback_active.load(std::memory_order_acquire)) {
-            const ULONGLONG started =
+            const std::uint64_t started =
                 authority_callback_started.load(std::memory_order_acquire);
-            const ULONGLONG now = GetTickCount64();
+            const std::uint64_t now = monotonic_time_milliseconds();
             if (started != 0U && now >= started &&
                 now - started >= protocol_policy->heartbeat_timeout_ms) {
               if (!emergency_job_abort.exchange(true,
@@ -1197,13 +1200,13 @@ NativeWorkerResult run_native_worker_impl(
           Sleep(5U);
         }
       });
-  while (GetTickCount64() < deadline) {
+  while (monotonic_time_milliseconds() < deadline) {
     wait = WaitForSingleObject(process_handle.get(), 10U);
     if (!drain_output()) return fail("native_worker_output_read_failed");
     if (!drain_protocol()) return fail("native_worker_protocol_read_failed");
     if (output_limit_exceeded) break;
     if (protocol_enabled) {
-      const ULONGLONG now = GetTickCount64();
+      const std::uint64_t now = monotonic_time_milliseconds();
       if (protocol_state == ProtocolState::AwaitContext &&
           now - protocol_started >= protocol_policy->context_ready_timeout_ms) {
         request_protocol_cancel("native_worker_protocol_context_timeout");
@@ -1288,7 +1291,7 @@ NativeWorkerResult run_native_worker_impl(
     return result;
   }
   if (!tree_complete && wait != WAIT_FAILED &&
-      GetTickCount64() >= deadline) {
+      monotonic_time_milliseconds() >= deadline) {
     result.timed_out = true;
     if (request.simulate_termination_api_failure) {
       job.reset();

@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <stop_token>
 #include <string>
 
 #include "prisminfer/admission_token.h"
@@ -62,12 +63,19 @@ struct DeviceCleanupEvidence {
   std::string evidence_bundle_sha256;
 };
 
+// Evidence producers are supervisor-owned and must observe the stop token.
+// The session requests stop on deadline and joins every producer before
+// returning, so producer activity and captured state cannot escape cleanup.
 using PostContextEvidenceProducer = std::function<PostContextAdmissionRequest(
-    std::uint32_t worker_process_id,
+    std::stop_token stop, std::uint32_t worker_process_id,
     std::uint64_t context_ready_monotonic_milliseconds)>;
 using WatchdogEvidenceProducer = std::function<SupervisorWatchdogSample(
-    std::uint32_t worker_process_id, std::uint64_t heartbeat_sequence,
+    std::stop_token stop, std::uint32_t worker_process_id,
+    std::uint64_t heartbeat_sequence,
     std::uint64_t heartbeat_monotonic_milliseconds)>;
+using ProcessDeviceEvidenceProducer = std::function<ProcessDeviceMemorySample(
+    std::stop_token stop, std::uint32_t worker_process_id,
+    std::int32_t adapter_luid_high, std::uint32_t adapter_luid_low)>;
 
 struct GpuAdmissionSessionAcquireResult;
 
@@ -91,7 +99,8 @@ class GpuAdmissionSession {
       const NativeWorkerRequest& request,
       std::uint64_t token_validity_milliseconds,
       PostContextEvidenceProducer post_context_evidence,
-      WatchdogEvidenceProducer watchdog_evidence);
+      WatchdogEvidenceProducer watchdog_evidence,
+      ProcessDeviceEvidenceProducer process_device_evidence = {});
   [[nodiscard]] GpuAdmissionSessionState finalize_cleanup(
       const DeviceCleanupEvidence& evidence,
       std::uint64_t now_monotonic_milliseconds);
