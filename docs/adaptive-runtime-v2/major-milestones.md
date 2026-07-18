@@ -194,6 +194,18 @@ does not justify bypassing the supervisor.
 **Review tier.** T2 exact-head safety/security review; any tiny live hardware
 evidence is T3 and separately authorized.
 
+**M2 implementation receipt (2026-07-18, review state).** Packet B is ported
+onto the post-M1 `main` base without restoring the archived V1 packet. The
+retained CPU/source/simulation implementation binds approved executable
+identity to suspended non-breakaway Job containment, explicit process/memory/
+time limits, exact child-tree cleanup, fresh independent Windows evidence,
+workload-relative #109 host admission, exclusive device lease, staged one-shot
+tokens, watchdog submission blocking, cooperative-cancel/Job-abort deadlines,
+and cleanup quarantine. This receipt is not the packet exit: C2 stays closed
+until final hosted checks and a fresh independent exact-head safety/security
+review accept the complete tree. No CUDA, model, calibration, capacity, or
+performance evidence was produced.
+
 ## M3: Packet C - exact admission and supervised foundation evidence
 
 **Outcome.** Exact capacity/bandwidth lower bounds, frozen quality fixtures, one

@@ -183,6 +183,16 @@ context is prohibited. Cleanup reconciles:
 Another hardware run requires a fresh preflight and the threshold-owned restart
 conditions.
 
+Packet B implements this boundary as supervisor-owned state rather than worker
+advice. The contained-worker receipt is mandatory before post-context
+admission; the exact Stage-B receipt and admission token are one-shot; watchdog
+evaluation continuously reuses the authoritative #109 host physical/commit
+decision; and any stale, contradictory, resource, thermal, heartbeat, deadline,
+or context-fatal sample immediately blocks submissions. Cancellation retains
+the T-105 acknowledgement, exit, Job-abort, and cleanup deadlines, and cleanup
+cannot release the lease as `Cleaned` when the Job tree or resources remain
+unreconciled.
+
 ## Provider subordination
 
 An optional provider:

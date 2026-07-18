@@ -233,6 +233,20 @@ Terminal evidence is written by the supervisor to a trusted bounded temporary
 artifact and atomically published after cleanup. A worker-written success
 record is never by itself terminal evidence.
 
+### Packet B implementation binding
+
+The CPU-only implementation binds the normative states through
+`GpuAdmissionSession`: an owned OS-wide lease precedes Stage A; a complete
+contained-worker receipt precedes Stage B; the Stage-B receipt can mint and
+consume only one exact-cell token; and the first accepted watchdog sample
+activates submissions. Every rejected watchdog sample blocks submissions and
+records `CancelRequested` in the supervisor. The session retains a timely
+cooperative acknowledgement only within T-105, requires Job abort when the
+acknowledgement or worker-exit deadline is missed, and permits lease release
+only after bounded cleanup. A nonempty Job tree, missed cleanup deadline, or
+unreconciled resource state ends in `Quarantined`. These are CPU/simulation
+contracts; they do not themselves record live device or model evidence.
+
 ## Clearance Binding
 
 The runtime accepts only the exact clearance and workload scope permitted by
