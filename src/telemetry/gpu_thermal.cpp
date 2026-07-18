@@ -2,6 +2,7 @@
 
 #include "prisminfer/telemetry.h"
 
+#include <chrono>
 #include <limits>
 
 #if defined(PRISMINFER_ENABLE_CUDA_PROBE)
@@ -9,6 +10,23 @@
 #endif
 
 namespace prisminfer {
+
+bool nvml_field_timestamps_are_fresh(
+    std::uint64_t first_microseconds, std::uint64_t second_microseconds,
+    std::uint64_t query_start_microseconds,
+    std::uint64_t query_end_microseconds,
+    std::uint64_t maximum_age_microseconds) {
+  if (first_microseconds == 0U || first_microseconds != second_microseconds ||
+      query_start_microseconds == 0U || query_end_microseconds < query_start_microseconds ||
+      maximum_age_microseconds == 0U) return false;
+  const auto earliest = query_start_microseconds > maximum_age_microseconds
+                            ? query_start_microseconds - maximum_age_microseconds
+                            : 0U;
+  if (first_microseconds < earliest) return false;
+  return first_microseconds <=
+         std::numeric_limits<std::uint64_t>::max() - maximum_age_microseconds &&
+         first_microseconds - maximum_age_microseconds <= query_end_microseconds;
+}
 
 std::optional<GpuThermalSample> make_ada_tlimit_thermal_sample(
     std::uint32_t current_celsius, std::uint32_t target_celsius,
@@ -53,10 +71,14 @@ GpuThermalSample sample_nvml_gpu_thermal(const std::string& gpu_uuid) {
           ? nvmlDeviceGetTemperature(device, NVML_TEMPERATURE_GPU,
                                      &temperature)
           : NVML_ERROR_UNKNOWN;
+  const auto field_query_start = std::chrono::duration_cast<std::chrono::microseconds>(
+      std::chrono::system_clock::now().time_since_epoch()).count();
   const auto field_status = handle_status == NVML_SUCCESS
                                 ? nvmlDeviceGetFieldValues(
                                       device, 2, tlimits)
                                 : NVML_ERROR_UNKNOWN;
+  const auto field_query_end = std::chrono::duration_cast<std::chrono::microseconds>(
+      std::chrono::system_clock::now().time_since_epoch()).count();
   const auto throttle_status =
       handle_status == NVML_SUCCESS
           ? nvmlDeviceGetCurrentClocksThrottleReasons(device,
@@ -69,8 +91,12 @@ GpuThermalSample sample_nvml_gpu_thermal(const std::string& gpu_uuid) {
       tlimits[1].nvmlReturn != NVML_SUCCESS ||
       tlimits[0].valueType != NVML_VALUE_TYPE_UNSIGNED_INT ||
       tlimits[1].valueType != NVML_VALUE_TYPE_SIGNED_INT ||
-      tlimits[0].timestamp == 0 || tlimits[1].timestamp == 0 ||
-      tlimits[0].timestamp != tlimits[1].timestamp ||
+      field_query_start <= 0 || field_query_end <= 0 ||
+      !nvml_field_timestamps_are_fresh(
+          static_cast<std::uint64_t>(tlimits[0].timestamp),
+          static_cast<std::uint64_t>(tlimits[1].timestamp),
+          static_cast<std::uint64_t>(field_query_start),
+          static_cast<std::uint64_t>(field_query_end), 500'000U) ||
       throttle_status != NVML_SUCCESS ||
       captured == 0U) {
     return sample;

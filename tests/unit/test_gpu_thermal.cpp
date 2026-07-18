@@ -33,5 +33,19 @@ int main() {
               "invalid current temperature rejects")) {
     return 1;
   }
+  if (!expect(prisminfer::nvml_field_timestamps_are_fresh(
+                  1'000'000U, 1'000'000U, 1'100'000U, 1'100'100U, 500'000U),
+              "recent matching fields accept") ||
+      !expect(!prisminfer::nvml_field_timestamps_are_fresh(
+                   1U, 1U, 1'100'000U, 1'100'100U, 500'000U),
+              "stale fields reject") ||
+      !expect(!prisminfer::nvml_field_timestamps_are_fresh(
+                   1'700'000U, 1'700'000U, 1'100'000U, 1'100'100U, 500'000U),
+              "future fields reject") ||
+      !expect(!prisminfer::nvml_field_timestamps_are_fresh(
+                   1'000'000U, 1'000'001U, 1'100'000U, 1'100'100U, 500'000U),
+              "unequal fields reject")) {
+    return 1;
+  }
   return 0;
 }
