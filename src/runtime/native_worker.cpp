@@ -180,6 +180,21 @@ struct TemporaryOutputArtifact {
   UniqueHandle handle;
   bool released{false};
 
+  bool release_for_publication() {
+    if (handle.get() == nullptr || handle.get() == INVALID_HANDLE_VALUE) {
+      return false;
+    }
+    FILE_DISPOSITION_INFO disposition{};
+    disposition.DeleteFile = FALSE;
+    if (!SetFileInformationByHandle(handle.get(), FileDispositionInfo,
+                                    &disposition, sizeof(disposition))) {
+      return false;
+    }
+    handle.reset();
+    released = true;
+    return true;
+  }
+
   ~TemporaryOutputArtifact() {
     handle.reset();
     if (!released && !path.empty()) {
@@ -295,8 +310,17 @@ bool sample_job_tree(HANDLE job, DWORD root_process_id,
     if (process.get() == nullptr ||
         !GetProcessMemoryInfo(
             process.get(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&memory),
-            sizeof(memory)) ||
-        !checked_add_size(tree_working_set, memory.WorkingSetSize,
+            sizeof(memory))) {
+      // A retained PID may disappear between the Job list snapshot and the
+      // process query during expected Job teardown. Its earlier retained
+      // handle/accounting remains authoritative; a never-observed PID still
+      // fails closed because its resource evidence was never captured.
+      if (accumulator->observed_process_ids.count(process_id) != 0U) {
+        continue;
+      }
+      return false;
+    }
+    if (!checked_add_size(tree_working_set, memory.WorkingSetSize,
                           &tree_working_set)) {
       return false;
     }
@@ -536,9 +560,17 @@ bool create_opaque_output_artifact(
     name << L".log";
     const auto candidate = temp_directory / name.str();
     UniqueHandle created(CreateFileW(
-        candidate.c_str(), GENERIC_WRITE, 0U, nullptr, CREATE_NEW,
+        candidate.c_str(), GENERIC_WRITE | DELETE, 0U, nullptr, CREATE_NEW,
         FILE_ATTRIBUTE_TEMPORARY, nullptr));
     if (created.get() != INVALID_HANDLE_VALUE) {
+      FILE_DISPOSITION_INFO disposition{};
+      disposition.DeleteFile = TRUE;
+      if (!SetFileInformationByHandle(created.get(), FileDispositionInfo,
+                                      &disposition, sizeof(disposition))) {
+        created.reset();
+        (void)DeleteFileW(candidate.c_str());
+        return false;
+      }
       artifact->path = candidate;
       artifact->handle = std::move(created);
       return true;
@@ -1332,7 +1364,6 @@ NativeWorkerResult run_native_worker_impl(
   if (!FlushFileBuffers(temporary_output.handle.get())) {
     return fail("native_worker_output_flush_failed");
   }
-  temporary_output.handle.reset();
   result.captured_output = std::move(captured_output);
   DWORD exit_code = 0;
   if (!GetExitCodeProcess(process_handle.get(), &exit_code)) {
@@ -1390,7 +1421,9 @@ NativeWorkerResult run_native_worker_impl(
   result.failure_reason = result.ok ? "" :
       (result.timed_out ? "native_worker_timeout" : "native_worker_child_failed");
   if (result.ok) {
-    temporary_output.released = true;
+    if (!temporary_output.release_for_publication()) {
+      return fail("native_worker_output_publish_failed");
+    }
   } else {
     // Failed and timed-out runs retain bounded captured bytes in memory, but
     // never publish a pathname whose cleanup is delegated to a caller that may

@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <string>
 #include <type_traits>
 
@@ -20,6 +21,24 @@ static_assert(!std::is_default_constructible_v<
               prisminfer::NativeWorkerSupervisorAccess>);
 
 constexpr std::uint64_t kGiB = 1ULL << 30;
+
+#if defined(_WIN32)
+std::set<std::filesystem::path> temporary_output_artifacts() {
+  std::set<std::filesystem::path> artifacts;
+  std::error_code error;
+  const auto directory = std::filesystem::temp_directory_path(error);
+  if (error) return artifacts;
+  for (std::filesystem::directory_iterator current(directory, error), end;
+       !error && current != end; current.increment(error)) {
+    const auto filename = current->path().filename().wstring();
+    if (filename.rfind(L"prisminfer-", 0U) == 0U &&
+        current->path().extension() == L".log") {
+      artifacts.insert(current->path());
+    }
+  }
+  return artifacts;
+}
+#endif
 
 int expect(bool condition, const char* message) {
   if (condition) return 0;
@@ -253,8 +272,18 @@ int main(int argc, char** argv) {
                           " 2\n") ? 0 : 7;
   }
 
-  if (argc == 2 &&
+  if (argc == 4 &&
       std::string(argv[1]) == "--uncooperative-evidence-supervisor") {
+    char* high_end = nullptr;
+    char* low_end = nullptr;
+    const long parsed_high = std::strtol(argv[2], &high_end, 10);
+    const unsigned long parsed_low = std::strtoul(argv[3], &low_end, 10);
+    if (high_end == argv[2] || *high_end != '\0' || low_end == argv[3] ||
+        *low_end != '\0' || parsed_high <= 0 || parsed_low == 0U) {
+      return 89;
+    }
+    const auto luid_high = static_cast<std::int32_t>(parsed_high);
+    const auto luid_low = static_cast<std::uint32_t>(parsed_low);
     const auto executable = std::filesystem::absolute(argv[0]);
     const auto hash = prisminfer::sha256_regular_file(executable);
     prisminfer::NativeWorkerTrustCatalog inner_catalog(
@@ -265,24 +294,26 @@ int main(int argc, char** argv) {
     inner_request.arguments = {L"--protocol-child"};
     inner_request.timeout_ms = 5'000U;
     inner_request.max_job_memory_bytes = 1U * kGiB;
-    auto inner = prisminfer::acquire_gpu_admission_session(cell(), 10, 14U);
+    auto inner = prisminfer::acquire_gpu_admission_session(
+        cell(), luid_high, luid_low);
     auto inner_pre =
         pre_request(prisminfer::monotonic_time_milliseconds());
-    inner_pre.gpu.adapter_luid_high = 10;
-    inner_pre.gpu.adapter_luid_low = 14U;
+    inner_pre.gpu.adapter_luid_high = luid_high;
+    inner_pre.gpu.adapter_luid_low = luid_low;
     if (!inner.session ||
         !inner.session->admit_pre_context(inner_pre).admitted) {
       return 87;
     }
     (void)inner.session->run_contained_worker(
         inner_catalog, inner_request, 100U,
-        [](std::stop_token, std::uint32_t pid, std::uint64_t ready) {
+        [luid_high, luid_low](std::stop_token, std::uint32_t pid,
+                              std::uint64_t ready) {
           Sleep(2'000U);
           auto post = post_request(ready, pid);
-          post.gpu.adapter_luid_high = 10;
-          post.gpu.adapter_luid_low = 14U;
-          post.owned_gpu.adapter_luid_high = 10;
-          post.owned_gpu.adapter_luid_low = 14U;
+          post.gpu.adapter_luid_high = luid_high;
+          post.gpu.adapter_luid_low = luid_low;
+          post.owned_gpu.adapter_luid_high = luid_high;
+          post.owned_gpu.adapter_luid_low = luid_low;
           return post;
         },
         [](std::stop_token, std::uint32_t pid, std::uint64_t,
@@ -385,6 +416,14 @@ int main(int argc, char** argv) {
                 << live_sample_count->load(std::memory_order_relaxed) << "\n";
       return 1;
     }
+    std::error_code remove_error;
+    if (expect(!live_worker.output_path.empty() &&
+                   std::filesystem::remove(live_worker.output_path,
+                                           remove_error) &&
+                   !remove_error,
+               "successful test output is removed by its owner")) {
+      return 1;
+    }
   }
   {
     auto bounded = prisminfer::acquire_gpu_admission_session(cell(), 8, 12U);
@@ -451,32 +490,52 @@ int main(int argc, char** argv) {
     }
   }
   {
-    auto fail_stop_request = request;
-    fail_stop_request.arguments = {L"--uncooperative-evidence-supervisor"};
-    fail_stop_request.timeout_ms = 1'500U;
-    fail_stop_request.max_active_processes = 4U;
-    const auto started = prisminfer::monotonic_time_milliseconds();
-    const auto fail_stopped =
-        prisminfer::run_native_worker(catalog, fail_stop_request);
-    const auto elapsed =
-        prisminfer::monotonic_time_milliseconds() - started;
-    const auto receipt = prisminfer::record_evidence_provider_fail_stop(
-        fail_stopped, 10, 14U, elapsed, 1'500U);
-    const auto retry = prisminfer::acquire_exclusive_gpu_lease(10, 14U);
-    if (expect(receipt.accepted && receipt.non_promotable &&
-                   receipt.quarantined && receipt.retry_prohibited &&
-                   fail_stopped.evidence_available &&
-                   fail_stopped.output_path.empty() &&
-                   retry.status ==
-                       prisminfer::ExclusiveGpuLeaseStatus::
-                           AlreadyHeldInProcess,
+    const auto temporary_outputs_before = temporary_output_artifacts();
+    bool all_fail_stops_verified = true;
+    for (std::uint32_t attempt = 0U; attempt < 3U; ++attempt) {
+      const auto luid_high = static_cast<std::int32_t>(10U + attempt);
+      const auto luid_low = 14U + attempt;
+      auto fail_stop_request = request;
+      fail_stop_request.arguments = {
+          L"--uncooperative-evidence-supervisor",
+          std::to_wstring(luid_high), std::to_wstring(luid_low)};
+      fail_stop_request.timeout_ms = 1'500U;
+      fail_stop_request.max_active_processes = 4U;
+      const auto started = prisminfer::monotonic_time_milliseconds();
+      const auto fail_stopped =
+          prisminfer::run_native_worker(catalog, fail_stop_request);
+      const auto elapsed =
+          prisminfer::monotonic_time_milliseconds() - started;
+      const auto receipt = prisminfer::record_evidence_provider_fail_stop(
+          fail_stopped, luid_high, luid_low, elapsed, 1'500U);
+      const auto retry =
+          prisminfer::acquire_exclusive_gpu_lease(luid_high, luid_low);
+      const bool verified =
+          receipt.accepted && receipt.non_promotable &&
+          receipt.quarantined && receipt.retry_prohibited &&
+          fail_stopped.evidence_available &&
+          fail_stopped.output_path.empty() &&
+          retry.status ==
+              prisminfer::ExclusiveGpuLeaseStatus::AlreadyHeldInProcess;
+      all_fail_stops_verified = all_fail_stops_verified && verified;
+      if (!verified) {
+        std::cerr << "fail-stop details: attempt=" << attempt
+                  << " exit=" << fail_stopped.exit_code
+                  << " elapsed_ms=" << elapsed
+                  << " result=" << fail_stopped.failure_reason
+                  << " receipt=" << receipt.reason
+                  << " retry_status=" << static_cast<int>(retry.status)
+                  << "\n";
+      }
+    }
+    const auto temporary_outputs_after = temporary_output_artifacts();
+    if (expect(all_fail_stops_verified &&
+                   temporary_outputs_after == temporary_outputs_before,
                "uncooperative producer fail-stops under parent receipt and "
                "durable quarantine")) {
-      std::cerr << "fail-stop details: exit=" << fail_stopped.exit_code
-                << " elapsed_ms=" << elapsed
-                << " result=" << fail_stopped.failure_reason
-                << " receipt=" << receipt.reason
-                << " retry_status=" << static_cast<int>(retry.status)
+      std::cerr << "temporary outputs before="
+                << temporary_outputs_before.size()
+                << " after=" << temporary_outputs_after.size()
                 << "\n";
       return 1;
     }
