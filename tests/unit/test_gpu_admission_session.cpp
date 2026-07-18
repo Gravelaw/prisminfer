@@ -253,6 +253,45 @@ int main(int argc, char** argv) {
                           " 2\n") ? 0 : 7;
   }
 
+  if (argc == 2 &&
+      std::string(argv[1]) == "--uncooperative-evidence-supervisor") {
+    const auto executable = std::filesystem::absolute(argv[0]);
+    const auto hash = prisminfer::sha256_regular_file(executable);
+    prisminfer::NativeWorkerTrustCatalog inner_catalog(
+        {{executable, executable.parent_path(), hash,
+          "uncooperative-evidence-worker"}});
+    prisminfer::NativeWorkerRequest inner_request;
+    inner_request.executable_path = executable;
+    inner_request.arguments = {L"--protocol-child"};
+    inner_request.timeout_ms = 5'000U;
+    inner_request.max_job_memory_bytes = 1U * kGiB;
+    auto inner = prisminfer::acquire_gpu_admission_session(cell(), 10, 14U);
+    auto inner_pre =
+        pre_request(prisminfer::monotonic_time_milliseconds());
+    inner_pre.gpu.adapter_luid_high = 10;
+    inner_pre.gpu.adapter_luid_low = 14U;
+    if (!inner.session ||
+        !inner.session->admit_pre_context(inner_pre).admitted) {
+      return 87;
+    }
+    (void)inner.session->run_contained_worker(
+        inner_catalog, inner_request, 100U,
+        [](std::stop_token, std::uint32_t pid, std::uint64_t ready) {
+          Sleep(2'000U);
+          auto post = post_request(ready, pid);
+          post.gpu.adapter_luid_high = 10;
+          post.gpu.adapter_luid_low = 14U;
+          post.owned_gpu.adapter_luid_high = 10;
+          post.owned_gpu.adapter_luid_low = 14U;
+          return post;
+        },
+        [](std::stop_token, std::uint32_t pid, std::uint64_t,
+           std::uint64_t heartbeat) {
+          return watchdog_sample(heartbeat, pid);
+        });
+    return 88;
+  }
+
   const auto now = prisminfer::monotonic_time_milliseconds();
   auto acquired = prisminfer::acquire_gpu_admission_session(cell(), 7, 11U);
   if (expect(acquired.session.has_value(), "session acquires exclusive lease") ||
@@ -303,7 +342,7 @@ int main(int argc, char** argv) {
     const auto live_sample_count =
         std::make_shared<std::atomic<std::uint32_t>>(0U);
     const auto live_worker = live.session->run_contained_worker(
-        catalog, request, 1'000U,
+        catalog, request, 100U,
         [](std::stop_token, std::uint32_t pid, std::uint64_t ready) {
           auto post = post_request(ready, pid);
           post.gpu.adapter_luid_high = 9;
@@ -408,6 +447,37 @@ int main(int argc, char** argv) {
     }
     if (expect(bounded_abort,
                "blocked evidence producer cannot block bounded Job abort")) {
+      return 1;
+    }
+  }
+  {
+    auto fail_stop_request = request;
+    fail_stop_request.arguments = {L"--uncooperative-evidence-supervisor"};
+    fail_stop_request.timeout_ms = 1'500U;
+    fail_stop_request.max_active_processes = 4U;
+    const auto started = prisminfer::monotonic_time_milliseconds();
+    const auto fail_stopped =
+        prisminfer::run_native_worker(catalog, fail_stop_request);
+    const auto elapsed =
+        prisminfer::monotonic_time_milliseconds() - started;
+    const auto receipt = prisminfer::record_evidence_provider_fail_stop(
+        fail_stopped, 10, 14U, elapsed, 1'500U);
+    const auto retry = prisminfer::acquire_exclusive_gpu_lease(10, 14U);
+    if (expect(receipt.accepted && receipt.non_promotable &&
+                   receipt.quarantined && receipt.retry_prohibited &&
+                   fail_stopped.evidence_available &&
+                   fail_stopped.output_path.empty() &&
+                   retry.status ==
+                       prisminfer::ExclusiveGpuLeaseStatus::
+                           AlreadyHeldInProcess,
+               "uncooperative producer fail-stops under parent receipt and "
+               "durable quarantine")) {
+      std::cerr << "fail-stop details: exit=" << fail_stopped.exit_code
+                << " elapsed_ms=" << elapsed
+                << " result=" << fail_stopped.failure_reason
+                << " receipt=" << receipt.reason
+                << " retry_status=" << static_cast<int>(retry.status)
+                << "\n";
       return 1;
     }
   }

@@ -191,7 +191,7 @@ C1 tiny attended fixture may touch CUDA before C2 closes.
 Failure to observe or control the worker/device blocks C2 and all model work; it
 does not justify bypassing the supervisor.
 
-**Review tier.** T2 exact-head safety/security review; any tiny live hardware
+**Review tier.** T2 exact-head functional/safety review; any tiny live hardware
 evidence is T3 and separately authorized.
 
 **M2 implementation receipt (2026-07-18, review state).** Packet B is ported
@@ -204,7 +204,7 @@ tokens, watchdog submission blocking, cooperative-cancel/Job-abort deadlines,
 and receipt-bound cleanup quarantine. Owned-GPU and WDDM evidence carry bounded
 capture freshness, and executable approval rejects unheld intermediate path
 components. This receipt is not the packet exit: C2 stays closed
-until final hosted checks and a fresh independent exact-head safety/security
+until final hosted checks and a fresh independent exact-head functional/safety
 review accept the complete tree. No CUDA, model, calibration, capacity, or
 performance evidence was produced.
 
@@ -219,6 +219,12 @@ facts. The raw runner requires a session-private capability; evidence callbacks
 and live process-memory sampling are bounded independently, with an emergency
 Job watchdog retained while they execute. Token delivery also has an explicit
 consumption timeout. A dedicated nonce-bound control pipe is separate from worker output.
+Evidence providers are stop-token-aware and session-owned. A provider that
+misses both its deadline and fixed stop grace forces a dedicated supervisor
+fail-stop; the independent parent accepts only the exact fail-stop exit plus
+bounded complete Job/accounting/temporary-output evidence, then holds the
+adapter lease in process-lifetime quarantine. This negative path is never
+`Cleaned`, promotable, C2-positive, or automatically retried.
 Duplicate consumption, missing context readiness, heartbeat loss, and cleanup
 are covered by contained CPU worker tests. The production llama GPU path fails
 closed until it implements this context-ready protocol. The Windows evidence

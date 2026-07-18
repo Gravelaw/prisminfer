@@ -3,6 +3,7 @@
 #include <cerrno>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
 #include <functional>
 #include <mutex>
 #include <thread>
@@ -54,8 +55,14 @@ std::optional<Result> bounded_evidence_call(Callable callable,
   std::unique_lock lock(shared->mutex);
   if (!shared->ready.wait_for(lock, std::chrono::milliseconds(timeout_ms),
                               [&] { return shared->completed; })) {
-    lock.unlock();
     producer.request_stop();
+    constexpr std::uint32_t kStopGraceMilliseconds = 100U;
+    if (!shared->ready.wait_for(
+            lock, std::chrono::milliseconds(kStopGraceMilliseconds),
+            [&] { return shared->completed; })) {
+      std::_Exit(static_cast<int>(kEvidenceProviderFailStopExitCode));
+    }
+    lock.unlock();
     producer.join();
     return std::nullopt;
   }
@@ -733,6 +740,40 @@ GpuAdmissionSessionAcquireResult acquire_gpu_admission_session(
   result.session.emplace(GpuAdmissionSession(std::move(impl)));
   result.status = GpuAdmissionSessionAcquireResult::Status::Acquired;
   return result;
+}
+
+EvidenceProviderFailStopReceipt record_evidence_provider_fail_stop(
+    const NativeWorkerResult& supervisor_result,
+    std::int32_t adapter_luid_high, std::uint32_t adapter_luid_low,
+    std::uint64_t observed_elapsed_milliseconds,
+    std::uint64_t maximum_elapsed_milliseconds) {
+  EvidenceProviderFailStopReceipt receipt;
+  receipt.reason = "evidence_provider_fail_stop_unverified";
+  const bool exact_outer_evidence =
+      maximum_elapsed_milliseconds != 0U &&
+      observed_elapsed_milliseconds <= maximum_elapsed_milliseconds &&
+      !supervisor_result.ok && !supervisor_result.timed_out &&
+      supervisor_result.exit_code == kEvidenceProviderFailStopExitCode &&
+      supervisor_result.worker_exit_observed &&
+      supervisor_result.job_tree_empty &&
+      supervisor_result.job_accounting_reconciled &&
+      supervisor_result.artifact_handles_closed &&
+      supervisor_result.temporary_files_reconciled &&
+      supervisor_result.output_path.empty();
+  if (!exact_outer_evidence) return receipt;
+  auto acquired =
+      acquire_exclusive_gpu_lease(adapter_luid_high, adapter_luid_low);
+  if (acquired.status != ExclusiveGpuLeaseStatus::Acquired ||
+      !acquired.lease) {
+    receipt.reason = "evidence_provider_fail_stop_quarantine_failed";
+    return receipt;
+  }
+  acquired.lease->quarantine_for_process_lifetime();
+  receipt.accepted = true;
+  receipt.quarantined = true;
+  receipt.retry_prohibited = true;
+  receipt.reason = "evidence_provider_timeout_fail_stop";
+  return receipt;
 }
 
 }  // namespace prisminfer

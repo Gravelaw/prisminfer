@@ -63,6 +63,16 @@ struct DeviceCleanupEvidence {
   std::string evidence_bundle_sha256;
 };
 
+inline constexpr std::uint32_t kEvidenceProviderFailStopExitCode = 86U;
+
+struct EvidenceProviderFailStopReceipt {
+  bool accepted{false};
+  bool non_promotable{true};
+  bool quarantined{false};
+  bool retry_prohibited{false};
+  std::string reason;
+};
+
 // Evidence producers are supervisor-owned and must observe the stop token.
 // The session requests stop on deadline and joins every producer before
 // returning, so producer activity and captured state cannot escape cleanup.
@@ -152,5 +162,15 @@ struct GpuAdmissionSessionAcquireResult {
 [[nodiscard]] GpuAdmissionSessionAcquireResult acquire_gpu_admission_session(
     const AdmissionCellIdentity& cell, std::int32_t adapter_luid_high,
     std::uint32_t adapter_luid_low);
+
+// Called only by the independent parent that observes a fail-stopped
+// supervisor. Exact exit/Job/cleanup evidence is required before the parent
+// quarantines the adapter lease for its remaining process lifetime.
+[[nodiscard]] EvidenceProviderFailStopReceipt
+record_evidence_provider_fail_stop(
+    const NativeWorkerResult& supervisor_result,
+    std::int32_t adapter_luid_high, std::uint32_t adapter_luid_low,
+    std::uint64_t observed_elapsed_milliseconds,
+    std::uint64_t maximum_elapsed_milliseconds);
 
 }  // namespace prisminfer

@@ -206,6 +206,18 @@ last good sample and terminal evidence bundle. Any premature destruction or
 unreconciled terminal path quarantines the adapter lease until the supervisor
 process exits.
 
+Evidence collection has its own terminal rule. Cooperative providers receive
+a stop token and are joined before the session returns. If a provider remains
+stuck after the evidence deadline and fixed stop grace, the trusted supervisor
+fail-stops with a dedicated exit code; it never detaches or returns past the
+provider lifetime. The independent parent must observe the exact exit, bounded
+elapsed time, empty Job tree, reconciled Job accounting, and removed temporary
+output before it records a non-promotable receipt and reacquires the adapter
+lease in process-lifetime quarantine. That path is not `Cleaned`, cannot
+publish success evidence, and prohibits automatic same-cell retry. A future
+contained evidence-helper process may replace this last-resort supervisor
+fail-stop without weakening the parent receipt.
+
 The native worker additionally retains approved read-only artifact root and
 leaf handles without write/delete sharing from byte-hash verification through
 complete Job-tree exit. The production llama adapter accepts only the Packet A
@@ -218,7 +230,7 @@ and watchdog telemetry plus final device-resource reconciliation; they cannot
 assert containment, consume a token, or advance cancellation/Job cleanup. The
 llama GPU adapter fails closed until it speaks the context-ready protocol. This
 is still not C2 credit: Packet B remains in Review and C2 stays closed until
-fresh exact-head safety/security review and hosted checks accept the tree.
+fresh exact-head functional/safety review and hosted checks accept the tree.
 
 ## Provider subordination
 
