@@ -140,21 +140,24 @@ Required deterministic host cells are:
 | Pinned-host request above the T-101 cap | Reject before pinning. |
 | Explicit per-run physical or commit reserve exceeds its lane floor | Use the higher effective reserve; reject if it consumes the reserve or planned payload. |
 
+## Memory Envelope
+
 Each validation cell must account for the resident GPU memory envelope:
 
 ```text
 peak_vram =
   resident_weight_bytes
-+ resident_kv_bytes
-+ weight_metadata_bytes
-+ kv_metadata_bytes
-+ kv_residual_or_sketch_bytes
-+ dequant_workspace_peak_bytes
-+ activation_workspace_bytes
-+ cuda_context_runtime_bytes
-+ kernel_workspace_peak_bytes
-+ retained_pool_bytes
++ active_request_state_bytes
++ representation_metadata_bytes
++ admitted_workspace_peak_bytes
++ runtime_context_bytes
++ scheduler_queue_peak_bytes
++ batching_chunking_pool_peak_bytes
++ retained_shared_prefix_kv_cache_bytes
++ shared_cache_metadata_index_bytes
++ cache_eviction_workspace_peak_bytes
 + allocator_fragmentation_bytes
++ instrumentation_bytes
 + unknown_gpu_bytes
 + telemetry_safety_margin_bytes
 
@@ -169,58 +172,139 @@ nominal bit-width claims:
 
 ```text
 compression_peak_vram =
-  cuda_context_runtime_bytes
-+ resident_quant_weight_bytes
-+ weight_metadata_bytes
-+ weight_dequant_workspace_peak_bytes
-+ activation_workspace_peak_bytes
-+ kv_payload_bytes
-+ kv_metadata_bytes
-+ kv_residual_window_bytes
-+ kv_rotation_or_projection_metadata_bytes
-+ kv_reconstruction_workspace_peak_bytes
-+ kernel_workspace_peak_bytes
+  resident_compressed_weight_bytes
++ active_request_compressed_state_bytes
++ weight_and_state_representation_metadata_bytes
++ admitted_decode_reconstruction_kernel_workspace_peak_bytes
++ runtime_context_bytes
++ scheduler_queue_peak_bytes
++ batching_chunking_pool_peak_bytes
++ retained_shared_prefix_kv_cache_bytes
++ shared_cache_metadata_index_bytes
++ cache_eviction_workspace_peak_bytes
 + allocator_fragmentation_bytes
-+ retained_pool_bytes
++ instrumentation_bytes
 + unknown_device_bytes
 + telemetry_safety_margin_bytes
 ```
 
 A compression profile cannot certify a constrained-VRAM claim while
 `unknown_device_bytes`, unreconciled backend bytes, or hidden retained-pool bytes
-remain unexplained.
+remain unexplained. Resident payload and representation metadata map to the
+resident-representation sum; every remaining category maps without overlap into
+the authoritative $M_{\mathrm{state}}$, $M_{\mathrm{workspace}}$,
+$M_{\mathrm{runtime}}$, $M_{\mathrm{queue}}$, $M_{\mathrm{batch}}$,
+$M_{\mathrm{cache}}$, $M_{\mathrm{fragmentation}}$,
+$M_{\mathrm{instrumentation}}$, $M_{\mathrm{unknown}}$, and
+$M_{\mathrm{safety}}$ terms in
+[`adaptive-runtime-v2/optimizer-mathematics.md`](adaptive-runtime-v2/optimizer-mathematics.md#capacity-constraints).
+Active per-request KV/architecture state is charged only to
+`active_request_state_bytes`; reusable prefix/KV allocations, their indices,
+and eviction workspace are charged only to the shared-cache categories. New
+promoted manifests may not use undifferentiated `resident_kv_bytes` or
+`retained_pool_bytes`. Every byte has one owner/category, and workspace overlap
+is admitted from a retained schedule rather than by silently summing or reusing
+component peaks.
 
 ## Cell Identity
 
-Every benchmark or claim should identify a validation cell:
+Every benchmark or claim identifies the complete validation cell through one
+canonical manifest rather than a locally shortened field tuple:
 
 ```text
-validation_cell_id =
-  model_parameter_bucket
-  + model_hash
-  + quant_artifact_sha256
-  + tensor_quantization_inventory_sha256
-  + context_tokens
-  + vram_tier_gib
-  + backend
-  + os
-  + hardware_class
+validation_cell_id = sha256(canonical_json(exact_cell_manifest))
+
+exact_cell_manifest =
+  hardware_host_fingerprint_sha256
+  + runtime_identity_sha256
+  + os_execution_identity_sha256
+  + model_source_identity_sha256
+  + artifact_identity_sha256
+  + tokenizer_template_sha256
+  + workload_service_profile_sha256
+  + cap_power_thermal_policy_sha256
+  + software_provider_fingerprint_sha256
+  + quality_contract_sha256
+  + measurement_protocol_sha256
 ```
+
+Each referenced immutable record is retained with the manifest and serializes
+every component of the exact cell $\chi$ defined in
+[`adaptive-runtime-v2/optimizer-mathematics.md`](adaptive-runtime-v2/optimizer-mathematics.md#exact-cell).
+The schema rejects a missing record, unknown field, hash mismatch, or
+non-canonical serialization; the hashes are references to reviewable records,
+not substitutes for their contents.
+
+Runtime/backend/build or OS execution-mode changes create new cells. Results
+missing a material field, or results whose artifact and quantized-tensor
+semantics are not equivalent, are contextual. A cross-runtime result is never
+the same cell; it is directly comparable only through the paired-cell projection
+and cannot share calibration, plans, or feasible-oracle membership.
+
+Artifact equivalence is pair-specific and therefore is not part of either
+unary `validation_cell_id`. A paired comparison separately retains both cell
+ids, the comparator-projection version, and an
+`artifact_equivalence_record_sha256`.
 
 Required manifest/config fields:
 
 ```text
+exact_cell_schema_version
+exact_cell_manifest_sha256
+hardware_host_fingerprint_sha256
+runtime_identity_sha256
+os_execution_identity_sha256
+model_source_identity_sha256
+artifact_identity_sha256
+tokenizer_template_sha256
+workload_service_profile_sha256
+cap_power_thermal_policy_sha256
+software_provider_fingerprint_sha256
+quality_contract_sha256
+measurement_protocol_sha256
 model_parameter_bucket
 parameter_count
 model_hash
+source_revision
 quantization_format
 quant_artifact_sha256
 quantization_recipe_id
 mixed_quantization
 tensor_quantization_inventory_sha256
 context_tokens
+runtime_family
+runtime_revision
+backend
+os_execution_mode
+concurrency
+arrival_process_and_seed
+scheduler_batching_chunking_policy
+prefix_kv_configuration
+observed_cache_state
+streaming_output_policy
+output_cap
+quality_contract_id
+measurement_protocol_id
+memory_ledger_schema_version
+memory_ledger_sha256
+resident_weight_bytes
+active_request_state_bytes
+representation_metadata_bytes
+scheduler_queue_peak_bytes
+batching_chunking_pool_peak_bytes
+retained_shared_prefix_kv_cache_bytes
+shared_cache_metadata_index_bytes
+cache_eviction_workspace_peak_bytes
+admitted_workspace_peak_bytes
+runtime_context_bytes
+allocator_fragmentation_bytes
+instrumentation_bytes
+unknown_gpu_bytes
+telemetry_safety_margin_bytes
+peak_vram_bytes
 vram_tier_gib
 policy_ceiling_bytes
+hard_vram_cap_bytes
 requested_tier_bytes
 pre_context_live_capacity_bytes
 pre_context_effective_cap_bytes
@@ -235,6 +319,21 @@ worker_build_sha256
 validation_cell_id
 validation_cell_status
 ```
+
+Compression-enabled manifests additionally require
+`resident_compressed_weight_bytes`,
+`active_request_compressed_state_bytes`,
+`weight_and_state_representation_metadata_bytes`,
+`admitted_decode_reconstruction_kernel_workspace_peak_bytes`,
+`unknown_device_bytes`, and `compression_peak_vram_bytes`. Those fields replace
+their corresponding uncompressed ledger fields for that schema variant; they do
+not supplement or double-count them. The selected schema variant must make its
+reported peak exactly recomputable from retained fields.
+
+Paired-runtime comparison manifests additionally require
+`comparison_cell_a_id`, `comparison_cell_b_id`, `comparator_projection_version`,
+and `artifact_equivalence_record_sha256`. Those fields authorize only the
+paired comparator; they do not alter either exact cell.
 
 `vram_tier_gib` is a legacy/display alias for `requested_tier_bytes`; it is not
 the executable cap. New manifests use the byte-valued fields as authoritative.
@@ -516,7 +615,8 @@ Reject the exact foundation or stress cell when any of these occur:
 - requested GPU cap exceeds `17179869184` bytes
 - requested tier is substituted for an unavailable or smaller effective live
   cap, or the nonzero reserve is counted as payload
-- #103 or the required current Plan clearance evidence is missing
+- the completed #103 implementation identity or the currently required
+  #119/C2 Plan clearance evidence is missing
 - pre-context/post-context admission, watchdog, cancellation, or cleanup
   evidence is missing, stale, contradictory, or failed
 - exact model or quantization hashes are missing

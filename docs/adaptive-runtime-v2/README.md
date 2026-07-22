@@ -1,7 +1,7 @@
 # PrismInfer Adaptive Runtime V2
 
-Status: active program specification on M0 merge, documentation-only,
-2026-07-16.
+Status: active program specification on M0 merge, with the #125 runtime
+comparator and exact service-cell contract aligned on 2026-07-22.
 
 This package replaces the first adaptive-runtime research packet. It does not
 grant CUDA, model, calibration, benchmark, download, workflow, or implementation
@@ -37,7 +37,7 @@ prior art.
 | Repository safety and operations | [`AGENTS.md`](../../AGENTS.md) |
 | Program thesis, scope, cells, claim classes, issue dependencies, packet order, clearances, and phase exit | [`Plan.md`](../../Plan.md); GitHub Project 2 mirrors live status |
 | V2 research questions and falsifiable working hypothesis within Plan scope | [`program-charter.md`](program-charter.md) |
-| Runtime boundary, provider seams, and escalation | [`architecture.md`](architecture.md) |
+| Runtime boundary, capability record, provider seams, conditional substrate scorecard, and escalation | [`architecture.md`](architecture.md) |
 | Mathematical notation, optimization, and statistics | [`optimizer-mathematics.md`](optimizer-mathematics.md) |
 | Admission, actuation, acknowledgement, and recovery | [`safety-actuation-and-admission.md`](safety-actuation-and-admission.md) |
 | Evidence schema, thresholds, sampling, and provider trust | [`evidence-thresholds-and-security.md`](evidence-thresholds-and-security.md) |
@@ -74,6 +74,14 @@ are preferred to copied prose.
   lossy Q4 artifact.
 - Weight representation is fixed within a static validation cell. Selecting a
   different representation creates a new artifact/provider cell.
+- Runtime family/backend, native/WSL/Linux mode, scheduler and cache policy,
+  concurrency, and the remaining service-profile fields are immutable cell
+  identity rather than optimizer actuators. A material change requires a new
+  cell and fresh calibration.
+- External runtimes are mechanism references or conditional substrate
+  candidates unless the paired-cell direct-comparator predicate passes. They
+  remain separate cells even when directly comparable; wrappers and
+  orchestration products are not tensor-execution baselines by themselves.
 - Decode, prefill, and KV/state execution have separate provider and acceptance
   paths.
 - Offline entropy/rate-distortion diagnostics may begin early only as declared
@@ -99,6 +107,7 @@ Archived status statements and links describe the repository when V1 was
 written. They are not active authority.
 
 GitHub Project #2 mirrors the M0-M7 sequence and the live issue/PR state in
-`Plan.md`. Packet branches created before M0 must rebase after the migration and
-port any still-applicable V1 document edits into the sole V2 owner document;
-they must not recreate the former V1 active directory.
+`Plan.md`. Packet branches created before M0 were required to rebase after the
+migration and port any still-applicable V1 edits into the sole V2 owner
+document. Current and future branches must not recreate the former V1 active
+directory.

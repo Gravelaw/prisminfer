@@ -17,11 +17,11 @@ kept in `docs/phase6-compression-architecture.md`.
 
 Build a manifest-backed evidence path for one exact `>5B-10B` foundation GGUF
 under an admitted device-specific GPU cap, with requested 10 GiB and 12 GiB as
-the primary constrained research tiers and 8 GiB as stress-only. P7-01 owns
-the exact model selection; Meta Llama 3.1
-8B is preferred pending license acceptance, access, exact pin, converter
-support, and reproducible hashes. Ornith-1.0-9B remains a separate hybrid stress
-cell.
+the primary constrained research tiers and 8 GiB as stress-only. Issue #80
+(historical P7-01) completed the immutable Llama 3.1 8B foundation identity and
+recorded the one-time owner-authorized acquisition exception; this is not a
+self-produced-artifact claim. Ornith 9B remains a separate hybrid stress cell
+with its retained unsupported-converter boundary.
 
 Phase 6 answers:
 
@@ -33,11 +33,12 @@ separate nonblocking hypotheses.
 
 ## Safety Gate
 
-[#103](https://github.com/Gravelaw/prisminfer/issues/103) gates all model-backed
-Phase 6 CUDA, calibration, and evidence collection. Only CPU/simulation work and
-the bounded attended synthetic CUDA fixture may run before #103 closes with
-pre-context admission, exclusive lease, watchdog, cancellation, cleanup, and
-fault-injection evidence.
+[#103](https://github.com/Gravelaw/prisminfer/issues/103) implemented the Packet
+B pre/post admission, exclusive lease, watchdog, cancellation, cleanup, and
+fault-injection boundary. C2 nevertheless remains closed: model-backed Phase 6
+CUDA, calibration, and evidence collection require a fresh exact-SHA
+authorization and independently accepted [#119](https://github.com/Gravelaw/prisminfer/issues/119)
+C2 receipt. CPU/offline work gains no C2 credit.
 
 ## Current Evidence Baseline
 
@@ -64,11 +65,11 @@ Phase 2 already provides:
 
 Phase 6 does not yet provide:
 
-- the #103 supervisor/admission clearance for model-backed work,
-- exact GGUF/GGML semantics for every actual per-tensor `ggml_type` encountered
-  in a selected mixed-recipe artifact,
-- retained selected-foundation GGUF artifact hashes,
-- same-cell llama.cpp/GGML CUDA/MMQ baseline,
+- an independently accepted exact-SHA C2 hardware receipt authorizing
+  model-backed work; #103 is implemented, but C2 remains closed,
+- model-backed execution evidence for the already pinned #80 foundation
+  artifact and #74 per-tensor GGML semantics,
+- a same-cell llama.cpp/GGML CUDA/MMQ baseline,
 - a strict manifest-emitting kernel benchmark runner,
 - an offline KV-compression evaluator or retained quality-fixture runner,
 - measured PrismInfer candidate kernel/compression benchmark,
@@ -87,10 +88,26 @@ disallowed:
 - bucket-wide `>5B-10B` claim from one model,
 - constrained-VRAM claim if full FP16 weights are materialized in VRAM.
 
-A single foundation pass can promote only the exact validation cell:
+A single foundation pass can promote only the exact validation cell identified
+by the canonical manifest. The following record hashes and minimum audit
+projection are retained together:
 
 ```text
+exact_cell_schema_version
+exact_cell_manifest_sha256
+hardware_host_fingerprint_sha256
+runtime_identity_sha256
+os_execution_identity_sha256
+model_source_identity_sha256
+artifact_identity_sha256
+tokenizer_template_sha256
+workload_service_profile_sha256
+cap_power_thermal_policy_sha256
+software_provider_fingerprint_sha256
+quality_contract_sha256
+measurement_protocol_sha256
 model_hash
+source_revision
 quant_artifact_sha256
 quantization_format
 quantization_recipe
@@ -98,14 +115,46 @@ per_tensor_ggml_type_manifest_hash
 context_tokens
 batch_size
 prompt_fixture_hash
-os
+runtime_family
+runtime_revision
+backend
+os_execution_mode
+concurrency
+arrival_process_and_seed
+scheduler_batching_chunking_policy
+prefix_kv_configuration
+observed_cache_state
+streaming_output_policy
+output_cap
+quality_contract_id
+measurement_protocol_id
 gpu_name
 driver_version
 cuda_runtime_version
 hard_vram_cap_bytes
 compression_policy
 kernel_backend
+memory_ledger_schema_version
+memory_ledger_sha256
 ```
+
+`exact_cell_manifest_sha256` is the canonical hash over all immutable identity
+records required by the authoritative exact cell $\chi$ in
+[`adaptive-runtime-v2/optimizer-mathematics.md`](adaptive-runtime-v2/optimizer-mathematics.md#exact-cell).
+The listed audit fields do not narrow that authority; missing referenced records
+or hash mismatches reject the run.
+
+Changing runtime identity or OS execution mode requires fresh admission and
+calibration. An external runtime is always a separate cell; it may support only
+a labelled paired-cell runtime comparison when the frozen projection and
+artifact-equivalence gate pass. Otherwise it is contextual evidence, and it
+never establishes a within-runtime selector/provider speedup or controller
+promotion.
+
+A paired-runtime record separately retains both validation-cell ids,
+`comparator_projection_version`, and
+`artifact_equivalence_record_sha256`. Artifact equivalence is not a unary cell
+field and cannot merge their calibration or plan identities.
 
 ## Architecture Workflow
 
@@ -120,7 +169,7 @@ implementation plan.
 
 ```mermaid
 flowchart TD
-  SAFE["#103 supervisor/admission clearance"] --> A["P7-01 pinned foundation GGUF"]
+  SAFE["Accepted exact-SHA C2 receipt (#119; #103 implemented)"] --> A["#80 pinned foundation GGUF"]
   A --> B["Artifact and sidecar validation"]
   B --> C["Validation-cell manifest"]
   C --> D["Baseline runs"]
@@ -173,7 +222,7 @@ separately before any combined profile is trusted.
 
 | Lane | Purpose | First implementation | Promotion rule |
 |---|---|---|---|
-| Quantized weight residency | Establish the upstream quantized foundation without FP16 expansion. | Prefer a reproducibly produced `Q4_K_M` recipe if P7-01 selects it; record and honor every tensor's actual `ggml_type` rather than treating the recipe as one block type. | Same-cell correctness, exact artifact/type identity, and no full FP16 materialization. |
+| Quantized weight residency | Establish the upstream quantized foundation without FP16 expansion. | Consume the #80-pinned `Q4_K_M` recipe and honor every tensor's actual `ggml_type` rather than treating the recipe as one block type. | Same-cell correctness, exact artifact/type identity, and no full FP16 materialization. |
 | KV accounting | Measure memory pressure before compressing KV. | Uncompressed KV ledger with per-layer/head/token/block bytes. | Ledger agrees with telemetry; no compression claim yet. |
 | Proven KV quantization | Reduce context-growth memory. | KIVI/KVQuant/QServe-style reference policy before hot CUDA path. | Quality pass, effective-bit report, metadata overhead, decode overhead, and memory savings. |
 | PolarQuant/TurboQuant/QJL | Explore dot-product-preserving KV/vector compression. | Offline evaluator over captured KV tensors before runtime integration. | Attention-logit error, top-k overlap, task quality, and overhead all pass. |
@@ -192,25 +241,35 @@ Phase 6 manifests must report the constrained run as:
 
 ```text
 peak_vram =
-  cuda_context_runtime_bytes
-+ resident_weight_bytes
-+ weight_metadata_bytes
-+ dequant_workspace_peak_bytes
-+ activation_workspace_peak_bytes
-+ resident_kv_bytes
-+ kv_metadata_bytes
-+ kv_residual_or_sketch_bytes
-+ kernel_workspace_peak_bytes
+  resident_weight_bytes
++ active_request_state_bytes
++ representation_metadata_bytes
++ admitted_workspace_peak_bytes
++ runtime_context_bytes
++ scheduler_queue_peak_bytes
++ batching_chunking_pool_peak_bytes
++ retained_shared_prefix_kv_cache_bytes
++ shared_cache_metadata_index_bytes
++ cache_eviction_workspace_peak_bytes
 + allocator_fragmentation_bytes
-+ retained_pool_bytes
++ instrumentation_bytes
 + unknown_gpu_bytes
++ telemetry_safety_margin_bytes
 ```
+
+The manifest maps these fields without overlap into the mutually exclusive
+capacity categories in `docs/validation-matrix.md` and
+[`optimizer-mathematics.md`](adaptive-runtime-v2/optimizer-mathematics.md#capacity-constraints).
+Active per-request state and retained shared prefix/KV cache are different
+owners; no byte may appear in both, and undifferentiated retained-pool fields do
+not qualify for promotion.
 
 Certification requires:
 
-- `peak_vram <= hard_vram_cap_bytes`,
-- `hard_vram_cap_bytes <= min(17179869184, admitted live WDDM local budget -
-  required reserve)`,
+- `peak_vram <= effective_live_cap_bytes <= hard_vram_cap_bytes`,
+- `hard_vram_cap_bytes <= 17179869184`,
+- `effective_live_cap_bytes <= admitted live WDDM local budget - required
+  reserve`,
 - `full_dequant_materialized = false`,
 - no unreconciled unknown GPU/process/backend/workspace allocation,
 - host RAM, pinned memory, mmap, pagefile, and IO pressure reported whenever
@@ -226,7 +285,7 @@ result can be retained only as `measured-non-certified` or `rejected`.
 | Architect | Claim integrity and evidence boundaries | Keep `research-only` until retained artifacts pass; update risks and audit. |
 | Principal software engineer | Manifest ingestion, CI, tools, tests | Build comparator file mode, config schemas, workflows, and verification flags. |
 | CUDA kernel engineer | Correctness, memory, launch, profiler | Replace toy q4 semantics, add CUDA correctness harness, measure kernel costs. |
-| LLM systems expert | Model cell, baselines, quality | Complete the P7-01-selected foundation pin, define fixtures, collect same-cell baselines, then treat Ornith as a separate stress cell. |
+| LLM systems expert | Model cell, baselines, quality | Consume the completed #80 foundation pin, define fixtures, collect same-cell baselines, then treat Ornith as a separate stress cell. |
 | Compression researcher | KV and vector representation | Stage KIVI/KVQuant/QServe before PolarQuant/TurboQuant/QJL runtime claims. |
 
 ## Stage Plan
@@ -244,40 +303,40 @@ baseline until it merges.
 | P6-04 | Partially implemented | Schema/parser carry compression evidence fields and tests. No manifest-emitting benchmark runner or retained model evidence exists. |
 | P6-05 | Implemented, unproven on retained runner evidence | Manual self-hosted workflow and `-WithCudaKernels` verification lane exist; a workflow definition is not a hardware result. |
 | P6-06 | Synthetic implementation only | Guarded CUDA launch/sync/error/reference test source exists for toy `Q4Block`; it is not model-relevant GGUF evidence. |
-| P6-07 | Not merged; #74 is In Progress | Decode real selected-artifact tensor slices by actual per-tensor `ggml_type`; mixed recipe names such as `Q4_K_M` are metadata, not block semantics. Draft PR #111 has only a bounded CPU Q4_K checkpoint under review. |
-| P6-08 | Not merged; #75 is In Progress and required | Add the strict manifest-emitting evidence runner for upstream baselines, PrismInfer candidates, optional mechanisms, and explicit rejection/failure evidence. It is required whether or not a custom-kernel hypothesis proceeds. |
+| P6-07 | Done in Packet A PR #111 / #74 | Exact per-tensor `ggml_type` truth, mixed-recipe inventory, and CPU reference fixtures are retained; this grants no model/CUDA evidence. |
+| P6-08 | Done in Packet A PR #111 / #75 | The strict manifest-emitting evidence runner retains upstream, candidate, optional, rejection, and failure evidence; this grants no model/CUDA evidence. |
 | P6-09 | Pending, optional | Add an offline KV evaluator; its pass, failure, or rejection does not block Phase 6. |
 | P6-10 | Pending | Add deterministic foundation quality fixtures; KV-specific fixtures are required only for a KV claim. |
-| P6-11 | Blocked by P7-01 and #103 | Retain exact source/model/recipe/per-tensor-type hashes plus CPU, no-custom, and llama.cpp CUDA same-cell baselines. |
+| P6-11 | Blocked by #84 and by closed C2 pending accepted #119 evidence | Retain the completed #80 source/model/recipe/per-tensor-type identity plus CPU, no-custom, and llama.cpp CUDA same-cell baselines. |
 | P6-12 | Optional after core baseline | Run custom q4 candidate evidence only if pursued; no kernel win is required for Phase 6 exit. |
 | P6-13 | Optional after core baseline | Run compression candidate evidence only if pursued; no KV/compression win is required for Phase 6 exit. |
 | P6-14 | Pending | Audit the core exact-cell evidence and independently classify each optional result. No broader claim is implied. |
 
 ## Foundation Evidence Cell
 
-P7-01 owns the exact pin. The preferred first cell is:
+#80 (historical P7-01) owns the completed exact foundation pin. The execution
+cell references that immutable record rather than restating mutable artifact
+values:
 
 ```text
 model_parameter_bucket: >5B-10B
-preferred_model: Meta Llama 3.1 8B, pending license/access/pin
-parameter_count: exact metadata value
+foundation_model_record: immutable #80 Llama 3.1 8B record
+artifact_recipe_inventory: exact #80 hashes and per-tensor ggml_type inventory
 context_tokens: 2048
 batch_size: 1
 decode_sample_tokens: 128
-quantization_recipe: reproducibly produced q4 recipe, preferably Q4_K_M if selected
-tensor_types: exact per-tensor ggml_type manifest
 primary_requested_vram_tiers_gib: [10, 12]
 stress_vram_tier_gib: 8
 hard_cap_bytes: admitted device-specific value, never a nominal allocation target
 ```
 
-The model must be exact-model pinned. Meta Llama 3.1 8B remains a preference,
-not an approved artifact, until P7-01 records license acceptance, source and
-tokenizer revisions, converter support, the conversion/quantization recipe,
-per-tensor `ggml_type` inventory, and hashes. Ornith-1.0-9B is evaluated later as
-a separate hybrid stress cell. Gemma 2 is not treated as globally full-attention;
-if retained as an optional comparison, its sliding-window/global-attention
-pattern is part of the validation identity.
+The model remains bound to the exact #80 source, tokenizer, recipe, artifact,
+per-tensor inventory, and hashes. The recorded related-community acquisition
+exception does not become a general download permission or a self-produced
+artifact claim. Ornith is evaluated later as a separate hybrid stress cell.
+Gemma 2 is not treated as globally full-attention; if retained as an optional
+comparison, its sliding-window/global-attention pattern is part of the
+validation identity.
 
 ## Required Artifacts
 
@@ -365,7 +424,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify.ps1
 ```
 
 The synthetic CUDA lane is implemented but may run only under the repository's
-attended safety rules; model-backed invocations require #103 clearance:
+attended safety rules and a separate exact-SHA authorization. Model-backed
+invocations require an independently accepted #119 C2 receipt:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify.ps1 -WithCudaKernels -CudaArchs 120
@@ -375,4 +435,4 @@ cmake --build --preset vs2026-cuda-sm120
 
 The self-hosted kernel workflow runs the bounded synthetic correctness lane.
 Model manifests, logs, comparator output, quality results, optional evaluator
-outputs, and profiler artifacts are uploaded only by later #103-cleared runs.
+outputs, and profiler artifacts are uploaded only by later C2-cleared runs.

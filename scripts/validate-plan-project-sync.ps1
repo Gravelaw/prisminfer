@@ -214,6 +214,26 @@ if ($null -ne $hostAdmission109) {
     Assert-Value 109 "milestone" $hostAdmission109.milestone.title "Phase 6: Safety and Exact Evidence Foundation"
 }
 
+$runtimeComparator125 = Require-Item 125
+if ($null -ne $runtimeComparator125) {
+    if ($runtimeComparator125.status -notin @("In Progress", "Done")) {
+        Add-Failure "#125 Status is '$($runtimeComparator125.status)'; expected 'In Progress' or 'Done'."
+    }
+    if ($runtimeComparator125.status -eq "Done") {
+        Assert-Value 125 "Phase Status" $runtimeComparator125.'phase Status' "Done"
+    }
+    elseif ($runtimeComparator125.'phase Status' -notin @("In Progress", "Review")) {
+        Add-Failure "#125 Phase Status is '$($runtimeComparator125.'phase Status')'; expected 'In Progress' or 'Review'."
+    }
+    Assert-Value 125 "title" $runtimeComparator125.title "P6-GOV Freeze runtime comparator and exact service-cell contracts"
+    Assert-Value 125 "Priority" $runtimeComparator125.priority "P0"
+    Assert-Value 125 "Risk" $runtimeComparator125.risk "High"
+    Assert-Value 125 "Roadmap Phase" $runtimeComparator125.'roadmap Phase' "Cross-cutting"
+    Assert-Value 125 "Roadmap Slice" $runtimeComparator125.'roadmap Slice' "Governance"
+    Assert-Value 125 "Roadmap Gate" $runtimeComparator125.'roadmap Gate' "Phase 6 Evidence"
+    Assert-Value 125 "milestone" $runtimeComparator125.milestone.title "Phase 6: Safety and Exact Evidence Foundation"
+}
+
 foreach ($needle in @(
     "Plan.md",
     "docs/adaptive-runtime-v2/",
@@ -222,9 +242,12 @@ foreach ($needle in @(
     "#103",
     "#109",
     "#119",
+    "#125",
     "PR #111",
     "PR #112",
     "workload-relative host admission",
+    "paired-cell",
+    "without double counting",
     "Llama 3.1 8B",
     "Phase 8 Optional Mechanisms"
 )) {
@@ -238,4 +261,4 @@ if ($failures.Count -gt 0) {
     exit 1
 }
 
-Write-Output ("Plan/Project sync PASS: {0} items checked; #73-#103, #107/#109/#119, Packet A/B exit status, V2 authority and README contracts match." -f $items.Count)
+Write-Output ("Plan/Project sync PASS: {0} items checked; #73-#103, #107/#109/#119/#125, Packet A/B exit status, V2 authority and README contracts match." -f $items.Count)

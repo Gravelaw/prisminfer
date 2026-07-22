@@ -74,9 +74,11 @@ No member supported a clean-sheet runtime as the immediate direction.
 
 ### Objection 1: the provider boundary was hypothetical
 
-Evidence: the current adapter shells out via `std::system` and scrapes logs;
-the offload planner accepts caller-fed byte values; the repository does not yet
-prove in-process GGML buffer, placement, operator, or state control.
+Evidence at the council freeze: the adapter shelled out via `std::system` and
+scraped logs. Packet B later replaced that launch path with the contained native
+worker, but the baseline still parses runtime output; the offload planner
+accepts caller-fed byte values, and the repository does not yet prove
+in-process GGML buffer, placement, operator, or state control.
 
 Disposition: **accepted**. V2 calls GGML a provisional substrate and makes the
 tiny exact seam proof an explicit #85/Packet D acceptance slice. A failed seam

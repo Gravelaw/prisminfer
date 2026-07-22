@@ -60,11 +60,16 @@ the following against the pinned dependency:
 Failure is retained evidence. It triggers a substrate review; it does not
 automatically authorize a clean-sheet runtime.
 
-The current process boundary in
-[`src/backend/llama_backend.cpp`](../../src/backend/llama_backend.cpp) uses
-`std::system` and parses logs. The current
+The current baseline boundary in
+[`src/backend/llama_backend.cpp`](../../src/backend/llama_backend.cpp) invokes
+the approved native worker implemented by
+[`src/runtime/native_worker.cpp`](../../src/runtime/native_worker.cpp). Packet B
+replaced the former shell launch with `CreateProcessW`, Job containment, bounded
+output/cancellation, and child-tree cleanup. The baseline still parses runtime
+output, while
 [`src/offload/offload_planner.cpp`](../../src/offload/offload_planner.cpp)
-labels caller-supplied transfer fields. Neither is actual-path provider evidence.
+labels caller-supplied transfer fields. Those limitations are not actual-path
+provider evidence.
 
 The seam proof is an acceptance slice of Plan issue #85 in Packet D. Earlier
 read-only source reconnaissance is allowed by its governing issue, but earns no
@@ -129,6 +134,27 @@ fixtures, and fallback semantics. Ornith full-attention KV, DeltaNet/recurrent
 state, convolution state, MTP, and optional multimodal state are separate
 ledger entries.
 
+## Runtime capability and comparison record
+
+Issue #83 produces a dated `RuntimeCapabilityRecord` before any runtime feature
+enters the actuator inventory. It records:
+
+- exact runtime revision, supported OS execution mode, hardware backend, and
+  build prerequisites;
+- accepted artifact/quantization semantics and any required conversion;
+- loading, placement, attention/KV, scheduling, speculation, kernel, and
+  telemetry mechanisms actually present at that revision;
+- observable controls, requested-versus-actual acknowledgement, allocation and
+  path evidence, fallback, and recovery;
+- maintenance status, license, and reproducibility constraints; and
+- one role: within-cell baseline, paired-cell direct comparator, mechanism
+  reference, conditional substrate candidate, orchestration layer, or UX
+  wrapper.
+
+A feature listed by another runtime or current upstream does not become a
+PrismInfer actuator. Only a control implemented and acknowledged by the pinned
+cell may enter the plan set.
+
 ## Integration ladder
 
 Escalation is evidence-driven:
@@ -142,6 +168,16 @@ Escalation is evidence-driven:
 
 Each step must show why the previous one cannot satisfy the exact capacity,
 latency, acknowledgement, safety, and maintainability contract.
+
+If the #85 GGML seam fails structurally, the retained failure report includes an
+alternative-substrate scorecard covering native Windows viability, containment,
+artifact and quantized-tensor equivalence, lifecycle/placement/KV control,
+allocation and actual-path observability, deterministic fallback, maintenance,
+licensing, and implementation cost. Each criterion is recorded as `pass`,
+`fail`, `unknown`, or `not applicable`; no weighted total may hide a critical
+failure. A failed seam opens a council decision; it does not select a runtime.
+Only that council may create one bounded prototype issue using the same tiny seam
+fixture and evidence contract.
 
 ## Runtime-decision reopen criteria
 

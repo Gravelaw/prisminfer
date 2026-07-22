@@ -29,13 +29,80 @@ joules, and dimensionless quality terms.
 
 ## Exact cell
 
-Let $x$ identify the immutable validation cell: hardware/runtime fingerprint,
-model and source revision, derived artifact and recipe, tokenizer/template,
-context, batch, prompt/task stratum, requested cap, power/thermal policy, and
-software/provider versions. A result outside $x$ is a different result.
+Let $\chi$ identify the immutable validation cell. Its components are the
+hardware and host fingerprint; runtime family, backend, revision, and
+native/WSL/Linux execution mode; model and source revision; derived artifact,
+recipe, and quantized-tensor semantics; tokenizer/template; context;
+prompt/task stratum; requested/effective cap identity; power/thermal policy;
+software/provider versions; quality contract; measurement protocol; and the
+complete service identity.
 
-Let $\Pi_{\mathrm{ack}}(x)$ be the set of plans whose actuators are supported and
-whose requested values can be acknowledged by the pinned runtime.
+Separate runtime identity from the remaining exact identity as:
+
+$$
+\chi = (\rho,\zeta),
+$$
+
+where $\rho$ is runtime family, backend, and exact revision/build, while
+$\zeta$ retains every other exact cell field, including OS execution mode and
+the exact derived-artifact identity.
+
+The service identity includes request concurrency, arrival process,
+scheduler/batching/chunking policy, prefix/KV-cache configuration and observed
+cold/warm/hit/eviction state, streaming/output policy, and output cap. A result
+outside $\chi$ is a different result. Missing material identity prevents a direct
+same-cell comparison.
+
+For a result $y$ produced in cell $\chi_y$, a within-runtime same-cell control
+requires:
+
+$$
+\operatorname{same}(y,\chi)
+\iff
+\chi_y = \chi.
+$$
+
+An external runtime necessarily has a different $\rho$ and therefore a
+different exact cell. Define $\kappa(\chi)$ as the paired-comparator projection:
+it removes runtime family/backend/revision/build and exact derived-artifact
+bytes/format while retaining hardware/host identity, OS execution mode,
+canonical model/source identity, tokenizer/template, prompt/task and service
+profile, cap and power/thermal policy, non-runtime software/provider identity,
+quality contract, and measurement protocol. Let
+$E_{\mathrm{artifact}}(\chi_a,\chi_b)$ be the separately reviewed decision that
+the two derived artifacts and quantized-tensor semantics are equivalent for the
+declared comparison. A paired direct runtime comparison requires:
+
+$$
+\operatorname{pairedDirect}(\chi_y,\chi)
+\iff
+\rho_y \ne \rho
+\;\land\;
+\kappa(\chi_y)=\kappa(\chi)
+\;\land\;
+E_{\mathrm{artifact}}(\chi_y,\chi)=\operatorname{pass}.
+$$
+
+This predicate supports only an explicitly labelled paired-runtime comparator
+claim. It never makes $\chi_y$ the same cell, and it cannot mix calibration,
+plans, feasible sets, or oracle candidates across runtimes.
+
+Let $\Pi_{\mathrm{ack}}(\chi)$ be the set of plans whose actuators are supported
+and whose requested values can be acknowledged by the pinned runtime.
+
+Runtime family, backend, OS execution mode, scheduler family, and artifact
+identity are fixed components of $\chi$; they are not members of plan $\pi$ or
+$\Pi_{\mathrm{ack}}(\chi)$. In particular, if runtime identity $\rho$ changes,
+
+$$
+\rho' \ne \rho
+\Longrightarrow
+\chi' \ne \chi.
+$$
+
+Switching any fixed component creates a new cell, calibration partition,
+feasible set, and review decision. The optimizer and feasible oracle never mix
+candidates from different runtime cells.
 
 ## Representation selection and residency
 
@@ -168,7 +235,7 @@ Let $S_{u,r,d}$ be the charged resident bytes for unit $u$, representation $r$,
 on tier $d$. The admitted peak is:
 
 $$
-M_d(\pi,x)
+M_d(\pi,\chi)
 =
 \sum_{u \in \mathcal U}
 \sum_{r \in \mathcal R_u}
@@ -176,15 +243,19 @@ S_{u,r,d}x_{u,r,d}
 +M_{\mathrm{state},d}
 +M_{\mathrm{workspace},d}
 +M_{\mathrm{runtime},d}
++M_{\mathrm{queue},d}
++M_{\mathrm{batch},d}
++M_{\mathrm{cache},d}
 +M_{\mathrm{fragmentation},d}
 +M_{\mathrm{instrumentation},d}
-+M_{\mathrm{unknown},d}.
++M_{\mathrm{unknown},d}
++M_{\mathrm{safety},d}.
 $$
 
 Promotion requires:
 
 $$
-M_d(\pi,x) \le C_{\mathrm{effective},d}(x)
+M_d(\pi,\chi) \le C_{\mathrm{effective},d}(\chi)
 \qquad
 \text{for every participating tier } d.
 $$
@@ -192,6 +263,17 @@ $$
 Promoted unknown bytes are zero. GPU, pageable host, pinned host, process
 commit, and storage constraints are separate; pagefile/commit does not increase
 physical resident capacity.
+
+$M_{\mathrm{state},d}$ covers active per-request architecture state;
+$M_{\mathrm{queue},d}$ covers scheduler and request-queue state;
+$M_{\mathrm{batch},d}$ covers batching/chunking pools and their workspaces; and
+$M_{\mathrm{cache},d}$ covers retained shared prefix/KV allocations, indices,
+and eviction workspace; and $M_{\mathrm{safety},d}$ covers the declared
+telemetry safety margin. These terms, $M_{\mathrm{runtime},d}$, the resident
+representation sum, fragmentation, instrumentation, and unknown bytes are
+charged once under mutually exclusive ledger categories. A disabled feature has
+an observed or configured zero only when the exact runtime path acknowledges
+that state; a missing field remains unknown and blocks promotion.
 
 ## Resource DAG and overlap
 
@@ -226,19 +308,19 @@ stage durations is a conservative bound, not proof of exposed latency.
 
 ## Feasibility and objective
 
-Let each hard invariant be $g_j(\pi,x)\le0$. The feasible set is:
+Let each hard invariant be $g_j(\pi,\chi)\le0$. The feasible set is:
 
 $$
-\Pi_{\mathrm{feas}}(x)
+\Pi_{\mathrm{feas}}(\chi)
 =
 \left\{
-\pi \in \Pi_{\mathrm{ack}}(x):
-g_j(\pi,x)\le0
+\pi \in \Pi_{\mathrm{ack}}(\chi):
+g_j(\pi,\chi)\le0
 \ \text{for every } j
 \right\}.
 $$
 
-If $\Pi_{\mathrm{feas}}(x)$ is empty, the controller abstains, selects the
+If $\Pi_{\mathrm{feas}}(\chi)$ is empty, the controller abstains, selects the
 declared upstream baseline if it is itself feasible, or rejects the cell. It
 never relaxes a safety or quality invariant.
 
@@ -247,7 +329,7 @@ lexicographic order over quantities such as p95 request latency, negative
 committed throughput, energy, and external bytes:
 
 $$
-J(\pi,x)
+J(\pi,\chi)
 =
 \left(
 L_{\mathrm{request,p95}},
@@ -265,42 +347,44 @@ diagnostic, not the normative objective.
 
 Calibration partitions are nested by session or other independent unit. Search,
 validation, confirmation, and promotion data are distinct. Let
-$\widehat T_k(\pi,x)$ predict stage $k$ and $T_k(\pi,x)$ be the observed value.
+$\widehat T_k(\pi,\chi)$ predict stage $k$ and $T_k(\pi,\chi)$ be the observed
+value.
 Relative absolute prediction error is:
 
 $$
-e_k(\pi,x)
+e_k(\pi,\chi)
 =
 \frac{
-\lvert \widehat T_k(\pi,x)-T_k(\pi,x)\rvert
+\lvert \widehat T_k(\pi,\chi)-T_k(\pi,\chi)\rvert
 }{
-\max(T_k(\pi,x),\varepsilon_T)
+\max(T_k(\pi,\chi),\varepsilon_T)
 }.
 $$
 
 The feasible measured oracle for a held-out cell is:
 
 $$
-\pi^\star(x)
+\pi^\star(\chi)
 \in
-\operatorname*{arg\,min}_{\pi\in\Pi_{\mathrm{feas}}(x)}
-J(\pi,x).
+\operatorname*{arg\,min}_{\pi\in\Pi_{\mathrm{feas}}(\chi)}
+J(\pi,\chi).
 $$
 
 For committed throughput $\Theta$, selector regret is:
 
 $$
-\operatorname{Regret}_{\Theta}(x)
+\operatorname{Regret}_{\Theta}(\chi)
 =
 \frac{
-\Theta(\pi^\star,x)-\Theta(\widehat\pi,x)
+\Theta(\pi^\star,\chi)-\Theta(\widehat\pi,\chi)
 }{
-\max(\Theta(\pi^\star,x),\varepsilon_\Theta)
+\max(\Theta(\pi^\star,\chi),\varepsilon_\Theta)
 }.
 $$
 
 Finalists are rerun fresh. The oracle is feasible only over the measured,
-acknowledged candidate set; it is not a global optimum claim.
+acknowledged candidate set within one immutable runtime cell; it is not a global
+optimum or cross-runtime selection claim.
 
 ## Empirical quality promotion
 

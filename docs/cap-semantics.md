@@ -22,15 +22,28 @@ For resident GPU admission, later phases must account for:
 ```text
 peak_vram =
   resident_weight_bytes
-+ resident_kv_bytes
-+ activation_workspace_bytes
-+ cuda_context_runtime_bytes
++ active_request_state_bytes
++ representation_metadata_bytes
++ admitted_workspace_peak_bytes
++ runtime_context_bytes
++ scheduler_queue_peak_bytes
++ batching_chunking_pool_peak_bytes
++ retained_shared_prefix_kv_cache_bytes
++ shared_cache_metadata_index_bytes
++ cache_eviction_workspace_peak_bytes
 + allocator_fragmentation_bytes
++ instrumentation_bytes
++ unknown_gpu_bytes
 + telemetry_safety_margin_bytes
 ```
 
-Certification is allowed only when `peak_vram <= hard_cap_bytes` and all
-required evidence sources for the claim label are present.
+These categories are mutually exclusive: active per-request state and retained
+shared prefix/KV cache have different owners, and no allocation may be charged
+twice or hidden in an undifferentiated pool. Certification is allowed only when
+`peak_vram <= effective_live_cap_bytes <= hard_cap_bytes`, unknown promoted
+bytes are zero, and all required evidence sources for the claim label are
+present. The complete ledger contract is owned by
+[`validation-matrix.md`](validation-matrix.md#memory-envelope).
 
 Certification sources, in priority order:
 

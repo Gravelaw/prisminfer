@@ -10,12 +10,19 @@ failed candidate. A threshold pass never grants Plan clearance.
 
 Use linked, versioned entities instead of one mutable all-purpose observation:
 
-- `ValidationCell`: exact hardware, software, model, artifact, workload,
-  context, cap, phase, and policy identity;
+- `ValidationCell`: exact hardware/host, runtime family/backend/revision, OS
+  execution mode, model, artifact and quantized-tensor semantics,
+  tokenizer/template, workload/service profile, context, cap, phase, and policy
+  identity, serialized through the canonical manifest and retained immutable
+  record hashes in [`../validation-matrix.md`](../validation-matrix.md#cell-identity);
+- `RuntimeCapabilityRecord`: dated runtime revision, OS/backend prerequisites,
+  artifact semantics, supported mechanisms, observable controls,
+  acknowledgement and allocation-evidence paths, fallback, maintenance state,
+  and role classification;
 - `ArtifactRecord`: source/derived hashes, parent DAG, recipe, representation,
   tokenizer/template, licensing, and trust state;
 - `AdmissionReceipt`: pre-context and post-context inputs, reserves, cap,
-  decision, and reason;
+  scheduler/batching/cache/pool/workspace charges, decision, and reason;
 - `ActuatorDescriptor`: supported values, owner, apply boundary,
   acknowledgement, workspace, and recovery;
 - `RawObservation`: append-only event with monotonic/wall time, source, unit,
@@ -48,6 +55,24 @@ Raw events are append-only. A summary records the exact input hash and method.
 Configured transfer bytes cannot be relabeled measured. Requested GPU layers
 cannot be relabeled actual placement. A profiler claim retains the profiler
 artifact.
+
+### Paired-cell runtime-comparator eligibility
+
+An external runtime is always a separate `ValidationCell`. It is eligible for an
+explicit paired-cell runtime comparison only when the comparator projection
+matches canonical model/source, tokenizer/template, hardware/host, OS execution
+mode, non-runtime software/provider identity, context, prompt/task stratum, cap,
+power/thermal policy, service profile, quality contract, and measurement
+protocol, and a separate artifact-equivalence review passes for the derived
+bytes and quantized-tensor semantics. The service profile includes
+concurrency, arrival process, scheduler/batching/chunking policy, prefix/KV-cache
+configuration and observed cold/warm/hit/eviction state, streaming/output
+policy, and output cap.
+
+Any material mismatch makes the result contextual mechanism or architecture
+evidence. A passing pair may support only a labelled runtime-comparator claim;
+it remains excluded from within-runtime calibration, plans, selector/provider
+speedup, and the feasible oracle for the pinned runtime cell.
 
 The CPU-only Packet A evidence runner owns emission rather than trusting a
 caller-supplied manifest. It generates the opaque run id, wall-clock start and
@@ -356,7 +381,8 @@ Every promoted result retains:
 - PrismInfer commit and dirty-tree patch hash;
 - llama.cpp/GGML pin and complete build flags;
 - compiler, CMake, CUDA, driver, library, OS, and provider versions;
-- hardware/runtime fingerprint and power/thermal policy;
+- hardware/runtime fingerprint, OS execution mode, full service/cache state,
+  and power/thermal policy;
 - all artifact, recipe, dataset, fixture, partition, and seed hashes;
 - admission receipts, plan bundle, actuator acknowledgements, and recovery graph;
 - raw observations, timelines, errors, profiler outputs, manifests, and

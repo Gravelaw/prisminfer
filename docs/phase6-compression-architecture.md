@@ -19,24 +19,38 @@ otherwise:
 
 ## Architecture Goal
 
-Run one exact P7-01-selected foundation GGUF under a device-admitted cap, with
-requested 10 GiB and 12 GiB as the primary constrained research tiers and
-8 GiB as stress-only. Meta Llama 3.1 8B is preferred pending
-license/access/pin. The core path uses upstream quantized weights,
-exact artifact and per-tensor `ggml_type` identity, KV accounting, strict memory
-certification, and same-cell quality/performance comparison. Custom fused
-dequantization and KV compression are optional, nonblocking branches.
+Use the immutable Llama 3.1 8B Q4_K_M foundation identity completed by
+[#80](https://github.com/Gravelaw/prisminfer/issues/80) for the first conventional
+model-backed cell under a device-admitted cap, with requested 10 GiB and 12 GiB
+as the primary constrained research tiers and 8 GiB as stress-only. The #80 pin
+was retained under the recorded one-time acquisition exception; it establishes
+source, tokenizer, recipe, artifact, and per-tensor `ggml_type` identity, but it
+does not establish a self-produced-artifact claim or authorize execution. Ornith
+9B remains a separate unsupported-converter hybrid-state stress record rather
+than part of the conventional foundation claim.
 
-All model-backed work is blocked until
-[#103](https://github.com/Gravelaw/prisminfer/issues/103) closes its hardware
-supervisor and pre-context admission gate.
+The core path uses upstream quantized weights, exact artifact identity, KV/state
+accounting, strict memory certification, and same-cell quality/performance
+comparison. Custom fused dequantization and KV compression are optional,
+nonblocking branches.
+
+[#103](https://github.com/Gravelaw/prisminfer/issues/103) implemented the Packet B
+hardware supervisor and staged pre-context admission boundary. C2 nevertheless
+remains closed. Model-backed Phase 6 execution requires a fresh exact-SHA
+hardware authorization and independently accepted
+[#119](https://github.com/Gravelaw/prisminfer/issues/119) C2 receipt, followed by
+the retained `#84 -> #76 -> #77 -> #78` Packet C sequence.
 
 ## Workflow
 
 ```mermaid
 flowchart TD
-  SAFE["#103 supervisor/admission clearance"] --> A["P7-01 pinned foundation GGUF"]
-  A --> B["Hash, license, sidecar, tokenizer validation"]
+  A["#80 completed immutable foundation identity"] --> SAFE{"Fresh exact-SHA #119 C2 receipt accepted?"}
+  S["Packet B #103 supervisor implemented"] --> SAFE
+  SAFE -->|yes| CAP["#84 exact admission"]
+  SAFE -->|no| STOP["C2 closed; no model execution"]
+  CAP --> FIX["#76 deterministic quality fixtures"]
+  FIX --> B["Hash, license, sidecar, tokenizer validation"]
   B --> C["Exact per-tensor GGUF type inventory/reference"]
   C --> D["Baseline evidence"]
   D --> D1["CPU/reference"]
@@ -72,7 +86,10 @@ flowchart TD
 ```
 
 ```text
-P7-01 pinned foundation GGUF artifact after #103 clearance
+#80 completed immutable foundation identity
+  -> fresh exact-SHA #119 hardware authorization and accepted C2 receipt
+  -> #84 exact admission
+  -> #76 deterministic quality fixtures
   -> model sidecar and hash validation
   -> exact recipe plus per-tensor ggml_type inventory/reference
   -> baseline runs
@@ -101,25 +118,35 @@ cap and no required allocation class is unknown.
 
 ```text
 peak_vram =
-  cuda_context_runtime_bytes
-+ resident_quant_weight_bytes
-+ weight_metadata_bytes
-+ dequant_workspace_peak_bytes
-+ activation_workspace_peak_bytes
-+ kv_payload_bytes
-+ kv_metadata_bytes
-+ kv_residual_or_sketch_bytes
-+ backend_retained_pool_bytes
+  resident_compressed_weight_bytes
++ active_request_compressed_state_bytes
++ weight_and_state_representation_metadata_bytes
++ admitted_decode_reconstruction_kernel_workspace_peak_bytes
++ runtime_context_bytes
++ scheduler_queue_peak_bytes
++ batching_chunking_pool_peak_bytes
++ retained_shared_prefix_kv_cache_bytes
++ shared_cache_metadata_index_bytes
++ cache_eviction_workspace_peak_bytes
 + allocator_fragmentation_bytes
++ instrumentation_bytes
 + unknown_or_unreconciled_bytes
++ telemetry_safety_margin_bytes
 ```
+
+The categories are mutually exclusive and map without overlap into the
+authoritative capacity terms in
+[`adaptive-runtime-v2/optimizer-mathematics.md`](adaptive-runtime-v2/optimizer-mathematics.md#capacity-constraints).
+Active per-request state is not a retained shared prefix/KV cache; no byte may
+appear in both, and an undifferentiated backend retained-pool value blocks
+promotion.
 
 Certification requires:
 
 ```text
-peak_vram <= hard_vram_cap_bytes
-hard_vram_cap_bytes <= min(16 GiB claim ceiling,
-                           admitted live WDDM local budget - required reserve)
+peak_vram <= effective_live_cap_bytes <= hard_vram_cap_bytes
+hard_vram_cap_bytes <= 16 GiB claim ceiling
+effective_live_cap_bytes <= admitted live WDDM local budget - required reserve
 unknown_or_unreconciled_bytes == 0
 full_dequant_materialized == false
 ```
@@ -242,18 +269,24 @@ Unknown or missing required fields fail closed for promoted claims.
    manifest/parser fields.
 4. **Synthetic only:** guarded CUDA launch correctness source, verification
    flag, and manual self-hosted workflow for toy `Q4Block` semantics.
-5. **Blocking prerequisite:** close #103 before model-backed execution.
-6. **Blocking prerequisite:** P7-01 selects and pins the exact foundation
-   artifact and quantization production recipe.
-7. Inventory the selected GGUF's actual per-tensor `ggml_type`, block layout,
+5. **Implemented prerequisite:** #103 supplies the Packet B supervisor and
+   staged admission boundary; this implementation alone grants no C2 credit.
+6. **Completed identity prerequisite:** #80 retains the exact Llama 3.1 8B
+   foundation source, tokenizer, recipe, artifact, and per-tensor inventory
+   under the recorded one-time acquisition exception. It grants neither a
+   self-produced-artifact claim nor execution clearance.
+7. **Blocking clearance and sequence:** obtain a fresh exact-SHA #119 hardware
+   authorization and independently accepted C2 receipt, then follow
+   `#84 -> #76 -> #77 -> #78` without skipping admission or fixture ownership.
+8. Inventory the selected GGUF's actual per-tensor `ggml_type`, block layout,
    shape, and bytes; implement exact tensor-slice reference semantics where a
    custom path consumes them.
-8. Add foundation quality fixtures and retained hashes.
-9. Collect retained CPU/no-custom and llama.cpp/GGML CUDA same-cell baselines.
-10. Audit and classify the core foundation result.
-11. **Optional:** build/run a strict custom-kernel benchmark candidate.
-12. **Optional:** build/run an offline KV compression evaluator.
-13. **Optional:** evaluate progressive, speculative, or router hypotheses only
+9. Add foundation quality fixtures and retained hashes.
+10. Collect retained CPU/no-custom and llama.cpp/GGML CUDA same-cell baselines.
+11. Audit and classify the core foundation result.
+12. **Optional:** build/run a strict custom-kernel benchmark candidate.
+13. **Optional:** build/run an offline KV compression evaluator.
+14. **Optional:** evaluate progressive, speculative, or router hypotheses only
     in their later independently gated phases.
 
 ## Classification
