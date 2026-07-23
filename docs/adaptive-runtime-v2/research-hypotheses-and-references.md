@@ -1,6 +1,6 @@
 # Research Hypotheses, Novelty Boundaries, and References
 
-Access window: 2026-07-10 through 2026-07-16. Paper results establish precedent
+Access window: 2026-07-10 through 2026-07-22. Paper results establish precedent
 on the authors' cells, not expected PrismInfer results. Every runtime dependency,
 artifact, recipe, and evaluation input must be pinned separately.
 
@@ -99,21 +99,51 @@ They do not reject the mechanisms.
 
 ## Runtime comparators
 
-This comparison reflects the public repositories reviewed on 2026-07-16. It is
+This comparison reflects official repositories and documentation reviewed
+through 2026-07-22. It is
 architectural evidence, not a transfer of either project's benchmark results.
 
-| Runtime | What its current scope demonstrates | PrismInfer consequence |
-|---|---|---|
-| [Colibri](https://github.com/JustVugg/colibri) | A narrow, self-contained C runtime can exploit architecture-specific properties of GLM-5.2 MoE, including routed-expert streaming across disk, RAM, and VRAM | Reuse its expert-streaming and exact-validation lessons as comparators; it does not establish a general substrate or a dense Llama/Ornith result |
-| [ds4 / DwarfStar](https://github.com/antirez/ds4) | A deliberately one-model runtime can combine accelerator backends, SSD-routed-expert streaming, and distributed layer splitting for DeepSeek V4 Flash/PRO | It defines a credible clean-sheet pattern when one architecture and high-memory target justify ownership; its 96/128 GB-class target does not answer PrismInfer's 10/12 GiB cells |
-| [llama.cpp](https://github.com/ggml-org/llama.cpp) | A broad GGUF runtime supplies mature model loading, quantized operators, heterogeneous backends, and public controls | It remains the provisional substrate and strongest control, subject to the Packet D seam-proof spike against the pinned commit |
-| PrismInfer V2 | A cap-aware control, admission, representation, provider, and evidence layer for constrained consumer devices | Own the policy and experimental mechanisms first; do not duplicate the loader, graph runtime, or backend fleet until the explicit reopen criteria are met |
+| Runtime/project | Role for V2 | What its current scope demonstrates | PrismInfer consequence |
+|---|---|---|---|
+| [llama.cpp](https://github.com/ggml-org/llama.cpp) | Within-cell baseline and provisional substrate | Broad GGUF loading, quantized operators, heterogeneous backends, hybrid CPU/GPU execution, and public controls | Pin the exact commit, sweep its supported controls, and require the Packet D seam proof |
+| [Colibri](https://github.com/JustVugg/colibri) | Mechanism reference | Architecture-specific GLM-5.2 MoE routed-expert streaming across disk, RAM, and VRAM | Reuse streaming and exact-validation lessons; it is not a dense Llama/Ornith result |
+| [ds4 / DwarfStar](https://github.com/antirez/ds4) | Mechanism reference | A one-model runtime can combine accelerator backends, SSD-routed-expert streaming, and distributed layer splitting | It is a credible clean-sheet pattern for a different architecture and memory tier, not a 10/12 GiB control |
+| [vLLM](https://docs.vllm.ai/en/latest/getting_started/installation/) | Serving-mechanism reference | Paged attention, prefix caching, KV offload, speculative decoding, compilation, and distributed serving | Inventory algorithms and measurement fields only; any direct runtime comparison requires a separate paired-cell projection and artifact-equivalence receipt |
+| [SGLang](https://docs.sglang.io/) | Serving-mechanism reference | RadixAttention, prefix caching, low-latency/high-throughput scheduling, and multi-GPU serving | Use cache and scheduling ideas as references; its serving results are contextual unless the paired-cell comparator gate passes |
+| [TensorRT-LLM](https://nvidia.github.io/TensorRT-LLM/reference/support-matrix.html) | NVIDIA/Linux mechanism reference | NVIDIA-specific precision, kernel, KV, batching, and speculative paths; the official support matrix requires Linux | It is not a native-Windows alternative or direct current-cell baseline |
+| [Transformers Serve](https://huggingface.co/docs/transformers/main/serve-cli/serving) | Lightweight serving reference | A Transformers-native serving surface that can expose batching and cache controls without a separate model server | Record applicable control semantics, but keep its artifact/runtime identity separate from the pinned GGUF cell |
+| [DeepSpeed Inference](https://deepspeed.readthedocs.io/en/stable/inference-init.html) | Distributed-inference mechanism reference | An inference engine with configurable kernel injection and distributed execution around supported model modules | Use its sharding and kernel-injection contracts as references; it does not answer the current native-Windows single-GPU cell |
+| [LMDeploy](https://lmdeploy.readthedocs.io/en/stable/) | Serving reference and conditional substrate candidate | TurboMind/PyTorch engines expose persistent batching, blocked KV cache, quantization, prefix caching, and distributed serving | Inventory its controls now; any prototype still requires a #85 trigger and a separate artifact/runtime cell |
+| [MLC-LLM](https://github.com/mlc-ai/mlc-llm) | Conditional substrate candidate | Compilation-oriented deployment across multiple device backends and application surfaces | Evaluate only after a retained #85 seam trigger; compiled artifacts require a new equivalence and evidence contract |
+| [ExLlamaV3](https://github.com/turboderp-org/exllamav3) | Consumer-GPU mechanism reference and conditional substrate candidate | EXL3 quantization, cache quantization, dynamic batching, speculative decoding, and consumer-GPU tensor/expert parallelism; [ExLlamaV2](https://github.com/turboderp-org/exllamav2) is archived in favor of this line | Its different quantized-artifact semantics and PyTorch/CUDA extension stack require fresh admission and calibration; it is not an inherited GGUF baseline |
+| [ONNX Runtime GenAI](https://onnxruntime.ai/docs/genai/) | Conditional Windows substrate candidate | A preview generation API over ONNX Runtime with tokenization, sampling, and KV-cache management | Preview status and different graph/artifact semantics require a separately calibrated prototype, never inherited llama.cpp credit |
+| [OpenVINO Model Server](https://docs.openvino.ai/2026/model-server/ovms_docs_genai.html) | Portability/mechanism reference | Continuous batching and paged attention on Intel-oriented CPU/GPU serving paths | Relevant to an admitted Intel portability cell, not the current NVIDIA/WDDM execution cell |
+| [MLX-LM](https://github.com/ml-explore/mlx-lm) | Apple portability and mechanism reference | Apple-Silicon generation, quantization, prompt/rotating KV caches, and distributed inference over MLX | Unified-memory results define a different hardware/runtime cell and cannot establish a discrete-GPU constrained-VRAM claim |
+| [Text Generation Inference](https://huggingface.co/docs/text-generation-inference/index) | Historical serving reference | An established continuous-batching, paged-attention, and tensor-parallel server now in maintenance mode | Retain architectural lessons but do not select it as a forward implementation dependency |
+| [NVIDIA Triton Inference Server](https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/index.html) | Orchestration layer | Multi-backend model serving, dynamic/sequence batching, ensembles, metrics, and lifecycle management | Attribute tensor-path evidence to its exact backend; Triton itself is not a direct tensor executor or optimizer actuator |
+| PrismInfer V2 | Control/evidence layer | Cap-aware admission, exact-cell calibration, guarded planning, optional providers, and retained negative evidence | Own policy and falsification first; do not duplicate the loader, graph runtime, or backend fleet before a reopen decision |
 
 Colibri and ds4 therefore do not make the PrismInfer direction incorrect. They
 show that clean-sheet ownership can pay when it is intentionally architecture
 specific. PrismInfer should reopen that choice only after the pinned GGML seam
 fails, a second mature substrate is evaluated, and the architecture document's
 cost and reproducibility criteria are satisfied.
+
+Ollama, LM Studio, LocalAI, Jan, GPT4All, Open WebUI, KoboldCpp,
+text-generation-webui, and similar products are distribution, management, or UX
+layers for this comparison. Their tensor-path claims inherit the exact
+underlying executor and version; the product name is not a separate runtime
+baseline.
+
+A paired-cell direct cross-runtime comparison keeps runtime identities separate
+but requires identical hardware/host, OS execution mode, canonical model/source,
+tokenizer/template, context, prompt/task, cap, concurrency, arrival process,
+scheduler/batching/chunking policy, prefix/KV-cache state, streaming/output
+policy, power/thermal policy, non-runtime software/provider identity, quality
+contract, and measurement protocol, plus a passing derived-artifact and
+quantized-tensor equivalence decision. Otherwise the result remains contextual
+evidence. Even a passing pair does not share calibration, plans, or
+feasible-oracle membership.
 
 ## Representation and execution sources
 

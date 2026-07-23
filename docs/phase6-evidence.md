@@ -15,27 +15,29 @@ Current status:
   contract is not model-run evidence.
   The normative evidence trust contract is owned by
   `docs/adaptive-runtime-v2/evidence-thresholds-and-security.md`.
-- `configs/model-cell-catalog.json` pins only the checked-in deterministic
-  smoke fixture and records source-verified, non-admitted foundation and
-  Ornith receipts. Ornith's retained source identity is not a GGUF or a model
-  execution admission; the Qwen lineage entry remains metadata-only.
+- `configs/model-cell-catalog.json` pins the checked-in deterministic smoke
+  fixture and the verified Llama 3.1 8B Q4_K_M foundation artifact identity
+  completed by #80. The foundation bytes were admitted under the recorded
+  one-time related-community-artifact exception; this is not self-produced
+  provenance or model-execution admission. Ornith remains an immutable
+  unsupported-converter source descriptor, and the Qwen lineage entry remains
+  metadata-only.
 - The Phase 6 gate schema/config and compression-oriented manifest fields exist.
 - The guarded CUDA target, bounded synthetic CUDA correctness test source,
   `-WithCudaKernels` verification flag, and manual self-hosted workflow exist.
 - The CUDA fixture uses toy `Q4Block` semantics; it is not evidence for any
   selected GGUF tensor type or model.
-- The preferred foundation source is hash-verified and a self-produced F16
-  intermediate is retained outside the repository; four Q4_K_M attempts were
-  aborted at run-specific CPU working-set bounds (4 GiB, 6 GiB, 8 GiB, and
-  10 GiB). The authorized 15 GiB retry's retained receipt reports that the 4 GiB
-  physical-reserve guard fired, but lacks the sampled physical-memory values
-  needed to independently prove that inequality; it is therefore an explicitly
-  unverified, noncanonical forensic receipt. No canonical foundation quant exists.
-- The source-verified foundation receipt pins source config, tokenizer,
-  tokenizer-template, license/use-policy, architecture, converter, recipe,
-  and imatrix-not-used metadata. Its retained F16 metadata inventory contains
-  292 tensors (226 F16 and 66 F32); these records are source evidence only and
-  are not a Q4_K_M tensor-type inventory.
+- The completed #80 foundation record pins source config, tokenizer and template,
+  license/use policy, architecture, producer/converter revisions, exact recipe,
+  artifact SHA-256, and the complete admitted Q4_K_M inventory: 66 F32, 193
+  Q4_K, and 33 Q6_K tensors. The producer-declared imatrix is part of that
+  identity. The external bytes are usable only through the approved artifact
+  root and exact retained hashes.
+- The self-produced F16 intermediate and the bounded 4 GiB, 6 GiB, 8 GiB,
+  10 GiB, and 15 GiB local quantization attempts remain negative provenance
+  evidence. The 15 GiB attempt's physical-reserve receipt lacks the sampled
+  values needed to prove its guard inequality. None of those attempts supplies
+  self-produced Q4_K_M provenance or model-execution credit.
 - The source-verified Ornith receipt pins the 18-file BF16 source manifest,
   config, tokenizer, tokenizer template, architecture, and MIT license
   evidence. It remains noncanonical pending converter/operator coverage and
@@ -51,14 +53,17 @@ Current status:
   retained pools, and unknown bytes.
 - No Phase 6 validated, deployable, foundation, stress-cell, or bucket-wide
   claim is made.
-- [#103](https://github.com/Gravelaw/prisminfer/issues/103) blocks model-backed
-  CUDA, calibration, and evidence until the hardware supervisor and pre-context
-  admission boundary pass.
+- [#103](https://github.com/Gravelaw/prisminfer/issues/103) implemented the
+  Packet B hardware supervisor and staged pre-context admission boundary. C2 is
+  still closed: the existing #119 terminal attempts are non-promotable and grant
+  no hardware or model-execution credit.
 
-Model-backed Phase 6 evidence will be added only after #103, P7-01 model
-selection, and the remaining stages in
-`docs/phase6-implementation-plan.md` and the workflow in
-`docs/phase6-compression-architecture.md` are implemented and verified.
+Model-backed Phase 6 evidence can be added only after a fresh exact-SHA hardware
+authorization and independently accepted
+[#119](https://github.com/Gravelaw/prisminfer/issues/119) C2 receipt, followed by
+the retained `#84 -> #76 -> #77 -> #78` Packet C sequence in
+`docs/phase6-implementation-plan.md` and
+`docs/phase6-compression-architecture.md`.
 
 Council-reviewed claim boundary:
 
@@ -71,19 +76,26 @@ No bucket-wide >5B-10B claim from one model.
 No constrained-VRAM claim if full FP16 weights are materialized.
 ```
 
-The preferred first evidence target is a P7-01-pinned Meta Llama 3.1 8B
-foundation GGUF, pending license acceptance, access, exact revision, converter
-support, reproducible quantization, and hashes. Ornith-1.0-9B is a separate
-hybrid stress cell. Gemma 2, if retained as an optional comparison, is described
-by its actual sliding-window/global-attention pattern rather than as globally
+The first conventional evidence target is the exact #80-pinned Meta Llama 3.1
+8B foundation GGUF. Its accepted license/access, source and producer revisions,
+recipe, hashes, and per-tensor inventory are immutable inputs, not execution or
+self-production claims. Ornith-1.0-9B is a separate unsupported-converter hybrid
+stress cell. Gemma 2, if retained as an optional comparison, is described by its
+actual sliding-window/global-attention pattern rather than as globally
 full-attention. Any result remains exact-model, exact-recipe, exact per-tensor
-`ggml_type`, exact-context, exact-hardware, and exact-cap scoped.
+`ggml_type`, exact-context, exact-service-profile, exact-runtime,
+exact-OS-execution-mode, exact-hardware, and exact-cap scoped. An external
+runtime is always another exact cell and may support only a labelled paired-cell
+comparison after the projection and pair-specific artifact-equivalence gates
+pass.
 
 Planned evidence architecture:
 
 ```text
-#103 supervisor/admission clearance
-  -> P7-01 pinned foundation GGUF
+#80 completed immutable foundation identity + #103 implemented supervisor
+  -> fresh exact-SHA #119 authorization and independently accepted C2 receipt
+  -> #84 exact capacity/admission
+  -> #76 deterministic quality fixtures
   -> quantization recipe plus exact per-tensor ggml_type inventory
   -> upstream quantized resident-weight baseline
   -> no full FP16 materialization gate
@@ -110,8 +122,11 @@ research-only
 
 Required evidence before this file can move beyond `research-only`:
 
-- #103 clearance and retained supervisor/admission evidence,
-- P7-01 model-selection, license, source, conversion, and quantization record,
+- fresh exact-SHA #119 authorization, independently accepted C2 receipt, and
+  retained #103 supervisor/admission evidence,
+- retained #80 model-selection, license, source, producer/converter,
+  quantization, and one-time acquisition-exception record,
+- #84 exact capacity/admission result and #76 deterministic quality fixtures,
 - exact GGUF model hash and quant artifact hash,
 - quantization recipe and per-tensor `ggml_type` manifest hash,
 - tokenizer and prompt fixture hashes,

@@ -30,7 +30,8 @@ that the Plan does not admit.
 Within the Plan's binding [`Frozen Scope`](../../Plan.md#frozen-scope), the V2
 research framing examines:
 
-- immutable hardware, software, model, artifact, and workload identity;
+- immutable hardware, software, runtime/backend/OS-mode, model, artifact,
+  workload, and complete service identity;
 - a CPU-only trusted outer supervisor and a contained native worker;
 - pre-context and post-context admission;
 - exact requested-versus-actual actuator acknowledgement;
@@ -82,6 +83,11 @@ After the foundation and exact 30B static cells, do independently passing
 mechanisms admit or improve exact 30B, 70B, or 90B cells? Scale claims are made
 only for the exact artifact, context, cap, workload, and hardware fingerprint
 that produced the evidence.
+
+The complete service identity also binds concurrency, request-arrival process,
+scheduler/batching/chunking policy, prefix/KV-cache configuration and observed
+cold/warm state, streaming/output policy, and output cap. A different runtime or
+OS execution mode is a different cell, not a controller action.
 
 ## Narrow working hypothesis
 
@@ -137,6 +143,7 @@ requested actuator is promoted as an observed PrismInfer result.
 - reporting compression without metadata, indexes, alignment, residuals,
   codebooks, checksum, workspace, and source duplication;
 - choosing a representation dynamically inside a fixed-artifact static plan;
+- choosing a runtime, backend, or OS execution mode inside a calibrated plan;
 - treating accepted draft tokens as committed target-distributed output;
 - combining mechanisms before independent evidence exists.
 

@@ -30,6 +30,10 @@ No milestone text authorizes downloads, CUDA, model execution, calibration,
 benchmarking, sustained hardware work, or self-hosted workflows. Those require
 the exact Plan clearance and, for T3 work, separate explicit user authorization.
 
+Cross-cutting issue #125 tightens comparator and exact service-cell acceptance
+inside the existing milestones. It creates no M8, reorders no packet, grants no
+clearance, and does not change #119 or C2.
+
 ## M0: Adaptive Runtime V2 governance freeze
 
 **Outcome.** Replace the duplicated V1 research packet with nine canonical,
@@ -254,6 +258,11 @@ foundation warmup/baseline uses C3 and its exact admission token.
 - paired quality/retrieval/task fixtures and frozen sample plans;
 - strongest public llama.cpp control sweep and the declared PrismInfer
   foundation comparison for Llama 3.1 8B;
+- complete service identity: concurrency, arrival process,
+  scheduler/batching/chunking policy, prefix/KV-cache configuration and
+  observed state, cold/warm state, streaming/output policy, and output cap;
+- scheduler queues, batching/cache pools, fragmentation, retention/eviction
+  workspaces, and related host/device charges in #84 admission when present;
 - 10 GiB and 12 GiB primary requested tiers, physical-device reference, and
   optional 8 GiB stress-only tier;
 - complete functional/safety/evidence/claim audit.
@@ -279,6 +288,8 @@ foundation warmup/baseline uses C3 and its exact admission token.
   paired quality results;
 - cold/warm phase separation, randomized trial order, failure and missingness
   tests;
+- direct-comparator eligibility or an explicit contextual-evidence
+  classification for every external-runtime result;
 - T-001 through T-008 decisions.
 
 **Claim boundary and negative outcome.** One exact foundation cell only. An
@@ -302,13 +313,21 @@ C4; fresh supervised foundation calibration begins in M5, not M4.
 **Allowed work.**
 
 - inventory public runtime controls and exact acknowledgement paths;
-- replace shell/log scraping with worker-contained in-process lifecycle;
+- produce #83's dated `RuntimeCapabilityRecord` and classify each surveyed
+  project as within-cell baseline, paired-cell direct comparator, mechanism
+  reference, conditional substrate candidate, orchestration layer, or UX
+  wrapper;
+- replace process-output-only observation with worker-contained in-process
+  lifecycle and actual-path evidence;
 - execute the tiny seam-proof spike defined in
   [`architecture.md`](architecture.md);
 - collect requested/actual operator, placement, allocation, workspace, state,
   and transfer traces for the admitted tiny seam;
 - build normalized calibration entities, fingerprints, partitions, drift rules,
   and abstention tests.
+- if and only if the seam fails structurally, retain #85's
+  alternative-substrate scorecard and council input; prototype work requires a
+  later separately approved issue.
 
 **Prohibited work.**
 
@@ -317,6 +336,9 @@ C4; fresh supervised foundation calibration begins in M5, not M4.
 - fresh 8B/9B calibration or model execution;
 - 30B execution or optional-mechanism performance claims;
 - silently maintaining a broad llama.cpp fork;
+- selecting a runtime or OS execution mode as an optimizer actuator;
+- creating an alternative-runtime prototype without an accepted Plan reopen
+  trigger and council decision;
 - using search/validation data as promotion confirmation.
 
 **Deliverables.**
@@ -329,6 +351,11 @@ C4; fresh supervised foundation calibration begins in M5, not M4.
 **Retained artifacts and tests.**
 
 - exact dependency/source/build hashes;
+- runtime family/backend/revision, native/WSL/Linux mode, exact artifact
+  identity, concurrency, arrival, scheduler/batching, cache-state,
+  streaming/output, and output-cap fingerprint fields;
+- pair-specific comparator projection and artifact-equivalence receipts kept
+  outside both unary cell fingerprints;
 - public-control and fallback traces;
 - hidden allocation/workspace, ignored/clamped setting, unsupported operator,
   state-lifecycle, and pin-change tests;
@@ -357,6 +384,7 @@ closes C6 only after its fresh audit.
 - execute the frozen #86 Llama 8B calibration plan at separately admitted
   10 GiB and 12 GiB requested tiers under C4;
 - resource-DAG candidate enumeration over supported public/static actuators;
+- candidate and oracle enumeration within one immutable runtime cell only;
 - held-out prediction, Pareto/lexicographic selection, and abstention;
 - immutable plan replay with actual acknowledgements;
 - R0/R1/R2 fault/recovery evidence;
@@ -370,6 +398,8 @@ closes C6 only after its fresh audit.
 - optional compressed providers, speculative offload, or structured routing;
 - exact 30B execution;
 - combining Llama and Ornith results into one architecture-wide claim.
+- switching runtime family, backend, OS execution mode, or artifact identity as
+  a plan or recovery action.
 
 **Deliverables.**
 
@@ -411,12 +441,14 @@ every independent decision is retained.
 **Allowed work.**
 
 - freeze and measure the strongest exact 30B static CPU/GPU placement;
-- #91 phase-specific kernel dispatch, bounded staging, and activation-transfer
-  hypotheses;
-- #92 separate KV and architecture-state policy;
+- #91 phase-specific kernel dispatch and bounded staging hypotheses;
+- #92 separate KV and architecture-state policy against the strongest
+  supported same-cell upstream allocation/retention control;
 - #93 committed-output-aware speculative offload;
 - #94 representation compiler, legal rotations, fixed hot base, progressive
-  prefixes, cold-residual entropy, and direct execution provider;
+  prefixes, cold-residual entropy, activation-transfer compression, and direct
+  execution providers, with independent decisions for weight and activation
+  representations;
 - #95 structured-compute oracle followed by a guarded router only if the oracle
   passes;
 - record joint-optimization eligibility only after at least two mechanisms pass
@@ -480,6 +512,9 @@ for the work that establishes it.
 - portability, invalidation, pin-update, recalibration, evidence, and claim
   audits, followed at #102 by the first mandatory consolidated security review
   after the applicable implementation and test matrix completes.
+- one alternative-runtime portability cell only when #85 previously retained an
+  accepted substrate-selection decision; it receives fresh #86 calibration and
+  cannot inherit llama.cpp evidence.
 
 **Prohibited work.**
 
@@ -487,6 +522,8 @@ for the work that establishes it.
 - treating T-060 through T-065 as permission to bypass admission;
 - generalizing one quant, context, cap, workload, or device to a size bucket;
 - hiding storage/pagefile/unified-memory pressure;
+- treating a different runtime or native/WSL/Linux execution mode as the same
+  calibrated cell;
 - publishing a final speedup without strongest same-cell controls.
 
 **Deliverables.**
@@ -534,6 +571,16 @@ For each exact cell retain:
 - CPU-only feasible control;
 - same-artifact static PrismInfer plan;
 - source/representation and decompressed controls where a provider is admitted.
+
+Another runtime always produces a separate exact cell. It qualifies for a
+paired-cell direct runtime comparison only when hardware, OS execution mode,
+host identity, canonical model/source, tokenizer/template, context, prompt/task,
+cap, concurrency, arrival process, scheduler/batching/chunking policy,
+prefix/KV-cache state, streaming/output policy, power/thermal policy,
+non-runtime software/provider identity, quality contract, and measurement
+protocol match and a separate artifact/quantized-tensor equivalence decision
+passes. Otherwise retain it only as contextual mechanism or architecture
+evidence; even a passing pair does not enter the within-runtime feasible oracle.
 
 ### Diagnostic arms
 

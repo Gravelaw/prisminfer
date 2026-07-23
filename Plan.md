@@ -2,7 +2,7 @@
 
 Status: Adaptive Runtime V2 governance active; M0, M1, and M2 complete. Packet
 B merged after exact-head review and hosted verification; C2 remains closed.
-Last reconciled: 2026-07-18 (M2 exit)
+Last reconciled: 2026-07-22 (#125 runtime-comparator contract alignment)
 Operational tracker: [GitHub Project #2](https://github.com/users/Gravelaw/projects/2)
 
 ## Authority and Change Control
@@ -71,6 +71,26 @@ progressive weights, speculative offload, and structured compute are separate
 optional hypotheses. None repairs a failed safety/evidence substrate or a
 failed static-controller thesis.
 
+The service identity of an exact cell includes request concurrency, arrival
+process, scheduler/batching/chunking policy, prefix/KV-cache configuration and
+observed cold/warm/hit/eviction state, streaming/output policy, and output cap.
+Runtime family/backend, native/WSL/Linux execution mode, and exact artifact
+identity are also immutable cell inputs, not optimizer actuators. Changing any
+material identity field creates a new cell and invalidates inherited calibration
+or plan approval. Artifact equivalence is a reviewed relation between two cells,
+not a unary field that makes their artifacts or runtime identities the same.
+
+An external runtime is always a separate exact cell because runtime identity is
+part of that cell. It is eligible for an explicitly labelled paired-cell runtime
+comparison only when the comparator projection matches hardware, OS execution
+mode, host identity, canonical model/source, tokenizer/template, prompt/task and
+service identity, cap, power/thermal policy, non-runtime software/provider
+identity, quality contract, and measurement protocol, and a separate
+artifact-equivalence decision passes for derived bytes and quantized-tensor
+semantics. Otherwise its result is contextual mechanism or architecture
+evidence. A paired-cell result cannot enter a PrismInfer within-runtime
+optimizer/provider speedup, calibration, plan, or oracle claim.
+
 ## Success and Falsification Taxonomy
 
 | Thesis | Pass condition | Valid negative conclusion |
@@ -110,7 +130,7 @@ changing thresholds after observing a failure.
 | Host admission | #109's authoritative Windows physical/commit telemetry and workload-relative admission primitive are consumed by both pre/post admission and every watchdog decision. No fixed free-RAM prerequisite is valid. |
 | Model evidence | Packet A pins one approved offline Llama 3.1 8B Q4_K_M artifact identity and complete per-tensor inventory under the recorded one-time acquisition exception. Ornith remains an immutable unsupported-converter negative descriptor, and 30B/70B/90B selection remains deferred. No model execution, quality, capacity, calibration or performance evidence exists. |
 | Adaptive runtime | Actuator, recovery, optimizer and evidence contracts are documented; the in-process adapter, calibration store, selector and plan executor are proposed, not implemented. |
-| Worktree/PR | PRs #72, #104, #105, #106, #108, #110 and #113 establish the pre-M1 merged baseline. PR #111 merged Packet A for #74/#75/#80. PR #112 merged Packet B for #81/#82/#103 as merge `393d1da8de780f52f4fa1b209b5a4d943baa5eef` after exact-head review and hosted Debug/Release verification. |
+| Worktree/PR | PRs #72, #104, #105, #106, #108, #110 and #113 establish the pre-M1 merged baseline. PR #111 merged Packet A for #74/#75/#80. PR #112 merged Packet B for #81/#82/#103 as merge `393d1da8de780f52f4fa1b209b5a4d943baa5eef` after exact-head review and hosted Debug/Release verification. PRs #120-#124 prepare and repair #119's synthetic C2 candidate; terminal runs remain non-promotable and C2 remains closed. |
 
 ## Frozen Scope
 
@@ -126,6 +146,7 @@ changing thresholds after observing a failure.
 - pinned actuator, acknowledgement and R0/R1/R2 recovery inventory;
 - immutable raw calibration observations and conservative cost tables;
 - one static plan per exact non-semantic service profile;
+- immutable runtime identity within a plan and oracle comparison;
 - deterministic replay, drift invalidation, abstention and bounded recovery;
 - foundation confirmation, Ornith stress, then 30B static truth or rejection.
 
@@ -157,7 +178,7 @@ changing thresholds after observing a failure.
 | Cell | Frozen role | Gate |
 |---|---|---|
 | Tiny deterministic artifact | Parser, schema, lifecycle, fault and CPU/tiny-CUDA correctness. | Pin before automated safety tests. |
-| Llama 3.1 8B Instruct | Preferred conventional text/GQA foundation if license/access, pinned llama.cpp support, self-produced GGUF and quality baseline are accepted. | #80 final immutable selection. |
+| Llama 3.1 8B Instruct | Selected conventional text/GQA foundation identity under #80's recorded one-time acquisition exception; this is not a self-produced-artifact or execution claim. | #80 final immutable selection. |
 | Gemma 2 9B | Optional architecture-aware transformer control only; its alternating local/global attention must be modeled. It is not a globally full-attention control. | Separate exact cell if retained. |
 | Ornith-1.0-9B | Secondary capability and hybrid Qwen3.5-family stress cell. Text main artifact, MTP, mmproj and multimodal scope are distinct. | Attempt only after foundation clearance and converter/operator/state coverage. |
 | Qwen3.5-9B | Ornith lineage and architecture reference, not an independent conventional control. | Metadata/support comparison only unless separately admitted. |
@@ -227,34 +248,35 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 | #74 | Exact per-tensor GGML quant semantics/fixtures. | #73 for CUDA reuse; CPU reference work may start now. | Done in Packet A PR #111 |
 | #75 | Strict manifest-emitting evidence runner. | Provisional on #74's reviewed CPU checkpoint; final acceptance remains packet-gated. | Done in Packet A PR #111 |
 | #76 | Mandatory quality fixtures; optional offline KV evaluator remains separately classified. | #80 for final artifact; model execution also requires C2 and #84. | Ready |
-| #77 | Supervised same-cell upstream and PrismInfer foundation evidence; no mandatory custom-kernel/KV win. | #73-#76, #80-#82, #84 and #103. | Blocked |
+| #77 | Supervised exact-service-cell upstream and PrismInfer foundation evidence; external runtimes are contextual unless the paired-cell direct-comparator predicate passes. | #73-#76, #80-#82, #84 and #103. | Blocked |
 | #78 | Phase 6 evidence and claim audit. | #77. | Blocked |
 | #79 | Final council, root Plan and tracker freeze. | Current repository/session evidence. | Done |
 | #80 | Pin foundation, Ornith stress and smoke artifacts. | #79 plus Phase 6 artifact rules. | Done in Packet A PR #111 |
 | #81 | Secure native external worker/Job boundary. | #79 and pinned external executable identity. | Done in Packet B PR #112 |
 | #82 | Minimum live Windows/WDDM/host/file/transfer evidence. | #79; integrates #81. | Done in Packet B PR #112 |
-| #83 | Pinned actuator/acknowledgement/recovery inventory. | #79 and pinned runtime source/build. | Ready |
-| #84 | Exact 8B/9B/30B/70B/90B capacity and bandwidth admission. | #74, #80, #82 and #103. | Blocked |
-| #85 | Worker-contained in-process adapter and actual-path trace. | #78, #80-#83 and #103. | Blocked |
-| #86 | Fingerprint, immutable calibration store and metric sample plans. | #84, #85 and #103. | Blocked |
-| #87 | Static resource-DAG selector and feasible-oracle comparison. | #83 and #86. | Blocked |
+| #83 | Pinned actuator/acknowledgement/recovery inventory plus dated runtime capability and role record. | #79 and pinned runtime source/build. | Ready |
+| #84 | Exact 8B/9B/30B/70B/90B capacity and bandwidth admission, including service scheduler/cache pools and workspaces when present. | #74, #80, #82 and #103. | Blocked |
+| #85 | Worker-contained in-process adapter, actual-path trace, GGML seam proof and conditional mature-substrate scorecard. | #78, #80-#83 and #103. | Blocked |
+| #86 | Expanded exact-cell fingerprint, immutable calibration store and metric sample plans. | #84, #85 and #103. | Blocked |
+| #87 | Static resource-DAG selector and feasible-oracle comparison within one immutable runtime cell. | #83 and #86. | Blocked |
 | #88 | Immutable acknowledged plan replay and R0/R1/R2 recovery. | #83, #87 and #103. | Blocked |
 | #89 | Usable-runtime confirmation, Ornith stress and functional/safety/evidence/claim review. | #78, #80, #84, #88 and #103. | Blocked |
 | #90 | Exact 30B static heterogeneous placement or rejection. | #84 and #89. | Backlog |
 | #91 | Optional kernel dispatch and bounded staging hypotheses. | #90 and #88. | Backlog |
-| #92 | Optional KV/architecture-state policy. | #90 and approved #76 offline evidence. | Backlog |
+| #92 | Optional KV/architecture-state policy against the strongest supported upstream KV allocation/retention control. | #90 and approved #76 offline evidence. | Backlog |
 | #93 | Optional committed-output-aware speculative offload. | #90 and #88. | Backlog |
-| #94 | Optional progressive representation hypotheses. | #90 plus security/provider/quality approval. | Backlog |
+| #94 | Optional progressive representation and activation-transfer compression hypotheses. | #90 plus security/provider/quality approval. | Backlog |
 | #95 | Optional structured-compute oracle, then router gate. | #90 plus privacy/quality approval. | Backlog |
 | #96 | Independent optional decisions and Phase 8 audit. | #90 and a pass/reject/not-admitted record for #91-#95. | Backlog |
 | #97 | Refresh exact scale admission. | #84 and #96. | Backlog |
 | #98 | Optional admitted 30B dynamic result. | #90 and #97. | Backlog |
 | #99 | Exact admitted 70B result/rejection. | #97 admission of that artifact. | Blocked |
 | #100 | Exact admitted 90B result/rejection. | #97 admission of that artifact. | Blocked |
-| #101 | Portability, invalidation and recalibration. | #98 plus each activated/rejected #99/#100 record. | Backlog |
+| #101 | Portability, invalidation and recalibration; a conditionally selected alternative runtime is a separate cell. | #98 plus each activated/rejected #99/#100 record. | Backlog |
 | #102 | Final security, evidence and claim audit. | #96 and #101. | Backlog |
 | #103 | Fail-closed hardware supervisor and staged admission boundary. | #79, #81, the safety subset of #82 and the #109 host-admission primitive. | Done in Packet B PR #112 |
 | #119 | Bounded opt-in synthetic C2 supervisor lane and versioned candidate receipt. | Completed #81/#82/#103; code and workflow review grant no C2 credit, and dispatch requires a separate exact-SHA hardware authorization. | In Progress |
+| #125 | Cross-cutting runtime-comparator and exact service-cell contract alignment. | Current source/research truth; changes no dependency, clearance, or #119 status. | In Progress |
 
 ## Critical Path
 
@@ -287,13 +309,18 @@ for workload-relative host admission and authoritative Windows commit telemetry.
 It is consumed by #82/#103/#84, does not reorder Packet A, and grants no C2,
 model, calibration, benchmark or hardware clearance.
 
-Adaptive Runtime V2 M0 is the documentation/governance migration that precedes
-resumption of the packet branches. It changes no issue dependency or clearance.
-After M0 reaches `main`, draft PRs #111 and #112 must rebase on that exact head
-and port any still-applicable V1 document changes into the sole V2 owner
-document. They must not recreate the former V1 active directory. Under the
-conservative packet order, Packet A closes before Packet B may merge; review of
-already retained Packet B work may continue without granting its exit.
+Cross-cutting issue #125 aligns the exact service-cell, comparator, runtime-role,
+conditional substrate, and optional-mechanism ownership contracts. It may be
+prepared alongside #119 as CPU/documentation work, but it changes no packet
+order, clearance, C2 status, or hardware/model authorization. Runtime
+integration remains conditional on a retained #85 seam-failure decision.
+
+Adaptive Runtime V2 M0 completed the documentation/governance migration without
+changing issue dependencies or clearances. Packet A PR #111 and Packet B PR #112
+subsequently rebased onto the V2 authority, ported applicable changes into the
+sole V2 owner documents, and merged in the required order. The former V1 active
+directory remains archived. These completed packet exits grant no C2 or
+model-execution clearance.
 
 The persistent program goal keeps one packet active at a time. Within that
 packet, issues remain sequential checkpoints with their own acceptance evidence
@@ -345,7 +372,8 @@ execution, download, calibration, benchmark or sustained hardware run.
 
 ### Phase 6: safety and exact evidence foundation
 
-- #103 closes the hardware-safety prerequisite.
+- #103 implements the Packet B hardware-safety prerequisite; C2 remains closed
+  until a fresh exact-SHA authorization and independently accepted #119 receipt.
 - Exact per-tensor quant truth, quality fixtures and strict evidence tooling
   exist.
 - #77 records the supervised same-cell baseline/candidate result.
@@ -424,7 +452,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate-plan-projec
   closed because Packet B produced no separately authorized live hardware
   receipt. #119 is the bounded synthetic C2 candidate implementation and is
   `In Progress`; its code, tests, workflow, and any unreviewed artifact remain
-  non-promotable and carry zero C2 credit. #76 and #83 are `Ready`;
+  non-promotable and carry zero C2 credit. Cross-cutting #125 is `In Progress`
+  for comparator/evidence-contract alignment and grants no clearance. #76 and #83 are `Ready`;
   dependency-gated #77-#78 and #84-#89 are `Blocked`; later work remains
   `Backlog` except independently admission-blocked #99/#100.
 - Merged Packet B closes the three prior binding
@@ -460,6 +489,12 @@ Reopen the architecture council only when evidence shows one of the following:
 - 32 GiB host capacity makes the 30B static cell inadmissible;
 - no optional representation offers random access and bounded reconstruction;
 - the primary hardware target changes the resource hierarchy materially.
+
+A retained trigger reopens the council; it does not itself select or authorize
+another runtime. The council must compare containment, artifact semantics,
+allocation/path observability, supported controls, Windows viability,
+maintenance, licensing, and reproducibility. Only then may one bounded
+mature-substrate prototype receive its own issue and acceptance fixture.
 
 Otherwise, implementation follows this dependency matrix without another
 theory expansion.

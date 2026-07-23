@@ -47,8 +47,9 @@ The worker creates only the minimum runtime context. The supervisor then:
 
 - reconciles context/runtime bytes, CUDA free memory, and current WDDM state;
 - recomputes an effective cap that may shrink but cannot grow during the run;
-- checks the exact plan's weights, architecture state, workspace, pools,
-  fragmentation, instrumentation, staging, and unknown-byte terms;
+- checks the exact plan's weights, architecture state, workspace, scheduler
+  queues, batching/chunking pools, prefix/KV-cache retention and eviction
+  workspace, fragmentation, instrumentation, staging, and unknown-byte terms;
 - admits model loading only when every tier remains within its independent
   reserve and threshold.
 
@@ -99,6 +100,11 @@ evidence and error schema
 The controller generates only plans whose actuator descriptors are compatible
 with the exact fingerprint. Unsupported, ignored, clamped, substituted, or
 unacknowledged requests make the candidate infeasible.
+
+Runtime family/backend, native/WSL/Linux execution mode, scheduler family, and
+artifact identity are fingerprint inputs rather than actuators. A change to any
+of them requires a new cell, admission, calibration partition, and plan review;
+the controller cannot switch runtimes as a recovery or optimization action.
 
 ## Static plan contract
 

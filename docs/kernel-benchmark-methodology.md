@@ -6,13 +6,19 @@ without overstating constrained-VRAM claims.
 ## Benchmark Principle
 
 A kernel benchmark is valid only inside one validation cell. The benchmark must
-name the model hash, quantization format, context length, prompt fixture, batch
-size, sequence phase, backend, OS, GPU, driver, CUDA runtime/toolkit version,
-and VRAM cap tier.
+instantiate the exact cell $\chi$ from
+[`adaptive-runtime-v2/optimizer-mathematics.md`](adaptive-runtime-v2/optimizer-mathematics.md#exact-cell),
+including model and artifact/tensor semantics; context and prompt fixture;
+runtime/backend/build and OS execution mode; sequence phase; concurrency and
+arrival process; scheduler/batching/chunking policy; prefix/KV configuration and
+observed cache state; streaming/output policy and cap; hardware, driver, power,
+thermal and VRAM-cap fields; and the quality and measurement protocols.
 
 Comparisons across cells are rejected. A faster batch-1 decode GEMV result does
 not imply a faster prefill GEMM result. A result on one GPU architecture or
-driver mode does not imply another.
+driver mode does not imply another. An unmatched external-runtime result is
+contextual evidence. A passing paired-cell runtime comparison remains distinct
+from a same-cell kernel/provider speedup baseline.
 
 ## Required Baselines
 
