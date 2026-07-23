@@ -1,8 +1,8 @@
 # PrismInfer Final Plan
 
-Status: Adaptive Runtime V2 governance active; M0, M1, and M2 complete. Packet
-B merged after exact-head review and hosted verification; C2 remains closed.
-Last reconciled: 2026-07-22 (#125 runtime-comparator contract alignment)
+Status: Adaptive Runtime V2 governance active; M0, M1, M2, and the #125
+runtime-comparator contract closeout are complete. C2 remains closed.
+Last reconciled: 2026-07-23 (#125 closed by PR #126 merge f38ef80fe785efd9b76b5db4a71368039c928a5a)
 Operational tracker: [GitHub Project #2](https://github.com/users/Gravelaw/projects/2)
 
 ## Authority and Change Control
@@ -276,7 +276,7 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 | #102 | Final security, evidence and claim audit. | #96 and #101. | Backlog |
 | #103 | Fail-closed hardware supervisor and staged admission boundary. | #79, #81, the safety subset of #82 and the #109 host-admission primitive. | Done in Packet B PR #112 |
 | #119 | Bounded opt-in synthetic C2 supervisor lane and versioned candidate receipt. | Completed #81/#82/#103; code and workflow review grant no C2 credit, and dispatch requires a separate exact-SHA hardware authorization. | In Progress |
-| #125 | Cross-cutting runtime-comparator and exact service-cell contract alignment. | Current source/research truth; changes no dependency, clearance, or #119 status. | In Progress |
+| #125 | Cross-cutting runtime-comparator and exact service-cell contract alignment. | Merged by PR #126 at f38ef80fe785efd9b76b5db4a71368039c928a5a; changes no dependency, clearance, or #119 status. | Done |
 
 ## Critical Path
 
@@ -309,11 +309,11 @@ for workload-relative host admission and authoritative Windows commit telemetry.
 It is consumed by #82/#103/#84, does not reorder Packet A, and grants no C2,
 model, calibration, benchmark or hardware clearance.
 
-Cross-cutting issue #125 aligns the exact service-cell, comparator, runtime-role,
-conditional substrate, and optional-mechanism ownership contracts. It may be
-prepared alongside #119 as CPU/documentation work, but it changes no packet
-order, clearance, C2 status, or hardware/model authorization. Runtime
-integration remains conditional on a retained #85 seam-failure decision.
+Cross-cutting issue #125 aligned the exact service-cell, comparator,
+runtime-role, conditional substrate, and optional-mechanism ownership contracts
+in merged PR #126. It changed no packet order, clearance, C2 status, or
+hardware/model authorization. Runtime integration remains conditional on a
+retained #85 seam-failure decision.
 
 Adaptive Runtime V2 M0 completed the documentation/governance migration without
 changing issue dependencies or clearances. Packet A PR #111 and Packet B PR #112
@@ -452,8 +452,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\validate-plan-projec
   closed because Packet B produced no separately authorized live hardware
   receipt. #119 is the bounded synthetic C2 candidate implementation and is
   `In Progress`; its code, tests, workflow, and any unreviewed artifact remain
-  non-promotable and carry zero C2 credit. Cross-cutting #125 is `In Progress`
-  for comparator/evidence-contract alignment and grants no clearance. #76 and #83 are `Ready`;
+  non-promotable and carry zero C2 credit. Cross-cutting #125 is `Done` for
+  comparator/evidence-contract alignment and grants no clearance. #76 and #83 are `Ready`;
   dependency-gated #77-#78 and #84-#89 are `Blocked`; later work remains
   `Backlog` except independently admission-blocked #99/#100.
 - Merged Packet B closes the three prior binding
