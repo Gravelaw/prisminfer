@@ -385,6 +385,9 @@ if(WIN32)
   add_test(NAME test_c2_supervisor_invocation
     COMMAND powershell -NoProfile -ExecutionPolicy Bypass -File
       ${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/test_c2_supervisor_invocation.ps1)
+  add_test(NAME test_c2_clearance_git_failure
+    COMMAND powershell -NoProfile -ExecutionPolicy Bypass -File
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/test_c2_clearance_git_failure.ps1)
 endif()
 
 add_executable(test_windows_evidence tests/unit/test_windows_evidence.cpp)
