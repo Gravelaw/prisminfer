@@ -32,6 +32,29 @@ $ErrorActionPreference = 'Stop'
 $mutex = $null
 $hasMutex = $false
 
+function Get-C2GitText {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Description
+    )
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $lines = @(git @Arguments 2>$null)
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($exitCode -ne 0) {
+        throw "Unable to read $Description for C2 authorization (git exit code $exitCode). Run the attended runner and its workspace under the same Windows account; do not add a blanket safe.directory exception."
+    }
+    return (($lines | ForEach-Object { "$_" }) -join "`n").Trim()
+}
+
 try {
     if (-not $env:GITHUB_ACTIONS -or $env:GITHUB_ACTIONS -ne 'true') {
         throw 'The C2 hardware runner is restricted to an attended GitHub Actions dispatch.'
@@ -39,12 +62,16 @@ try {
     if ($env:GITHUB_SHA -ne $ReviewedSha) {
         throw 'ReviewedSha does not match GITHUB_SHA.'
     }
-    $head = (git rev-parse HEAD).Trim()
-    $tree = (git rev-parse 'HEAD^{tree}').Trim()
-    if ($LASTEXITCODE -ne 0 -or $head -ne $ReviewedSha -or $tree -ne $SourceTreeSha) {
+    $head = Get-C2GitText -Arguments @('rev-parse', 'HEAD') `
+        -Description 'the checked-out commit'
+    $tree = Get-C2GitText -Arguments @('rev-parse', 'HEAD^{tree}') `
+        -Description 'the checked-out source tree'
+    if ($head -ne $ReviewedSha -or $tree -ne $SourceTreeSha) {
         throw 'The checked-out commit or tree does not match the reviewed authorization packet.'
     }
-    if (git status --porcelain) {
+    $status = Get-C2GitText -Arguments @('status', '--porcelain') `
+        -Description 'the checkout cleanliness state'
+    if ($status) {
         throw 'The reviewed-main checkout must be clean before C2 configuration.'
     }
 
