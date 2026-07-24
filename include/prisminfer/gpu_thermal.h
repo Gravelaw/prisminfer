@@ -15,8 +15,9 @@ namespace prisminfer {
 // target temperature. Invalid or nonphysical conversions stay unavailable.
 [[nodiscard]] std::optional<GpuThermalSample>
 make_ada_tlimit_thermal_sample(std::uint32_t current_celsius,
-                               std::uint32_t target_celsius,
-                               std::int32_t raw_slowdown_tlimit,
+                               std::uint32_t target_specification_celsius,
+                               std::int32_t gpu_max_tlimit_offset,
+                               std::int32_t slowdown_tlimit_offset,
                                std::uint64_t captured_monotonic_milliseconds,
                                bool thermal_throttling,
                                bool power_brake_slowdown);

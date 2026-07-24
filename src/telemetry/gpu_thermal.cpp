@@ -73,14 +73,21 @@ bool nvml_field_timestamps_are_fresh(
 }
 
 std::optional<GpuThermalSample> make_ada_tlimit_thermal_sample(
-    std::uint32_t current_celsius, std::uint32_t target_celsius,
-    std::int32_t raw_slowdown_tlimit,
+    std::uint32_t current_celsius,
+    std::uint32_t target_specification_celsius,
+    std::int32_t gpu_max_tlimit_offset,
+    std::int32_t slowdown_tlimit_offset,
     std::uint64_t captured_monotonic_milliseconds, bool thermal_throttling,
     bool power_brake_slowdown) {
-  const auto slowdown_absolute = static_cast<std::int64_t>(target_celsius) -
-                                 static_cast<std::int64_t>(raw_slowdown_tlimit);
+  const auto target_absolute =
+      static_cast<std::int64_t>(target_specification_celsius) -
+      static_cast<std::int64_t>(gpu_max_tlimit_offset);
+  const auto slowdown_absolute =
+      static_cast<std::int64_t>(target_specification_celsius) -
+      static_cast<std::int64_t>(slowdown_tlimit_offset);
   if (captured_monotonic_milliseconds == 0U || current_celsius > 200U ||
-      target_celsius > 200U || slowdown_absolute < 0 ||
+      target_specification_celsius > 200U || target_absolute < 0 ||
+      target_absolute > 200 || slowdown_absolute < 0 ||
       slowdown_absolute > 200) {
     return std::nullopt;
   }
@@ -88,7 +95,7 @@ std::optional<GpuThermalSample> make_ada_tlimit_thermal_sample(
   sample.available = true;
   sample.captured_monotonic_milliseconds = captured_monotonic_milliseconds;
   sample.current_celsius = static_cast<std::int32_t>(current_celsius);
-  sample.reported_target_celsius = static_cast<std::int32_t>(target_celsius);
+  sample.reported_target_celsius = static_cast<std::int32_t>(target_absolute);
   sample.reported_slowdown_celsius =
       static_cast<std::int32_t>(slowdown_absolute);
   sample.thermal_throttling = thermal_throttling;
@@ -112,6 +119,7 @@ GpuThermalSample sample_nvml_gpu_thermal(const std::string& gpu_uuid) {
   nvmlTemperature_t temperature_reading{};
   temperature_reading.version = nvmlTemperature_v1;
   temperature_reading.sensorType = NVML_TEMPERATURE_GPU;
+  unsigned int target_temperature = 0U;
   nvmlFieldValue_t tlimits[2]{};
   tlimits[0].fieldId = NVML_FI_DEV_TEMPERATURE_GPU_MAX_TLIMIT;
   tlimits[1].fieldId = NVML_FI_DEV_TEMPERATURE_SLOWDOWN_TLIMIT;
@@ -119,6 +127,12 @@ GpuThermalSample sample_nvml_gpu_thermal(const std::string& gpu_uuid) {
   const auto temperature_status =
       handle_status == NVML_SUCCESS
           ? nvmlDeviceGetTemperatureV(device, &temperature_reading)
+          : NVML_ERROR_UNKNOWN;
+  const auto target_status =
+      handle_status == NVML_SUCCESS
+          ? nvmlDeviceGetTemperatureThreshold(
+                device, NVML_TEMPERATURE_THRESHOLD_GPS_CURR,
+                &target_temperature)
           : NVML_ERROR_UNKNOWN;
   const auto field_query_start = std::chrono::duration_cast<std::chrono::microseconds>(
       std::chrono::system_clock::now().time_since_epoch()).count();
@@ -147,6 +161,11 @@ GpuThermalSample sample_nvml_gpu_thermal(const std::string& gpu_uuid) {
         GpuThermalUnavailableReason::TemperatureQueryFailed;
     return sample;
   }
+  if (target_status != NVML_SUCCESS) {
+    sample.unavailable_reason =
+        GpuThermalUnavailableReason::TargetTlimitFieldFailed;
+    return sample;
+  }
   if (field_status != NVML_SUCCESS) {
     sample.unavailable_reason =
         GpuThermalUnavailableReason::TlimitFieldQueryFailed;
@@ -162,7 +181,7 @@ GpuThermalSample sample_nvml_gpu_thermal(const std::string& gpu_uuid) {
         GpuThermalUnavailableReason::SlowdownTlimitFieldFailed;
     return sample;
   }
-  if (tlimits[0].valueType != NVML_VALUE_TYPE_UNSIGNED_INT) {
+  if (tlimits[0].valueType != NVML_VALUE_TYPE_SIGNED_INT) {
     sample.unavailable_reason =
         GpuThermalUnavailableReason::TargetTlimitTypeInvalid;
     return sample;
@@ -209,7 +228,8 @@ GpuThermalSample sample_nvml_gpu_thermal(const std::string& gpu_uuid) {
   }
   const auto converted = make_ada_tlimit_thermal_sample(
       static_cast<std::uint32_t>(temperature_reading.temperature),
-      tlimits[0].value.uiVal, tlimits[1].value.siVal, captured,
+      target_temperature, tlimits[0].value.siVal, tlimits[1].value.siVal,
+      captured,
       (throttle_reasons & nvmlClocksThrottleReasonHwThermalSlowdown) != 0ULL,
       (throttle_reasons & nvmlClocksThrottleReasonHwPowerBrakeSlowdown) != 0ULL);
   if (converted) {
