@@ -61,7 +61,7 @@ int main() {
   }
 
   const auto converted = prisminfer::make_ada_tlimit_thermal_sample(
-      66U, 87U, -2, 100U, false, false);
+      66U, 87U, 0, -2, 100U, false, false);
   if (!expect(converted.has_value(), "signed T.Limit offset converts") ||
       !expect(converted->reported_slowdown_celsius == 89,
               "negative offset raises absolute slowdown bound") ||
@@ -71,14 +71,26 @@ int main() {
               "available sample has no failure reason")) {
     return 1;
   }
+  const auto nonzero_target_offset =
+      prisminfer::make_ada_tlimit_thermal_sample(
+          66U, 87U, 1, -2, 100U, false, false);
+  if (!expect(nonzero_target_offset.has_value(),
+              "nonzero target T.Limit offset converts") ||
+      !expect(nonzero_target_offset->reported_target_celsius == 86,
+              "positive offset lowers absolute target bound")) {
+    return 1;
+  }
   if (!expect(!prisminfer::make_ada_tlimit_thermal_sample(
-                   66U, 87U, 0U, 0U, false, false),
+                   66U, 87U, 0, 0, 0U, false, false),
               "zero timestamp rejects") ||
       !expect(!prisminfer::make_ada_tlimit_thermal_sample(
-                   66U, 87U, 200U, 100U, false, false),
+                   66U, 87U, 200, 0, 100U, false, false),
+              "nonphysical absolute target rejects") ||
+      !expect(!prisminfer::make_ada_tlimit_thermal_sample(
+                   66U, 87U, 0, 200, 100U, false, false),
               "nonphysical absolute slowdown rejects") ||
       !expect(!prisminfer::make_ada_tlimit_thermal_sample(
-                   201U, 87U, 0U, 100U, false, false),
+                   201U, 87U, 0, 0, 100U, false, false),
               "invalid current temperature rejects")) {
     return 1;
   }
