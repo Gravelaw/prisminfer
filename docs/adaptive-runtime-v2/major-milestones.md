@@ -490,8 +490,9 @@ be repaired by an optional mechanism.
 - exact 30B static result or lower-bound rejection;
 - independent `pass-promotable`, `complete-nonpromotable`, `not-admitted`, or
   `inconclusive` record for each mechanism and phase in #91-#95;
-- an `inconclusive` result cannot satisfy #96 until it is resolved under the
-  frozen sample plan or explicitly dispositioned as not admitted;
+- an executed `inconclusive` result cannot satisfy #96, cannot be relabeled
+  `not-admitted`, and remains blocking until resolved under the frozen sample
+  plan;
 - phase-specific provider descriptors and actual-path evidence where applicable;
 - factorial identity/rotation/residual-routing ablation;
 - per-pass held-out full-model comparison against the frozen #90 control and
