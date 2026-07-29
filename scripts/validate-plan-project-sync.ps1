@@ -234,6 +234,27 @@ if ($null -ne $runtimeComparator125) {
     Assert-Value 125 "milestone" $runtimeComparator125.milestone.title "Phase 6: Safety and Exact Evidence Foundation"
 }
 
+$researchRefresh130 = Require-Item 130
+if ($null -ne $researchRefresh130) {
+    if ($researchRefresh130.status -notin @("In Progress", "Done")) {
+        Add-Failure "#130 Status is '$($researchRefresh130.status)'; expected 'In Progress' or 'Done'."
+    }
+    if ($researchRefresh130.status -eq "Done") {
+        Assert-Value 130 "Phase Status" $researchRefresh130.'phase Status' "Done"
+    }
+    elseif ($researchRefresh130.'phase Status' -notin @("In Progress", "Review")) {
+        Add-Failure "#130 Phase Status is '$($researchRefresh130.'phase Status')'; expected 'In Progress' or 'Review'."
+    }
+    Assert-Value 130 "title" $researchRefresh130.title "Refresh Adaptive Runtime V2 research and runtime evidence (2026-07-29)"
+    Assert-Value 130 "Priority" $researchRefresh130.priority "P1"
+    Assert-Value 130 "Risk" $researchRefresh130.risk "Medium"
+    Assert-Value 130 "Slice" $researchRefresh130.slice "Docs"
+    Assert-Value 130 "Roadmap Phase" $researchRefresh130.'roadmap Phase' "Cross-cutting"
+    Assert-Value 130 "Roadmap Slice" $researchRefresh130.'roadmap Slice' "Governance"
+    Assert-Value 130 "Roadmap Gate" $researchRefresh130.'roadmap Gate' "Phase 6 Evidence"
+    Assert-Value 130 "milestone" $researchRefresh130.milestone.title "Phase 6: Safety and Exact Evidence Foundation"
+}
+
 foreach ($needle in @(
     "Plan.md",
     "docs/adaptive-runtime-v2/",
@@ -243,6 +264,8 @@ foreach ($needle in @(
     "#109",
     "#119",
     "#125",
+    "#130",
+    "PR #131",
     "PR #111",
     "PR #112",
     "workload-relative host admission",
@@ -261,4 +284,4 @@ if ($failures.Count -gt 0) {
     exit 1
 }
 
-Write-Output ("Plan/Project sync PASS: {0} items checked; #73-#103, #107/#109/#119/#125, Packet A/B exit status, V2 authority and README contracts match." -f $items.Count)
+Write-Output ("Plan/Project sync PASS: {0} items checked; #73-#103, #107/#109/#119/#125/#130, Packet A/B exit status, V2 authority and README contracts match." -f $items.Count)

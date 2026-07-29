@@ -127,6 +127,45 @@ Disposition: **accepted**. Packet A may retain a non-credit offline census after
 lawful artifact availability. It cannot produce provider, model, capacity,
 quality, speed, or novelty credit. Runtime representation work remains #94.
 
+## 2026-07-29 research refresh and second red-team
+
+Issue #130 repeated the council review against primary papers, official runtime
+documentation, SHA-pinned source snapshots, the current repository baseline,
+and a separate devil's-advocate audit. The overall decision remains **keep**:
+PrismInfer should continue as a thin safety, control, evidence, and optional
+provider layer over the provisional pinned llama.cpp/GGML substrate. A
+clean-sheet runtime remains rejected unless #85 proves a structural seam failure
+and the architecture reopen criteria pass.
+
+The mechanism dispositions became narrower:
+
+| Mechanism | Disposition | Consequence |
+|---|---|---|
+| KV quantization and placement | **Keep, split evidence** | Quantization, retention/eviction, host placement, and hierarchical reuse receive separate byte, quality, response-length, transfer, and phase records. DirectKV's NVLink-C2C result and Strata's long-context SGLang result do not transfer to PCIe/WDDM. |
+| Fixed hot base plus residual weights | **Revise** | DecDEC, Any-Precision, BitStack, MatGPTQ, and related work occupy the component space. Continue only from an approved source artifact with direct-consumption kernels, random access, full effective-rate accounting, and fixed-quantization controls. |
+| Activation-transfer compression | **Reject for the current default single-GPU cell** | Preserve the hypothesis but do not implement it until profiling shows the uncompressed boundary is material. T-046 now requires at least 10 percent exposed phase time before entry and at least 5 percent end-to-end phase benefit. |
+| Structured-compute oracle and router | **Revise** | Keep the oracle as a falsifier. Predictor error, batching, sparse-kernel availability, gather/scatter, and dense fallback are charged. Oracle success only permits router construction; the guarded router requires a separate full-model pass. |
+| Committed-output-aware speculative offload | **Reject as an implementation until specified** | Keep committed-output and wasted-work accounting as mandatory comparator semantics. #93 cannot implement until it freezes a concrete exact-target-distribution algorithm and a draft/verification/memory/transfer roofline predicting material end-to-end benefit. |
+| Custom kernel dispatch and staging | **Revise** | ADAngel and current upstream dispatch support an offline phase/shape/bit-width policy map, not one universal kernel. Kernel semantics and staging/overlap require independent receipts or a predeclared factorial design. |
+| Joint optimization | **Revise and defer** | At least two compatible independent passes remain necessary but not sufficient. T-049 now compares with the best static, single-component, and eligible lower-order controls and requires a dependency/overlap/recovery/combined-resource record. |
+
+The red-team also accepted four protocol objections:
+
+- a point estimate or confidence interval that merely excludes no improvement
+  cannot satisfy a larger policy margin;
+- candidate search, phases, seeds, endpoints, and repeated confirmation create
+  one multiplicity family rather than independent chances to pass;
+- every passing mechanism/phase needs its own locked full-model confirmation
+  against the hash-bound #90 and strongest eligible upstream controls; and
+- `pass-promotable`, `complete-nonpromotable`, `not-admitted`, and
+  `inconclusive` are different outcome states; an `inconclusive` outcome is
+  retained but cannot close a dependency.
+
+The binding corrections are owned by
+[`evidence-thresholds-and-security.md`](evidence-thresholds-and-security.md) and
+[`major-milestones.md`](major-milestones.md). They change no current clearance,
+issue state, implementation fact, or C2 status.
+
 ## Architecture decision summaries
 
 ### ADR-001: one planning coordinate system

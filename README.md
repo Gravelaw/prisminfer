@@ -139,6 +139,7 @@ identity, or evidence breach.
 | Telemetry and evidence | JSONL lifecycle telemetry, manifests, model sidecars, schemas, claim validation, and deterministic fixtures exist. |
 | Backends and planning | Fake/null backends, a process-backed llama.cpp baseline scaffold, and caller-fed hybrid/offload planning scaffolds exist. They are not actuator-bound optimized replay. |
 | Compute research | Tiny CPU and opt-in CUDA Q4 decode/GEMV correctness scaffolds exist. They are not model-scale kernels or performance claims. |
+| Research governance | Adaptive Runtime V2 sources and red-team dispositions are refreshed through 2026-07-29 under #130. External results remain precedent in their reported cells, not PrismInfer evidence. |
 | Supervisor and execution | The trusted outer supervisor, exclusive GPU lease, two-stage live admission, native contained worker, watchdog path, and plan executor remain gated work. |
 | Calibration and optimizer | The exact-cell calibration store, cost model, constrained selector, immutable bundle, and held-out promotion flow remain planned. |
 | Model evidence | No 8B/9B constrained-runtime result, 30B-90B deployment result, production-serving claim, or speedup claim has been established. |

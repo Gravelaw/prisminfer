@@ -7,6 +7,12 @@ thesis, dependency order, clearance, status, and Project #2 synchronization.
 This roadmap defines how PrismInfer should move from Phase 0 telemetry to real
 low-VRAM inference research.
 
+Primary-source and runtime context was refreshed through 2026-07-29 under
+[#130](https://github.com/Gravelaw/prisminfer/issues/130). The canonical source
+classifications, revision snapshots, and applicability limits live in
+[`adaptive-runtime-v2/research-hypotheses-and-references.md`](adaptive-runtime-v2/research-hypotheses-and-references.md);
+this historical roadmap does not duplicate them or promote external results.
+
 ## Research Question
 
 Can PrismInfer make large-model inference governed, measurable, fail-closed, and
@@ -49,11 +55,17 @@ Current maximum GPU cap:
 16 GiB = 17179869184 bytes
 ```
 
-Active VRAM tiers:
+Current V2 constrained tiers:
 
 ```text
-1 GiB, 2 GiB, 4 GiB, 6 GiB, 8 GiB, 12 GiB, 16 GiB
+10 GiB and 12 GiB primary cells
+8 GiB stress-only
+16 GiB maximum policy ceiling, never a target allocation
 ```
+
+The earlier Phase 0 matrix retains 1 GiB, 2 GiB, 4 GiB, and 6 GiB smoke tiers
+as historical validation coordinates. They are not substitutes for the current
+foundation-cell contract.
 
 Model buckets start at `<=2B`, then `>2B-5B`, then 5B-wide bands through
 `>85B-90B`.
@@ -134,6 +146,12 @@ Research lanes:
 - PolarQuant/TurboQuant/QJL-style dot-product-preserving vector compression.
 - CPU KV offload and promotion.
 - Prefix reuse and cache isolation policy.
+- Strata-style hierarchical cache layout and scheduling, while keeping its
+  long-context SGLang service cell separate.
+- DirectKV-style direct host access only as an interconnect-specific reference;
+  NVLink-C2C evidence cannot establish a PCIe/WDDM path.
+- JoLT and CompressKV as July/June 2026 preprint comparators whose factor,
+  index, calibration, reconstruction, safety, and kernel costs remain charged.
 
 Required measurements:
 
@@ -177,6 +195,13 @@ Required measurements:
 - CPU-only baseline.
 - GPU-probed baseline.
 - Cold-cache and warm-cache runs.
+
+Policy references such as FlexInfer, ATSInfer, and Kairox support
+phase-/shape-/state-specific placement and prefetch decisions. They do not
+authorize online migration in the current cell. When a quantized dense 8B/9B
+model plus declared state fits, the strongest fully resident upstream control
+is measured before any transfer path. MoE expert-streaming or activation-sparse
+results are separate architecture cells.
 
 Exit claim:
 
@@ -252,6 +277,9 @@ Initial implementation and research lanes:
   batch-1 decode GEMV,
 - GEMM versus GEMV dispatch policy for decode and prefill,
 - cuBLASLt, CUTLASS, and Tensor Core baseline strategy before custom kernels,
+- an ADAngel-style offline strategy map keyed by phase, shape, bit widths,
+  GPU/runtime identity, and workspace, with constant-time acknowledged
+  dispatch; the paper's map and speedups are not inherited,
 - FlashAttention-style IO-aware attention only after matmul evidence,
 - MLA-style latent KV only as a later KV/attention lane,
 - low-rank/SVD and structured sparsity first as accounting and artifact

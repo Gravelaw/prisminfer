@@ -189,7 +189,16 @@ paired quality fixtures.
 
 ## Rotation identities and legality
 
-For an invertible matrix $R$ and continuous random vector $X$:
+Assume $X\in\mathbb R^d$ has an absolutely continuous density $f_X$ and finite
+differential entropy:
+
+$$
+h(X)
+=
+-\int_{\mathbb R^d} f_X(x)\log f_X(x)\,dx.
+$$
+
+For an invertible matrix $R$:
 
 $$
 h(RX)
@@ -198,7 +207,55 @@ h(X)+\log\lvert\det R\rvert.
 $$
 
 If $R$ is orthogonal, $\lvert\det R\rvert=1$, so joint differential entropy is
-unchanged. With row-vector convention, a legal absorbed linear transform is:
+unchanged:
+
+$$
+h(RX)=h(X).
+$$
+
+This continuous joint-entropy identity does not imply equal rate after a finite
+Cartesian scalar quantizer. Let
+$K_R=\mathcal Q_{\Delta,T}(RX)$ denote its discrete output indexes for bin
+widths $\Delta_i$ and clipping threshold $T$. Their achieved symbol entropy is:
+
+$$
+H_2(K_R)
+=
+-\sum_k
+\Pr[K_R=k]\log_2\Pr[K_R=k].
+$$
+
+Because the Cartesian cells are not rotation-equivariant, in general:
+
+$$
+H_2\!\left(\mathcal Q_{\Delta,T}(RX)\right)
+\ne
+H_2\!\left(\mathcal Q_{\Delta,T}(X)\right).
+$$
+
+Under the regular high-resolution assumptions of smooth density, every
+$\Delta_i\to0$ under the same regular cell schedule for the rotated and
+unrotated controls, and either the quantizer is unbounded or
+$T=T(\Delta)\to\infty$ fast enough that the overload contribution is $o(1)$:
+
+$$
+H_2(K_R)
+=
+\frac{h(RX)}{\ln 2}
+-\sum_{i=1}^{d}\log_2\Delta_i
++o(1).
+$$
+
+For orthogonal $R$, the first-order rate is therefore unchanged. Practical
+rotation gains must come from finite-resolution clipping, outlier
+redistribution, scale/codebook mismatch, or another declared implementation
+constraint. As a no-gain control, if
+$X\sim\mathcal N(0,\sigma^2 I_d)$, then $RX$ and $X$ have the same distribution
+for every orthogonal $R$, so a fixed symmetric Cartesian quantizer has the same
+index distribution and distortion.
+
+For the orthogonal case used by the candidate family, a legal absorbed linear
+transform with row-vector convention is:
 
 $$
 x' = xR,
@@ -208,7 +265,9 @@ W' = R^\mathsf{T}W,
 x'W' = xW.
 $$
 
-For compatible attention coordinates:
+For a generic invertible transform, the corresponding linear absorption would
+use $W'=R^{-1}W$ and is outside this orthogonal-family claim. For compatible
+orthogonal attention coordinates:
 
 $$
 Q' = QR,
@@ -386,6 +445,14 @@ Finalists are rerun fresh. The oracle is feasible only over the measured,
 acknowledged candidate set within one immutable runtime cell; it is not a global
 optimum or cross-runtime selection claim.
 
+Calibration may produce an offline policy map keyed by the immutable cell,
+phase, operator, shape, representation, and resource regime. Online feedback
+may select only among prevalidated, acknowledged entries or adjust explicitly
+bounded knobs. It may not invent an unmeasured repartition, kernel, codec, or
+runtime path. FlexInfer-, Kairox-, Strata-, and ADAngel-like policies are
+mechanism precedent; the safe candidate set, uncertainty margin, invalidation,
+and rollback rules here are PrismInfer design synthesis.
+
 ## Empirical quality promotion
 
 For independent held-out units $i=1,\ldots,n$, define a violation against the
@@ -559,6 +626,21 @@ Also report request-level distributions, accepted draft length, verification
 cost, rollback/recompute, and additional draft-model memory. Accepted drafts
 alone are never the numerator of a performance claim.
 
+For each cycle, partition observed external bytes into bytes that contributed
+to the verified committed prefix and wasted speculative bytes:
+
+$$
+B_i
+=
+B_{i,\mathrm{committed}}
++
+B_{i,\mathrm{wasted}}.
+$$
+
+Rejected-suffix prefetch, cache churn, verification, and cancellation remain
+charged even when a later cycle reuses some state. A high acceptance rate is
+insufficient when draft, verification, transfer, or rollback cost dominates.
+
 ## Structured-compute oracle and router
 
 Transformer blocks are sequential. A gated residual recurrence is:
@@ -589,3 +671,9 @@ Router inference, gather/scatter, dense audits, pre-commit verification,
 out-of-distribution behavior, and any post-commit approximation are charged.
 Post-commit auditing can stop future use but cannot undo released tokens or
 mutated state.
+
+The router is eligible only with a calibrated confidence rule, hardware-aligned
+sparse units, measured fused kernels, a dense fallback, and a per-request
+record of predicted versus realized work. If batching, predictor error,
+gather/scatter, or kernel launch cost removes the oracle advantage, the valid
+result is rejection rather than a lower threshold.
