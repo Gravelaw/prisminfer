@@ -241,8 +241,8 @@ promises for every model or cap.
 ## Optional-mechanism thresholds
 
 - **T-040:** a kernel or adaptive speed claim requires at least 1.10x
-  end-to-end speed over the strongest same-cell upstream sweep, with the paired
-  confidence interval excluding no improvement.
+  end-to-end speed over the strongest same-cell upstream sweep, with the
+  multiplicity-adjusted one-sided lower confidence bound at least 1.10x.
 - **T-041:** transfer overlap continues only with at least 5 percent
   end-to-end phase benefit and retained serialized/overlapped timelines.
 - **T-042:** mmap prefetch continues only with at least 10 percent cold-TTFT
@@ -255,28 +255,42 @@ promises for every model or cap.
 - **T-045:** KV quantization requires at least 40 percent net bytes saved and
   codec cost no more than 80 percent of measured time saving, plus quality,
   retrieval, negative-sample, and output-length gates.
-- **T-046:** activation-transfer compression requires its timing inequality to
-  pass with at least a 20 percent p95 margin on real boundary shapes and an
-  end-to-end confirmation.
+- **T-046:** activation-transfer compression enters the candidate set only when
+  the uncompressed transfer boundary is at least 10 percent of exposed phase
+  wall time. Its timing inequality must then pass with at least a 20 percent
+  p95 margin on real boundary shapes and at least 5 percent end-to-end phase
+  benefit.
 - **T-047:** the structured-compute oracle must remove at least 30 percent of
   hardware-aligned work at the quality limit before router training.
 - **T-048:** a router must realize at least 95 percent of oracle savings and at
   least 10 percent end-to-end gain, including router/gather/audit overhead and
   out-of-distribution tests.
-- **T-049:** a joint plan requires at least 10 percent over the best static
-  same-cell baseline and may contain only independently passing mechanisms.
+- **T-049:** a joint plan requires at least 10 percent over the strongest of the
+  static same-cell baseline, every eligible independently passing component,
+  and every eligible lower-order combination. It may contain only independently
+  passing, compatible mechanisms whose shared costs and overlapping benefits
+  are not double counted.
 
 Interpretation:
 
+- for T-040 through T-049, a point estimate alone cannot pass; the
+  multiplicity-adjusted one-sided confidence bound must meet the stated benefit
+  margin, while quality regression, cost, expansion, and safety limits use the
+  corresponding conservative upper bound;
 - entropy paths count payload, metadata, indexes, padding, codebooks, checksums,
   workspace, and maximum expansion;
 - decode and prefill pass independently;
 - persistent full-tensor reconstruction invalidates a hot representation claim;
 - capacity-only success is classified separately from speed;
 - staging stops when exposed transfer wait remains or CPU execution is faster;
+- committed-output accounting is mandatory for every speculative comparator,
+  but #93 does not enter implementation until it freezes a concrete
+  exact-target-distribution algorithm whose draft, verification, rejected work,
+  memory, and transfer roofline predicts at least 10 percent end-to-end benefit;
 - this document does not authorize a joint trial; after C8 and refreshed #97
   admission, Packet G may run a joint candidate only when at least two
-  mechanisms have independent full-pass receipts.
+  mechanisms have independent full-pass receipts and an accepted compatibility,
+  recovery, dependency, overlap, and combined worst-case resource-DAG record.
 
 ## Large-model viability thresholds
 
@@ -300,18 +314,29 @@ Before measurement, freeze:
 - validation cell and strongest same-cell controls;
 - independent sampling unit and stratification;
 - search, calibration, validation, confirmation, and promotion partitions;
-- sample size or precision target, alpha, interval method, and multiplicity;
+- immutable experiment-family id plus every promotion-eligible candidate,
+  seed, endpoint, baseline, interim look, and confirmation attempt;
+- smallest effect of interest, fixed and maximum sample size, precision target,
+  alpha, power target, interval method, and multiplicity correction;
 - trial order/randomization, warm-up, cold/warm state, and cache policy;
 - exclusion, retry, failure, missingness, and early-stop rules;
 - paired estimator and request/session-level distribution to report;
 - threshold-registry version and decision rule.
 
-Tokens from one sequence, tiles from one tensor, or repeated timings inside one
-process are not automatically independent. Use sessions/requests/artifacts as
-the inferential unit where appropriate. Report raw counts, effect size,
-interval, worst stratum, and all exclusions. Finalists receive a fresh
-confirmation run. Sequential testing needs an alpha-spending or other
-predeclared correction.
+The inferential unit is the highest level independently sampled or randomized
+from the target population. Tokens from one sequence, tiles from one tensor, or
+repeated timings inside one process are clustered measurements and do not
+increase independent sample count. Report raw observations, effective
+independent-unit count, effect size, interval, worst stratum, and every
+scheduled trial disposition.
+
+OOM, timeout, crash, watchdog stop, missing terminal evidence, or retry is
+retained on an intent-to-measure basis; a retry never replaces the original.
+Search and configuration choice cannot inspect the locked confirmation
+partition. One frozen finalist receives one independent confirmation under the
+predeclared familywise or sequential correction. A failed confirmation cannot
+be retuned under a new label without a materially new reviewed hypothesis and
+experiment-family id.
 
 ## Artifact trust
 

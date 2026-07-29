@@ -155,6 +155,39 @@ A feature listed by another runtime or current upstream does not become a
 PrismInfer actuator. Only a control implemented and acknowledged by the pinned
 cell may enter the plan set.
 
+## Research refresh implications
+
+The 2026-07-29 source review strengthens the adaptive-layer hypothesis without
+proving the pinned seam. FlexInfer separates prefill and decode policies;
+ADAngel compiles an offline shape/bit-width strategy map for a lightweight
+dispatcher; Kairox adapts neuron placement, prefetch, and caching from live
+activation/resource state; and Strata co-designs hierarchical KV layout, I/O,
+and cache-aware scheduling. These systems show that placement and dispatch
+benefit from phase-, shape-, state-, and hardware-specific decisions.
+
+They also sharpen the boundary. Kairox, Strata, DirectKV, and the OSDI 2026
+local-MoE system own invasive cache, scheduler, kernel, or architecture-specific
+runtime mechanisms. Their reported cells use different model sparsity,
+interconnects, operating modes, memory tiers, and service workloads. They are
+mechanism references or separate runtime cells, not drop-in PrismInfer
+actuators and not evidence that a dense 8B/9B Windows path should stream weights.
+
+The architectural sequence therefore remains:
+
+1. measure the strongest fully resident upstream path whenever the admitted
+   quantized weights and declared state fit;
+2. prove the narrow GGML lifecycle, allocation, placement, state, and
+   actual-path seam;
+3. compile only acknowledged static candidates and phase-specific policy maps;
+4. add one independently gated provider only when its same-cell benefit exceeds
+   transfer, workspace, source duplication, fallback, and quality cost; and
+5. reconsider another substrate or a clean-sheet runtime only through the
+   existing reopen criteria.
+
+The dated source classifications, reviewed runtime heads, and applicability
+limits are maintained in
+[`research-hypotheses-and-references.md`](research-hypotheses-and-references.md).
+
 ## Integration ladder
 
 Escalation is evidence-driven:

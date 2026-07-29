@@ -1,13 +1,18 @@
 # PrismInfer Adaptive Runtime V2
 
 Status: active program specification on M0 merge, with the #125 runtime
-comparator and exact service-cell contract aligned on 2026-07-22.
+comparator and exact service-cell contract aligned on 2026-07-22 and the
+cross-cutting #130 primary-source refresh reconciled through 2026-07-29.
 
 This package replaces the first adaptive-runtime research packet. It does not
 grant CUDA, model, calibration, benchmark, download, workflow, or implementation
 clearance. The root [`Plan.md`](../../Plan.md) remains the only authority for
 program thesis, scope, issue order, clearances, active status, phase exit, and
 packet execution.
+
+The #130 refresh updates precedent, runtime capability context, mathematical
+conditions, and red-team dispositions. It changes no milestone, packet
+dependency, actuator, admission state, or measured claim.
 
 ## Decision
 

@@ -3,6 +3,14 @@
 Phase 6 is partially implemented as schema, comparator, policy, and synthetic
 CUDA scaffolding. It has no model-backed evidence and remains `research-only`.
 
+The #130 literature and runtime refresh reviewed primary sources through
+2026-07-29. Kairox, ADAngel, Strata, DirectKV, TurboQuant, DecDEC, FlexInfer,
+and related systems strengthen or qualify future mechanism hypotheses, but
+none was executed in a PrismInfer exact cell. The refresh adds zero model,
+runtime, CUDA, capacity, quality, performance, packet-entry, or C2 evidence.
+The source classifications and applicability boundaries are maintained in
+`docs/adaptive-runtime-v2/research-hypotheses-and-references.md`.
+
 Current status:
 
 - Strict kernel-manifest file ingestion and same-cell comparator tests exist.

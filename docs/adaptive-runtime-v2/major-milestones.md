@@ -34,6 +34,12 @@ Cross-cutting issue #125 tightens comparator and exact service-cell acceptance
 inside the existing milestones. It creates no M8, reorders no packet, grants no
 clearance, and does not change #119 or C2.
 
+Cross-cutting issue #130 refreshes primary research, runtime capability context,
+mathematical conditions, and red-team dispositions. It likewise creates no new
+milestone or dependency. It prospectively tightens optional-mechanism entry,
+statistical, and promotion gates, while granting no implementation, model,
+CUDA, workflow, performance, packet-entry, or C2 credit.
+
 ## M0: Adaptive Runtime V2 governance freeze
 
 **Outcome.** Replace the duplicated V1 research packet with nine canonical,
@@ -427,32 +433,46 @@ model/calibration evidence.
 ## M6: Packet F - exact 30B truth and independent optional providers
 
 **Outcome.** One exact 30B static placement result or rejection, followed by
-independent pass/reject decisions for every optional mechanism and a Phase 8
-audit.
+independent terminal decisions for every optional mechanism, a joint-eligibility
+decision, and a Phase 8 audit.
 
 **Issue sequence.** #90; then independently checkpointed #91 through #95; then
 #96.
 
 **Predecessor and clearance.** M5/C6 exit and exact #84 admission. Accepted #90
-static truth establishes C7. Under C7, each #91 through #95 mechanism requires
-its own issue-specific entry and evidence gate; #96 establishes C8 only after
-every independent decision is retained.
+static truth establishes full C7. Under full C7, each #91 through #95 mechanism
+requires its own issue-specific entry and evidence gate; #96 establishes C8
+only after every independent decision is retained.
+
+A cause-coded #90 capacity or bandwidth rejection may open only a mechanism
+that predeclares how it addresses that retained bound. This is restricted C7:
+all nonmatching mechanisms are not admitted. An identity, safety,
+evidence-integrity, or unresolved quality failure establishes no C7 and cannot
+be repaired by an optional mechanism.
 
 **Allowed work.**
 
 - freeze and measure the strongest exact 30B static CPU/GPU placement;
-- #91 phase-specific kernel dispatch and bounded staging hypotheses;
+- freeze one hash-bound #90 control manifest, experiment-family claim registry,
+  bounded candidate/trial budget, and primary endpoint per
+  mechanism/phase/benefit class;
+- #91 phase-specific kernel dispatch and bounded staging hypotheses with
+  independent receipts or a predeclared factorial design;
 - #92 separate KV and architecture-state policy against the strongest
   supported same-cell upstream allocation/retention control;
-- #93 committed-output-aware speculative offload;
+- #93 committed-output accounting first; a speculative-offload implementation
+  only after a concrete exact-distribution algorithm and transfer/verification
+  roofline pass the entry screen;
 - #94 representation compiler, legal rotations, fixed hot base, progressive
   prefixes, cold-residual entropy, activation-transfer compression, and direct
   execution providers, with independent decisions for weight and activation
   representations;
 - #95 structured-compute oracle followed by a guarded router only if the oracle
-  passes;
+  passes, with a separate full-model router confirmation;
 - record joint-optimization eligibility only after at least two mechanisms pass
-  independently; Packet G owns any combined plan or execution.
+  independently and pass a compatibility, dependency, overlap,
+  non-double-counting, recovery, and combined-resource review; Packet G owns any
+  combined plan or execution.
 
 **Prohibited work.**
 
@@ -468,10 +488,20 @@ every independent decision is retained.
 **Deliverables.**
 
 - exact 30B static result or lower-bound rejection;
-- independent pass/reject/not-admitted record for #91-#95;
+- independent `pass-promotable`, `complete-nonpromotable`, `not-admitted`, or
+  `inconclusive` record for each mechanism and phase in #91-#95;
+- an `inconclusive` result cannot satisfy #96 until it is resolved under the
+  frozen sample plan or explicitly dispositioned as not admitted;
 - phase-specific provider descriptors and actual-path evidence where applicable;
 - factorial identity/rotation/residual-routing ablation;
-- T-040 through T-049 decisions and Phase 8 audit.
+- per-pass held-out full-model comparison against the frozen #90 control and
+  strongest eligible same-cell upstream control;
+- lifecycle ledger for artifact construction, derived storage, startup,
+  staging, speculative waste, recurring transfer/compute, and the declared
+  amortization horizon;
+- joint-eligibility compatibility and combined worst-case resource-DAG record;
+- T-040 through T-048 decisions and Phase 8 audit; T-049 remains unmeasured
+  unless Packet G separately admits and executes a joint arm.
 
 **Retained artifacts and tests.**
 
@@ -480,6 +510,9 @@ every independent decision is retained.
   prefill, KV/state, transfer, recovery, profiler, quality, retrieval, and
   output-length evidence;
 - isolated microbenchmarks linked to end-to-end confirmation;
+- immutable experiment-family registry, scheduled-trial dispositions,
+  multiplicity correction, and one locked confirmation receipt per passing
+  mechanism/phase claim;
 - independent candidate manifests and a joint-eligibility decision record; no
   joint candidate manifest is produced before Packet G admission.
 
@@ -507,7 +540,9 @@ for the work that establishes it.
 
 - refresh all exact 30B/70B/90B capacity, bandwidth, storage, host, state, and
   safety bounds;
-- optional admitted 30B dynamic result;
+- #98 owns any optional admitted 30B dynamic or joint result; a joint arm is a new
+  ValidationCell and T-049 comparison, not inherited evidence from its
+  components;
 - exact 70B and 90B execution only when each corresponding issue is admitted;
 - portability, invalidation, pin-update, recalibration, evidence, and claim
   audits, followed at #102 by the first mandatory consolidated security review
@@ -530,6 +565,7 @@ for the work that establishes it.
 
 - refreshed admission receipts;
 - exact dynamic/scale results or rejections;
+- the #98 T-049 decision whenever a joint arm is admitted and executed;
 - portability and two-pin seam-maintenance report;
 - final consolidated security/evidence/claim classification and
   runtime-direction decision.
@@ -537,7 +573,8 @@ for the work that establishes it.
 **Retained artifacts and tests.**
 
 - all exact manifests, raw observations, timelines, quality/output-length
-  results, T-060 through T-065 decisions, and negative bounds;
+  results, any applicable T-049 decision, T-060 through T-065 decisions, and
+  negative bounds;
 - invalidation/recalibration, fallback, cleanup, pin-update, and reproducibility
   tests;
 - final T2/T3 review receipts.

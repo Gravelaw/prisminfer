@@ -1,8 +1,9 @@
 # PrismInfer Final Plan
 
 Status: Adaptive Runtime V2 governance active; M0, M1, M2, and the #125
-runtime-comparator contract closeout are complete. C2 remains closed.
-Last reconciled: 2026-07-23 (#125 closed by PR #126 merge f38ef80fe785efd9b76b5db4a71368039c928a5a)
+runtime-comparator contract closeout are complete. Cross-cutting research
+refresh #130 is in progress and does not reopen a milestone. C2 remains closed.
+Last reconciled: 2026-07-29 (#130 opened as a documentation-only, cross-cutting research refresh)
 Operational tracker: [GitHub Project #2](https://github.com/users/Gravelaw/projects/2)
 
 ## Authority and Change Control
@@ -110,8 +111,18 @@ optimizer/provider speedup, calibration, plan, or oracle claim.
 - **Performance:** passes the frozen same-cell end-to-end continuation rule.
 - **Quality-preserving:** passes the frozen paired fixtures and statistical
   rule.
-- **Rejected/not admitted:** stopped by a predeclared resource, safety,
-  evidence, quality, or performance bound.
+- **Pass-promotable:** the admitted experiment is complete and every
+  claim-specific entry, safety, evidence, quality, and statistical gate passes;
+  only its exact claim/cell may advance.
+- **Complete-nonpromotable:** the admitted experiment is evidentially complete,
+  but a frozen benefit, quality, cost, or claim gate does not permit promotion;
+  this is the normal research-negative result.
+- **Not-admitted:** execution never starts because a predeclared identity,
+  resource, safety, evidence, or applicability prerequisite rejects the cell.
+- **Inconclusive:** the frozen plan cannot make a valid decision because
+  precision, coverage, integrity, or another required observation is
+  insufficient. It is a retained experiment outcome, not a dependency-closing
+  decision and not permission to retune or retry.
 - **Unsupported:** required evidence is missing or contradictory.
 
 Negative, rejected, research-only, measured-non-certified, slow/offline and
@@ -231,7 +242,7 @@ reservation ends the transition immediately.
 | C4 calibration readiness | #78 Phase 6 audit, #83 actuator inventory, #85 actual-path adapter, #86 frozen sample plans and drift rules. | Designed supervised foundation calibration. |
 | C5 calibrated static replay | #87 selector/oracle gates and #88 immutable acknowledged replay/recovery tests. | First safe calibrated static foundation replay. |
 | C6 usable static-runtime clearance | #89 fresh confirmation plus functional, safety, evidence, and claim review after #87/#88 establish usable contained replay. | Exact foundation result; Ornith only as its separately admitted stress cell. |
-| C7 30B static truth | #84 exact 30B admission and accepted #90 result or rejection. | Independent issue-specific #91–#95 optional-mechanism entries; no joint work. |
+| C7 30B static truth | #84 exact 30B admission plus #90. An accepted #90 result establishes full C7. A cause-coded capacity/bandwidth rejection establishes restricted C7 only for each named optional mechanism whose predeclared action addresses that retained bound; every other mechanism is not admitted. Identity, safety, evidence-integrity, or unresolved quality failure grants no C7. | Under full C7, independent issue-specific #91-#95 entries; under restricted C7, only the named matching entries. No joint work. |
 | C8 optional-mechanism decisions | #90 plus each mechanism's own #91–#95 entry and evidence gate; #96 audit. | Packet G refreshed admission and only separately admitted dynamic, joint, or scale cells. |
 | C9 final program classification | #97 refreshed admission, conditional #98–#100, #101 and #102, including the first mandatory consolidated security review after the applicable library/test matrix completes. | Publication of the retained final classifications; no new hardware/model clearance. |
 
@@ -267,9 +278,9 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 | #93 | Optional committed-output-aware speculative offload. | #90 and #88. | Backlog |
 | #94 | Optional progressive representation and activation-transfer compression hypotheses. | #90 plus security/provider/quality approval. | Backlog |
 | #95 | Optional structured-compute oracle, then router gate. | #90 plus privacy/quality approval. | Backlog |
-| #96 | Independent optional decisions and Phase 8 audit. | #90 and a pass/reject/not-admitted record for #91-#95. | Backlog |
+| #96 | Independent optional decisions and Phase 8 audit. | #90 and a `pass-promotable`, `complete-nonpromotable`, or `not-admitted` record for every mechanism/phase in #91-#95; no unresolved `inconclusive` result. | Backlog |
 | #97 | Refresh exact scale admission. | #84 and #96. | Backlog |
-| #98 | Optional admitted 30B dynamic result. | #90 and #97. | Backlog |
+| #98 | Optional admitted 30B dynamic or joint result; an admitted joint arm owns T-049. | #90 and #97. | Backlog |
 | #99 | Exact admitted 70B result/rejection. | #97 admission of that artifact. | Blocked |
 | #100 | Exact admitted 90B result/rejection. | #97 admission of that artifact. | Blocked |
 | #101 | Portability, invalidation and recalibration; a conditionally selected alternative runtime is a separate cell. | #98 plus each activated/rejected #99/#100 record. | Backlog |
@@ -277,6 +288,7 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 | #103 | Fail-closed hardware supervisor and staged admission boundary. | #79, #81, the safety subset of #82 and the #109 host-admission primitive. | Done in Packet B PR #112 |
 | #119 | Bounded opt-in synthetic C2 supervisor lane and versioned candidate receipt. | Completed #81/#82/#103; code and workflow review grant no C2 credit, and dispatch requires a separate exact-SHA hardware authorization. | In Progress |
 | #125 | Cross-cutting runtime-comparator and exact service-cell contract alignment. | Merged by PR #126 at f38ef80fe785efd9b76b5db4a71368039c928a5a; changes no dependency, clearance, or #119 status. | Done |
+| #130 | Cross-cutting primary-source and runtime-evidence refresh for the active V2 documents. | Documentation and tracker reconciliation only; changes no packet dependency, clearance, measured result, or #119 status. | In Progress |
 
 ## Critical Path
 
