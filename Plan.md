@@ -2,9 +2,9 @@
 
 Status: Adaptive Runtime V2 governance active; M0, M1, M2, and the #125
 runtime-comparator contract closeout are complete. Cross-cutting research
-refresh #130 is complete in PR #131 and does not reopen a milestone. C2 remains
-closed.
-Last reconciled: 2026-07-29 (#130 completed by PR #131 as a documentation-only, cross-cutting research refresh)
+refresh #130 is carried by PR #131, becomes complete only in that PR's merged
+state, and does not reopen a milestone. C2 remains closed.
+Last reconciled: 2026-07-29 (#130 and PR #131 are one documentation-only, cross-cutting research-refresh state transition)
 Operational tracker: [GitHub Project #2](https://github.com/users/Gravelaw/projects/2)
 
 ## Authority and Change Control
@@ -289,7 +289,7 @@ Phase 7 may therefore execute before model-backed Phase 6 evidence.
 | #103 | Fail-closed hardware supervisor and staged admission boundary. | #79, #81, the safety subset of #82 and the #109 host-admission primitive. | Done in Packet B PR #112 |
 | #119 | Bounded opt-in synthetic C2 supervisor lane and versioned candidate receipt. | Completed #81/#82/#103; code and workflow review grant no C2 credit, and dispatch requires a separate exact-SHA hardware authorization. | In Progress |
 | #125 | Cross-cutting runtime-comparator and exact service-cell contract alignment. | Merged by PR #126 at f38ef80fe785efd9b76b5db4a71368039c928a5a; changes no dependency, clearance, or #119 status. | Done |
-| #130 | Cross-cutting primary-source and runtime-evidence refresh for the active V2 documents. | Documentation and tracker reconciliation only; changes no packet dependency, clearance, measured result, or #119 status. | Done in PR #131 |
+| #130 | Cross-cutting primary-source and runtime-evidence refresh for the active V2 documents. | Prospectively clarifies restricted C7 and tightens optional-mechanism entry/promotion gates; changes no packet dependency or current clearance, measured result, or #119 status. | PR #131; Done only on merge |
 
 ## Critical Path
 
