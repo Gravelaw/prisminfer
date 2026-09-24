@@ -428,7 +428,6 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
       return grant;
     }
     auto post_request = std::move(live->request);
-    post_request.evaluation_monotonic_milliseconds = evaluated_at;
     const auto& independent = live->independent;
     if (!bind_process_device_memory_evidence(
             &post_request.owned_gpu, independent, process_id, luid_high,
@@ -476,12 +475,22 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
       owned.hard_cap_bytes =
           impl_->pre_receipt->pre_context_effective_cap_bytes();
     }
+    // Binding and protocol checks can consume time. Admission must use the
+    // actual decision time, while each observation keeps its capture time.
+    const auto admission_at = monotonic_time_milliseconds();
+    if (admission_at == 0U || admission_at < evaluated_at) {
+      std::lock_guard lock(impl_->mutex);
+      impl_->state = GpuAdmissionSessionState::FailedClosed;
+      grant.failure_reason = "monotonic_clock_invalid";
+      return grant;
+    }
+    post_request.evaluation_monotonic_milliseconds = admission_at;
     const auto admitted = admit_post_context(std::move(post_request));
     if (!admitted.admitted) {
       grant.failure_reason = admitted.reason;
       return grant;
     }
-    auto issued = issue_token(evaluated_at, token_validity_milliseconds);
+    auto issued = issue_token(admission_at, token_validity_milliseconds);
     if (issued.status != AdmissionTokenStatus::Issued || !issued.token) {
       grant.failure_reason = "token_issue_failed";
       return grant;
@@ -545,7 +554,6 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
     const auto evaluated_at = monotonic_time_milliseconds();
     if (evaluated_at == 0U) return false;
     auto sample = std::move(live->sample);
-    sample.evaluated_monotonic_milliseconds = evaluated_at;
     sample.worker_heartbeat_monotonic_milliseconds = now;
     sample.worker_alive = true;
     {
@@ -590,6 +598,9 @@ NativeWorkerResult GpuAdmissionSession::run_contained_worker(
       owned.cuda_mem_info_total_bytes =
           heartbeat_evidence.cuda_mem_info_total_bytes;
     }
+    const auto admission_at = monotonic_time_milliseconds();
+    if (admission_at == 0U || admission_at < evaluated_at) return false;
+    sample.evaluated_monotonic_milliseconds = admission_at;
     return evaluate_watchdog(sample).continue_work;
   };
   protocol.beat = [&protocol](std::uint64_t sequence, std::uint64_t now) {
