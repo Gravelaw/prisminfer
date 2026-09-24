@@ -180,6 +180,13 @@ target_compile_definitions(prism_c2_supervisor_compile_check PRIVATE
   PRISMINFER_C2_REVIEWED_SHA="0000000000000000000000000000000000000000"
   PRISMINFER_C2_SOURCE_TREE_SHA="0000000000000000000000000000000000000000")
 
+add_executable(test_c2_pre_request tests/unit/test_c2_pre_request.cpp)
+target_link_libraries(test_c2_pre_request PRIVATE prisminfer_core)
+target_compile_definitions(test_c2_pre_request PRIVATE
+  PRISMINFER_C2_REVIEWED_SHA="0000000000000000000000000000000000000000"
+  PRISMINFER_C2_SOURCE_TREE_SHA="0000000000000000000000000000000000000000")
+add_test(NAME test_c2_pre_request COMMAND test_c2_pre_request)
+
 if(PRISMINFER_ENABLE_C2_SYNTHETIC)
   add_executable(prism-c2-synthetic-worker
     tools/prism-c2-synthetic-worker/main.cu)

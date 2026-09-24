@@ -3,6 +3,7 @@
 #include <charconv>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <mutex>
@@ -44,6 +45,20 @@ struct LiveEvidenceCapture {
   std::optional<prisminfer::ProcessDeviceMemorySample> first_process;
   std::optional<prisminfer::ProcessDeviceMemorySample> process;
   std::uint64_t process_peak_bytes{0};
+};
+
+struct PreRequestSampling {
+  std::function<prisminfer::GpuThermalSample(const std::string&)> thermal =
+      prisminfer::sample_nvml_gpu_thermal;
+  std::function<prisminfer::HostTelemetrySample()> host =
+      prisminfer::sample_host_telemetry;
+  std::function<std::filesystem::space_info(
+      const std::filesystem::path&, std::error_code&)> storage =
+      [](const std::filesystem::path& path, std::error_code& error) {
+        return std::filesystem::space(path, error);
+      };
+  std::function<std::uint64_t()> clock =
+      prisminfer::monotonic_time_milliseconds;
 };
 
 template <typename Integer>
@@ -174,13 +189,12 @@ prisminfer::AdmissionCellIdentity make_cell(
 
 prisminfer::PreContextAdmissionRequest make_pre_request(
     const Options& options, const prisminfer::WddmMemorySample& wddm,
-    const prisminfer::AdmissionCellIdentity& cell) {
-  const auto now = prisminfer::monotonic_time_milliseconds();
+    const prisminfer::AdmissionCellIdentity& cell,
+    const PreRequestSampling& sampling = {}) {
   prisminfer::PreContextAdmissionRequest request;
   request.requested_tier_bytes = 2U * kGiB;
   request.context_tokens = 1U;
   request.run_deadline_milliseconds = 60'000U;
-  request.evaluation_monotonic_milliseconds = now;
   request.cell = cell;
   request.predicted_gpu.context_runtime = predicted(
       512ULL << 20U,
@@ -197,9 +211,8 @@ prisminfer::PreContextAdmissionRequest make_pre_request(
   request.predicted_gpu.fragmentation = predicted(
       0U, prisminfer::PredictionProvenance::ExactZeroNotApplicable);
   request.gpu = gpu_sample(wddm);
-  request.thermal =
-      prisminfer::sample_nvml_gpu_thermal(options.gpu_uuid);
-  request.host = prisminfer::sample_host_telemetry();
+  request.thermal = sampling.thermal(options.gpu_uuid);
+  request.host = sampling.host();
   request.host_policy = prisminfer::default_host_reserve_policy(
       prisminfer::HostAdmissionLane::EvidencePromotable);
   request.host_request.planned_incremental_resident_bytes = 512ULL << 20U;
@@ -209,13 +222,16 @@ prisminfer::PreContextAdmissionRequest make_pre_request(
   request.host_request.promotion_requested = true;
   request.storage.available = false;
   std::error_code space_error;
-  const auto space = std::filesystem::space(options.output_root, space_error);
+  const auto space = sampling.storage(options.output_root, space_error);
   if (!space_error) {
     request.storage.available = true;
     request.storage.free_bytes = space.available;
     request.storage.reserve_bytes = 1U * kGiB;
     request.storage.required_incremental_bytes = 4ULL << 20U;
   }
+  // Capture evaluation time only after every required observation. Keep the
+  // source capture times unchanged so future, stale, and missing samples fail.
+  request.evaluation_monotonic_milliseconds = sampling.clock();
   return request;
 }
 
@@ -288,7 +304,15 @@ int main(int argc, char** argv) {
   const auto host_request = pre.host_request;
   const auto pre_decision = acquired.session->admit_pre_context(pre);
   if (!pre_decision.admitted) {
-    std::cerr << pre_decision.reason << "\n";
+    std::cerr << "non_promotable_pre_context_rejection"
+              << " reason=" << pre_decision.reason
+              << " evaluation_ms=" << pre.evaluation_monotonic_milliseconds
+              << " wddm_capture_ms="
+              << pre.gpu.captured_monotonic_milliseconds
+              << " thermal_capture_ms="
+              << pre.thermal.captured_monotonic_milliseconds
+              << " host_capture_ms="
+              << pre.host.captured_monotonic_milliseconds << "\n";
     return 8;
   }
 
@@ -372,6 +396,30 @@ int main(int argc, char** argv) {
     last_process = captured.process;
     first_process = captured.first_process;
     process_peak_bytes = captured.process_peak_bytes;
+  }
+
+  if (!result.ok) {
+    std::cerr << "non_promotable_worker_rejection"
+              << " reason=" << result.failure_reason
+              << " diagnostic_ms="
+              << prisminfer::monotonic_time_milliseconds();
+    if (last_post) {
+      std::cerr << " post_wddm_capture_ms="
+                << last_post->gpu.captured_monotonic_milliseconds
+                << " post_thermal_capture_ms="
+                << last_post->thermal.captured_monotonic_milliseconds
+                << " post_host_capture_ms="
+                << last_post->host.captured_monotonic_milliseconds;
+    }
+    if (last_watchdog) {
+      std::cerr << " watchdog_wddm_capture_ms="
+                << last_watchdog->gpu.captured_monotonic_milliseconds
+                << " watchdog_thermal_capture_ms="
+                << last_watchdog->thermal.captured_monotonic_milliseconds
+                << " watchdog_host_capture_ms="
+                << last_watchdog->host.captured_monotonic_milliseconds;
+    }
+    std::cerr << '\n';
   }
 
   const auto final_wddm =
