@@ -369,6 +369,11 @@ commits, integration/conflict changes, changed contracts and evidence/claim
 deltas; they do not re-review unchanged covered diffs. A changed reviewed path
 invalidates that receipt. Full applicable CPU/hosted validation runs once at
 the final packet head, while focused deterministic checks run at checkpoints.
+Every PR also receives its own separate non-authoring reviewer invocation and
+PR-linked receipt before merge, including documentation-only and follow-up PRs.
+The reviewer may inherit unchanged checkpoint evidence but must inspect that
+PR's current integration and any uncovered delta. The merge gate is the current
+PR head/tree, base, resolved findings, and applicable checks under `AGENTS.md`.
 
 Risk-tier minimums are defined in `AGENTS.md`: T0 documentation/tracker, T1
 ordinary CPU, T2 safety-critical code/governance and T3 hardware/model evidence.
